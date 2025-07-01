@@ -33,3 +33,7 @@ python init_superadmin.py
 
 db.users.findOne({role: "superadmin"})
 
+# Eliminar node_modules y package-lock.json:
+rm -rf node_modules
+rm package-lock.json
+
