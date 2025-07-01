@@ -258,6 +258,7 @@ backend/app/services/auth_service.py
 /frontend/src/components/layout/AuthLayout.js
 /frontend/src/components/layout/DashboardLayout.js
 /frontend/src/components/layout/DashboardSidebar.js
+/frontend/src/components/layout/DashboardAppBar.js
 
 /frontend/src/routes/AppRoutes.js
 
