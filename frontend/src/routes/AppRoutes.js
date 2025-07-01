@@ -1,11 +1,15 @@
-import React from 'react';
+// src/routes/AppRoutes.js
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../app/contexts/AuthContext';
-import LoginPage from '../features/auth/pages/LoginPage';
-import DashboardPage from '../features/dashboard/pages/DashboardPage';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import AuthLayout from '../components/layout/AuthLayout';
-import { CircularProgress, Box } from '@mui/material';
+import CircularProgress from '@mui/material/CircularProgress';
+import Box from '@mui/material/Box';
+
+// Lazy loading para páginas
+const LoginPage = lazy(() => import('../features/auth/pages/LoginPage'));
+const DashboardPage = lazy(() => import('../features/dashboard/pages/DashboardPage'));
 
 const ProtectedRoute = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -26,23 +30,45 @@ const PublicRoute = () => {
   return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace />;
 };
 
+const LoadingFallback = () => (
+  <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+    <CircularProgress size={60} />
+  </Box>
+);
+
 const AppRoutes = () => {
   return (
-    <Routes>
-      <Route element={<PublicRoute />}>
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+    <Suspense fallback={<LoadingFallback />}>
+      <Routes>
+        <Route element={<PublicRoute />}>
+          <Route element={<AuthLayout />}>
+            <Route 
+              path="/login" 
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <LoginPage />
+                </Suspense>
+              } 
+            />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Route>
         </Route>
-      </Route>
 
-      <Route element={<ProtectedRoute />}>
-        <Route element={<DashboardLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<DashboardLayout />}>
+            <Route 
+              path="/dashboard" 
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <DashboardPage />
+                </Suspense>
+              } 
+            />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Route>
         </Route>
-      </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 };
 

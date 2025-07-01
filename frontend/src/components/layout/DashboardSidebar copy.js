@@ -5,7 +5,7 @@ import {
   Typography,
   Drawer, 
   List, 
-  ListItemButton, // Cambiado de ListItem
+  ListItem, 
   ListItemIcon, 
   ListItemText, 
   Divider,
@@ -13,14 +13,16 @@ import {
   useTheme,
   styled
 } from '@mui/material';
-import DashboardIcon from '@mui/icons-material/Dashboard';
-import PeopleIcon from '@mui/icons-material/People';
-import InventoryIcon from '@mui/icons-material/Inventory';
-import StoreIcon from '@mui/icons-material/Store';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import SettingsIcon from '@mui/icons-material/Settings';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import {
+  Dashboard as DashboardIcon,
+  People as PeopleIcon,
+  Inventory as InventoryIcon,
+  Store as StoreIcon,
+  BarChart as BarChartIcon,
+  Settings as SettingsIcon,
+  ExpandLess as ExpandLessIcon,
+  ExpandMore as ExpandMoreIcon
+} from '@mui/icons-material';
 
 const StyledDrawer = styled(Drawer)(({ theme }) => ({
   width: theme.mixins.drawerWidth,
@@ -92,7 +94,8 @@ const DashboardSidebar = ({ mobileOpen, handleDrawerToggle }) => {
         {menuItems.map((item, index) => (
           <React.Fragment key={index}>
             {!item.subItems ? (
-              <ListItemButton 
+              <ListItem 
+                button 
                 sx={{ 
                   borderRadius: 2,
                   mb: 0.5,
@@ -109,10 +112,11 @@ const DashboardSidebar = ({ mobileOpen, handleDrawerToggle }) => {
                     </Typography>
                   } 
                 />
-              </ListItemButton>
+              </ListItem>
             ) : (
               <>
-                <ListItemButton 
+                <ListItem 
+                  button 
                   onClick={handleReportsClick}
                   sx={{ 
                     borderRadius: 2,
@@ -131,11 +135,12 @@ const DashboardSidebar = ({ mobileOpen, handleDrawerToggle }) => {
                     } 
                   />
                   {openReports ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-                </ListItemButton>
+                </ListItem>
                 <Collapse in={openReports} timeout="auto" unmountOnExit>
                   <List component="div" disablePadding sx={{ pl: 4 }}>
                     {item.subItems.map((subItem, subIndex) => (
-                      <ListItemButton 
+                      <ListItem 
+                        button 
                         key={subIndex}
                         sx={{ 
                           borderRadius: 2,
@@ -150,7 +155,7 @@ const DashboardSidebar = ({ mobileOpen, handleDrawerToggle }) => {
                             </Typography>
                           } 
                         />
-                      </ListItemButton>
+                      </ListItem>
                     ))}
                   </List>
                 </Collapse>
@@ -163,7 +168,8 @@ const DashboardSidebar = ({ mobileOpen, handleDrawerToggle }) => {
       <Divider sx={{ mx: 2 }} />
       
       <List sx={{ p: 2, mt: 'auto' }}>
-        <ListItemButton 
+        <ListItem 
+          button 
           sx={{ 
             borderRadius: 2,
             mb: 0.5,
@@ -180,7 +186,7 @@ const DashboardSidebar = ({ mobileOpen, handleDrawerToggle }) => {
               </Typography>
             } 
           />
-        </ListItemButton>
+        </ListItem>
       </List>
     </div>
   );
@@ -198,7 +204,7 @@ const DashboardSidebar = ({ mobileOpen, handleDrawerToggle }) => {
         open={mobileOpen}
         onClose={handleDrawerToggle}
         ModalProps={{
-          keepMounted: true,
+          keepMounted: true, // Better open performance on mobile.
         }}
         sx={{
           display: { xs: 'block', sm: 'none' },

@@ -32,7 +32,8 @@ const measureStartup = () => {
   const loadTime = endTime - startTime;
   console.log(`🕒 Tiempo de inicio de la aplicación: ${loadTime.toFixed(2)} ms`);
   
-  // Registrar métricas de recursos (eliminada la variable 'entry' no utilizada)
+  // Registrar métricas de recursos
+  const entry = performance.getEntriesByType("navigation")[0];
   console.log("📦 Tamaño de recursos:");
   console.table(
     performance.getEntriesByType("resource").map(resource => ({
