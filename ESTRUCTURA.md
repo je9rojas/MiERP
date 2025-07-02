@@ -227,6 +227,10 @@ backend/app/models/user.py
 /backend/app/routes/__init__.py
 /backend/app/routes/auth.py
 backend/app/routes/products.py
+/backend/app/routes/roles.py
+/backend/app/routes/users.py
+/backend/app/routes/customers.py
+
 
 /backend/scripts/create_superadmin.py
 
@@ -238,6 +242,9 @@ backend/app/services/auth_service.py
 /frontend/src/main.js
 /frontend/src/App.js
 
+/frontend/src/api/axiosConfig.js
+/frontend/src/api/authAPI.js
+/frontend/src/api/adminAPI.js.
 
 /frontend/src/app/contexts/AuthContext.js
 /frontend/src/app/store.js
@@ -250,9 +257,12 @@ backend/app/services/auth_service.py
 
 /frontend/src/features/auth/pages/LoginPage.js
 
+/frontend/src/features/admin/components/UserFormModal.js
+/frontend/src/features/admin/pages/UserManagementPage.js
 /frontend/src/features/dashboard/pages/DashboardPage.js
 /frontend/src/features/auth/pages/RegisterPage.js
 /frontend/src/features/auth/authSlice.js
+/frontend/src/features/home/pages/HomePage.js
 
 
 /frontend/src/components/layout/AuthLayout.js
@@ -262,8 +272,6 @@ backend/app/services/auth_service.py
 
 /frontend/src/routes/AppRoutes.js
 
-/frontend/src/api/axiosConfig.js
-/frontend/src/api/authAPI.js
 
 /frontend/src/utils/auth/auth.js
 /frontend/src/utils/auth/roles.js

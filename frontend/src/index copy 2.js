@@ -9,12 +9,13 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import theme from './app/theme';
 
-// Registrar tiempo de inicio
+console.log('[index] Iniciando aplicación');
+
 const startTime = performance.now();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
+
     <BrowserRouter>
       <ThemeProvider theme={theme}>
         <CssBaseline />
@@ -23,18 +24,15 @@ root.render(
         </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
-  </React.StrictMode>
+
 );
 
-// Registrar tiempo de fin después de la renderización inicial
 const measureStartup = () => {
   const endTime = performance.now();
   const loadTime = endTime - startTime;
-  console.log(`🕒 Tiempo de inicio de la aplicación: ${loadTime.toFixed(2)} ms`);
+  console.log(`[index] 🕒 Tiempo de inicio: ${loadTime.toFixed(2)} ms`);
   
-  // Registrar métricas de recursos
-  const entry = performance.getEntriesByType("navigation")[0];
-  console.log("📦 Tamaño de recursos:");
+  console.log("[index] 📦 Tamaño de recursos:");
   console.table(
     performance.getEntriesByType("resource").map(resource => ({
       "Recurso": resource.name,
@@ -45,5 +43,4 @@ const measureStartup = () => {
   );
 };
 
-// Medir después de que se complete la renderización inicial
 setTimeout(measureStartup, 0);

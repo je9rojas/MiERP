@@ -1,10 +1,14 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
 import { loginAPI, getUserProfile, verifyToken } from '../../api/authAPI';
 import { setAuthToken, getAuthToken, removeAuthToken } from '../../utils/auth/auth';
 
 const AuthContext = createContext();
 
+console.log('[AuthContext] Creando contexto de autenticación');
+
 const authReducer = (state, action) => {
+  console.log(`[AuthReducer] Action: ${action.type}`, action.payload);
+  
   switch (action.type) {
     case 'LOGIN_SUCCESS':
       return { 
@@ -29,7 +33,7 @@ const authReducer = (state, action) => {
       return {
         ...state,
         isLoading: false,
-        isAuthenticated: action.payload.isAuthenticated,
+        isAuthenticated: !!action.payload.isAuthenticated,
         user: action.payload.user || null
       };
     default:
@@ -37,75 +41,128 @@ const authReducer = (state, action) => {
   }
 };
 
-export const AuthProvider = ({ children }) => {
-  const [state, dispatch] = useReducer(authReducer, {
-    isAuthenticated: false,
-    user: null,
-    isLoading: true,
-    error: null
-  });
+const initialState = {
+  isAuthenticated: false,
+  user: null,
+  isLoading: true,
+  error: null
+};
 
-  const login = async (credentials) => {
+export const AuthProvider = ({ children }) => {
+  console.log('[AuthProvider] Inicializando proveedor de autenticación');
+  
+  const [state, dispatch] = useReducer(authReducer, initialState);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    console.log('[AuthProvider] Montando componente');
+    return () => {
+      console.log('[AuthProvider] Desmontando componente');
+      isMounted.current = false;
+    };
+  }, []);
+
+  const login = useCallback(async (credentials) => {
+    console.log('[AuthProvider] Iniciando proceso de login');
     dispatch({ type: 'LOADING' });
+    
     try {
+      console.log('[AuthProvider] Llamando a loginAPI');
       const { token, user } = await loginAPI(credentials);
+      console.log('[AuthProvider] Login exitoso', { token, user });
+      
       setAuthToken(token);
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
-      return { success: true, user }; // Devuelve éxito para que el componente maneje la navegación
+      return { success: true, user };
     } catch (error) {
-      dispatch({ 
-        type: 'ERROR', 
-        payload: error.message || 'Credenciales incorrectas' 
-      });
-      return { success: false, error: error.message };
+      const errorMessage = error.response?.data?.detail || 
+                         error.message || 
+                         'Credenciales incorrectas';
+      
+      console.error('[AuthProvider] Error en login:', errorMessage);
+      dispatch({ type: 'ERROR', payload: errorMessage });
+      return { success: false, error: errorMessage };
     }
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    console.log('[AuthProvider] Ejecutando logout');
     removeAuthToken();
     dispatch({ type: 'LOGOUT' });
-    return { success: true }; // Devuelve éxito para que el componente maneje la navegación
-  };
+    return { success: true };
+  }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
+    console.log('[AuthProvider] Verificando autenticación');
     dispatch({ type: 'LOADING' });
+    
     try {
+      console.log('[AuthProvider] Obteniendo token');
       const token = getAuthToken();
+      console.log('[AuthProvider] Token encontrado:', !!token);
+      
       if (!token) {
+        console.log('[AuthProvider] No hay token - Usuario no autenticado');
         dispatch({ type: 'AUTH_CHECK_COMPLETE', payload: { isAuthenticated: false } });
         return;
       }
 
-      // Verificar token primero
-      const tokenValid = await verifyToken();
+      console.log('[AuthProvider] Verificando token con el servidor');
+      let tokenValid = false;
+      try {
+        tokenValid = await verifyToken();
+        console.log('[AuthProvider] Token válido:', tokenValid);
+      } catch (error) {
+        console.warn('[AuthProvider] Error al verificar token:', error.message);
+      }
+
       if (!tokenValid) {
+        console.log('[AuthProvider] Token inválido - Limpiando token');
         removeAuthToken();
         dispatch({ type: 'AUTH_CHECK_COMPLETE', payload: { isAuthenticated: false } });
         return;
       }
 
-      // Obtener datos del usuario
-      const user = await getUserProfile();
-      console.log('Perfil de usuario obtenido:', user);
-      dispatch({ type: 'AUTH_CHECK_COMPLETE', payload: { isAuthenticated: true, user } });
+      console.log('[AuthProvider] Obteniendo perfil de usuario');
+      try {
+        const user = await getUserProfile();
+        console.log('[AuthProvider] Perfil obtenido:', user);
+        dispatch({ type: 'AUTH_CHECK_COMPLETE', payload: { isAuthenticated: true, user } });
+      } catch (error) {
+        console.error('[AuthProvider] Error al obtener perfil:', error.message);
+        removeAuthToken();
+        dispatch({ type: 'AUTH_CHECK_COMPLETE', payload: { isAuthenticated: false } });
+      }
     } catch (error) {
+      console.error('[AuthProvider] Error en checkAuth:', error.message);
       removeAuthToken();
       dispatch({ type: 'AUTH_CHECK_COMPLETE', payload: { isAuthenticated: false } });
     }
-  };
-
-  useEffect(() => {
-    checkAuth();
   }, []);
 
+  useEffect(() => {
+    console.log('[AuthProvider] Efecto montaje - Verificando autenticación inicial');
+    checkAuth();
+  }, [checkAuth]);
+
+  const hasRole = useCallback((role) => {
+    return state.user?.role === role;
+  }, [state.user]);
+
+  const isAdmin = useCallback(() => {
+    return ['admin', 'superadmin'].includes(state.user?.role);
+  }, [state.user]);
+
+  console.log('[AuthProvider] Renderizando proveedor');
+  
   return (
     <AuthContext.Provider value={{
       ...state,
       login,
       logout,
       checkAuth,
-      hasRole: (role) => state.user?.role === role,
-      isAdmin: () => state.user?.role === 'admin' || state.user?.role === 'superadmin'
+      hasRole,
+      isAdmin
     }}>
       {children}
     </AuthContext.Provider>
@@ -113,6 +170,7 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => {
+  console.log('[useAuth] Accediendo al contexto de autenticación');
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth debe usarse dentro de un AuthProvider');

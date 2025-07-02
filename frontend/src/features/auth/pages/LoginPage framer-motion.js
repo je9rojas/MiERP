@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../app/contexts/AuthContext';
 import TextField from '@mui/material/TextField';
@@ -10,12 +10,9 @@ import Alert from '@mui/material/Alert';
 import LockIcon from '@mui/icons-material/Lock';
 import InputAdornment from '@mui/material/InputAdornment';
 import PersonIcon from '@mui/icons-material/Person';
-
-console.log('[LoginPage] Cargando módulo');
+import { motion } from 'framer-motion';
 
 const LoginPage = () => {
-  console.log('[LoginPage] Renderizando componente');
-  
   const [credentials, setCredentials] = useState({ 
     username: '', 
     password: '' 
@@ -26,28 +23,23 @@ const LoginPage = () => {
 
   // Redirigir si ya está autenticado
   useEffect(() => {
-    console.log('[LoginPage] Efecto - Verificando autenticación');
     if (isAuthenticated) {
-      console.log('[LoginPage] Usuario autenticado, redirigiendo a dashboard');
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
 
-  const handleInputChange = (e) => {
+  // Manejo optimizado de cambios en inputs
+  const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
     setCredentials(prev => ({ ...prev, [name]: value }));
     
     // Validación en tiempo real
-    setErrors(prev => {
-      const newErrors = { ...prev };
-      if (value.trim() === '') {
-        newErrors[name] = 'Este campo es requerido';
-      } else {
-        delete newErrors[name];
-      }
-      return newErrors;
-    });
-  };
+    if (value.trim() === '') {
+      setErrors(prev => ({ ...prev, [name]: 'Este campo es requerido' }));
+    } else {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  }, []);
 
   const validateForm = () => {
     const newErrors = {};
@@ -60,33 +52,37 @@ const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('[LoginPage] Enviando formulario');
     
-    if (!validateForm()) {
-      console.log('[LoginPage] Validación fallida');
-      return;
-    }
+    if (!validateForm()) return;
     
     try {
       const result = await login(credentials);
       if (result.success) {
-        console.log('[LoginPage] Login exitoso');
+        console.log('Login exitoso. Redirigiendo a dashboard...');
       }
     } catch (err) {
-      console.error('[LoginPage] Error inesperado:', err);
+      console.error('Error inesperado:', err);
     }
   };
 
+  // Animaciones
+  const fadeIn = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+  };
+
   return (
-    <Box 
-      sx={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '100%',
+    <motion.div
+      initial="hidden"
+      animate="visible"
+      variants={fadeIn}
+      style={{ 
         minHeight: '100vh',
-        p: 2,
-        bgcolor: 'background.default'
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+        padding: '16px'
       }}
     >
       <Box 
@@ -142,16 +138,21 @@ const LoginPage = () => {
         </Box>
         
         {error && (
-          <Alert 
-            severity="error" 
-            sx={{ 
-              mb: 3,
-              fontWeight: 'medium',
-              fontSize: '0.9rem'
-            }}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
           >
-            {error}
-          </Alert>
+            <Alert 
+              severity="error" 
+              sx={{ 
+                mb: 3,
+                fontWeight: 'medium',
+                fontSize: '0.9rem'
+              }}
+            >
+              {error}
+            </Alert>
+          </motion.div>
         )}
 
         <Box 
@@ -209,34 +210,38 @@ const LoginPage = () => {
             }}
           />
           
-          <Button
-            type="submit"
-            variant="contained"
-            fullWidth
-            size="large"
-            sx={{ 
-              mt: 1,
-              py: 1.5,
-              fontWeight: 'bold',
-              fontSize: '1.1rem',
-              boxShadow: 2,
-              borderRadius: 2,
-              background: 'linear-gradient(90deg, #4b6cb7 0%, #182848 100%)',
-              transition: 'transform 0.2s, box-shadow 0.2s',
-              '&:hover': {
-                boxShadow: 4,
-                transform: 'translateY(-2px)'
-              }
-            }}
-            disabled={isLoading}
-            data-testid="login-button"
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
-            {isLoading ? (
-              <CircularProgress size={24} color="inherit" />
-            ) : (
-              'Ingresar al Sistema'
-            )}
-          </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              fullWidth
+              size="large"
+              sx={{ 
+                mt: 1,
+                py: 1.5,
+                fontWeight: 'bold',
+                fontSize: '1.1rem',
+                boxShadow: 2,
+                borderRadius: 2,
+                background: 'linear-gradient(90deg, #4b6cb7 0%, #182848 100%)',
+                '&:hover': {
+                  boxShadow: 4,
+                  transform: 'translateY(-2px)'
+                }
+              }}
+              disabled={isLoading}
+              data-testid="login-button"
+            >
+              {isLoading ? (
+                <CircularProgress size={24} color="inherit" />
+              ) : (
+                'Ingresar al Sistema'
+              )}
+            </Button>
+          </motion.div>
         </Box>
         
         <Box mt={3} textAlign="center">
@@ -250,7 +255,7 @@ const LoginPage = () => {
           </Button>
         </Box>
       </Box>
-    </Box>
+    </motion.div>
   );
 };
 

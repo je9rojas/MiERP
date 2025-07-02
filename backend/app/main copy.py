@@ -1,14 +1,10 @@
-# /backend/app/main.py
-
 import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-# --- MODIFICACIÓN: Importar los nuevos routers ---
-from app.routes import auth, products, users, roles
+from app.routes import auth, products
 from app.services.auth_service import create_secure_superadmin, force_credentials_rotation
 from app.core.database import db_client
 from app.core.config import settings
-from app.models.user import UserRole # Importar UserRole
 
 app = FastAPI(
     title="MiERP API",
@@ -26,46 +22,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- MODIFICACIÓN: Incluir los nuevos routers ---
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"]) # Ajustado prefijo
+# Incluye los routers
+app.include_router(auth.router, prefix="/api", tags=["Authentication"])
 app.include_router(products.router, prefix="/api/products", tags=["Products"])
-app.include_router(users.router, prefix="/api/users", tags=["Users Management"])
-app.include_router(roles.router, prefix="/api/roles", tags=["Roles Management"])
 
+# Tarea de rotación de credenciales
+rotation_task = None
 
-# --- NUEVA FUNCIÓN: Para inicializar roles ---
-async def initialize_roles():
-    """Verifica y crea los roles base si no existen en la base de datos."""
-    print("🔄 Verificando roles base en la base de datos...")
-    try:
-        for role in UserRole:
-            role_name = role.value
-            existing_role = await db_client.db.roles.find_one({"name": role_name})
-            if not existing_role:
-                role_data = {
-                    "name": role_name,
-                    "description": f"Rol para {role_name.capitalize()}"
-                }
-                await db_client.db.roles.insert_one(role_data)
-                print(f"✅ Rol '{role_name}' creado.")
-        print("✅ Verificación de roles completada.")
-    except Exception as e:
-        print(f"❌ Error al inicializar roles: {e}")
-
-# ... (El resto de tu archivo, como `rotate_credentials_job`, se mantiene igual) ...
-# Pega tu función rotate_credentials_job() aquí.
-
-# ...
+async def rotate_credentials_job():
+    """Tarea periódica para rotar credenciales privilegiadas"""
+    while True:
+        try:
+            await asyncio.sleep(settings.CREDENTIAL_ROTATION_DAYS * 24 * 3600)
+            print("🔐 Iniciando rotación automática de credenciales...")
+            await force_credentials_rotation()
+            print("✅ Rotación de credenciales completada")
+        except asyncio.CancelledError:
+            print("🔇 Tarea de rotación cancelada")
+            break
+        except Exception as e:
+            print(f"❌ Error en rotación de credenciales: {str(e)}")
+            # Reintentar después de 1 hora en caso de error
+            await asyncio.sleep(3600)
 
 @app.on_event("startup")
 async def startup_event():
     global rotation_task
     try:
+        # Conectar a la base de datos
         await db_client.connect()
+        print("✅ Conectado a MongoDB Atlas")
         
-        # --- MODIFICACIÓN: Llamar a la inicialización de roles ---
-        await initialize_roles()
-        
+        # Crear superadmin seguro si no existe
         if not await db_client.db.users.find_one({"role": "superadmin"}):
             superadmin_id = await create_secure_superadmin()
             if superadmin_id:
@@ -75,13 +63,14 @@ async def startup_event():
         else:
             print("✅ Superadmin ya existe en la base de datos")
         
+        # Iniciar tarea de rotación periódica
         if settings.ENABLE_CREDENTIAL_ROTATION:
             rotation_task = asyncio.create_task(rotate_credentials_job())
             print("🔄 Tarea de rotación de credenciales iniciada")
     except Exception as e:
         print(f"❌ Error durante la inicialización: {str(e)}")
+        # En producción, deberíamos notificar a un sistema de monitoreo
         raise
-
 
 @app.on_event("shutdown")
 async def shutdown_event():

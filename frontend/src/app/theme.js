@@ -1,9 +1,15 @@
 // src/app/theme.js
 import { createTheme } from '@mui/material/styles';
 
+// --- OPTIMIZACIÓN: Centralizamos el ancho del menú en una constante ---
+// Cambia este valor para ajustar el ancho del menú lateral en toda la aplicación.
+// Lo hemos aumentado de 240 a 280 para dar más espacio a los textos e iconos.
+const DRAWER_WIDTH = 280;
+
 const theme = createTheme({
+  // --- MODIFICACIÓN CLAVE: Se actualiza el valor del ancho del menú ---
   mixins: {
-    drawerWidth: 240,
+    drawerWidth: DRAWER_WIDTH,
   },
   palette: {
     primary: {
@@ -62,6 +68,7 @@ const theme = createTheme({
   shape: {
     borderRadius: 8,
   },
+  // Se conservan tus personalizaciones de componentes, que están bien estructuradas.
   components: {
     MuiAppBar: {
       styleOverrides: {

@@ -1,18 +1,26 @@
-// src/routes/AppRoutes.js
-import React, { lazy, Suspense } from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+// /frontend/src/routes/AppRoutes.js
+import React from 'react';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../app/contexts/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import AuthLayout from '../components/layout/AuthLayout';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
 
-// Lazy loading para páginas
-const LoginPage = lazy(() => import('../features/auth/pages/LoginPage'));
-const DashboardPage = lazy(() => import('../features/dashboard/pages/DashboardPage'));
+// Importaciones directas de páginas
+import LoginPage from '../features/auth/pages/LoginPage';
+import DashboardPage from '../features/dashboard/pages/DashboardPage';
+import HomePage from '../features/home/pages/HomePage';
+// --- NUEVA IMPORTACIÓN ---
+import UserManagementPage from '../features/admin/pages/UserManagementPage';
 
-const ProtectedRoute = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+console.log('[AppRoutes] Configurando rutas');
+
+// --- COMPONENTE PROTECTEDROUTE MEJORADO ---
+// Ahora puede verificar no solo si estás autenticado, sino también tu rol.
+const ProtectedRoute = ({ allowedRoles }) => {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -22,53 +30,65 @@ const ProtectedRoute = () => {
     );
   }
 
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  // Si se especifica una lista de roles, verifica si el rol del usuario está incluido.
+  // Si no se especifica 'allowedRoles', permite el acceso a cualquier usuario autenticado.
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    // Si el rol no está permitido, redirige al dashboard principal.
+    // Podrías crear una página de "Acceso Denegado" para una mejor experiencia.
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return <Outlet />;
 };
 
 const PublicRoute = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+        <CircularProgress size={60} />
+      </Box>
+    );
+  }
   return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace />;
 };
 
-const LoadingFallback = () => (
-  <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-    <CircularProgress size={60} />
-  </Box>
-);
-
 const AppRoutes = () => {
+  const location = useLocation();
+  console.log('[AppRoutes] Ruta actual:', location.pathname);
+  
   return (
-    <Suspense fallback={<LoadingFallback />}>
-      <Routes>
-        <Route element={<PublicRoute />}>
-          <Route element={<AuthLayout />}>
-            <Route 
-              path="/login" 
-              element={
-                <Suspense fallback={<LoadingFallback />}>
-                  <LoginPage />
-                </Suspense>
-              } 
-            />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Route>
-        </Route>
+    <Routes>
+      <Route path="/" element={<HomePage />} />
 
-        <Route element={<ProtectedRoute />}>
-          <Route element={<DashboardLayout />}>
-            <Route 
-              path="/dashboard" 
-              element={
-                <Suspense fallback={<LoadingFallback />}>
-                  <DashboardPage />
-                </Suspense>
-              } 
-            />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Route>
+      <Route element={<PublicRoute />}>
+        <Route element={<AuthLayout />}>
+          <Route path="/login" element={<LoginPage />} />
         </Route>
-      </Routes>
-    </Suspense>
+      </Route>
+
+      {/* --- ESTRUCTURA DE RUTAS PROTEGIDAS ACTUALIZADA --- */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<DashboardLayout />}>
+          {/* Rutas generales del dashboard */}
+          <Route path="/dashboard" element={<DashboardPage />} />
+          
+          {/* --- NUEVA RUTA DE ADMINISTRACIÓN CON PROTECCIÓN POR ROL --- */}
+          <Route element={<ProtectedRoute allowedRoles={['superadmin', 'admin']} />}>
+            <Route path="/admin/usuarios" element={<UserManagementPage />} />
+            {/* Aquí puedes añadir más rutas que solo los administradores puedan ver */}
+          </Route>
+          
+          {/* Aquí irán las otras rutas (ventas, inventario, etc.) */}
+        </Route>
+      </Route>
+      
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 

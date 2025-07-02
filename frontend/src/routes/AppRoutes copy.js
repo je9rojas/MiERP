@@ -1,37 +1,85 @@
 import React from 'react';
-import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../app/contexts/AuthContext';
+import DashboardLayout from '../components/layout/DashboardLayout';
+import AuthLayout from '../components/layout/AuthLayout';
+import CircularProgress from '@mui/material/CircularProgress';
+import Box from '@mui/material/Box';
+
+// Importaciones directas para máxima confiabilidad
 import LoginPage from '../features/auth/pages/LoginPage';
 import DashboardPage from '../features/dashboard/pages/DashboardPage';
+import HomePage from '../features/home/pages/HomePage';
 
-const PrivateRoute = ({ allowedRoles }) => {
-  const { isAuthenticated, user, isLoading } = useAuth();
+console.log('[AppRoutes] Configurando rutas');
+
+const ProtectedRoute = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  
+  console.log('[ProtectedRoute] Verificando acceso', {
+    autenticado: isAuthenticated,
+    cargando: isLoading,
+    ruta: location.pathname
+  });
 
   if (isLoading) {
-    return <div>Cargando...</div>;
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+        <CircularProgress size={60} />
+      </Box>
+    );
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace state={{ from: location }} />;
+};
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/unauthorized" replace />;
+const PublicRoute = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  
+  console.log('[PublicRoute] Verificando acceso', {
+    autenticado: isAuthenticated,
+    cargando: isLoading,
+    ruta: location.pathname
+  });
+  
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+        <CircularProgress size={60} />
+      </Box>
+    );
   }
-
-  return <Outlet />;
+  
+  return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace state={{ from: location }} />;
 };
 
 const AppRoutes = () => {
+  const location = useLocation();
+  console.log('[AppRoutes] Ruta actual:', location.pathname);
+  
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      
-      <Route element={<PrivateRoute allowedRoles={['superadmin', 'admin', 'manager']} />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
+      {/* Ruta pública principal */}
+      <Route path="/" element={<HomePage />} />
+
+      {/* Rutas públicas para no autenticados */}
+      <Route element={<PublicRoute />}>
+        <Route element={<AuthLayout />}>
+          <Route path="/login" element={<LoginPage />} />
+        </Route>
+      </Route>
+
+      {/* Rutas protegidas para autenticados */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<DashboardLayout />}>
+          <Route path="/dashboard" element={<DashboardPage />} />
+        </Route>
       </Route>
       
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* Manejo de rutas no encontradas */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

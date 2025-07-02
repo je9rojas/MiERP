@@ -1,3 +1,5 @@
+// /frontend/src/features/dashboard/pages/DashboardPage.js
+
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../app/contexts/AuthContext';
@@ -5,11 +7,12 @@ import {
   Box, 
   Typography, 
   Button, 
-  Grid, 
   Paper,
   CircularProgress,
   Avatar
 } from '@mui/material';
+// --- CORRECCIÓN: Se importa Grid desde Unstable_Grid2 para usar la API más reciente ---
+import Grid from '@mui/material/Unstable_Grid2'; 
 import { 
   People as PeopleIcon, 
   Inventory as InventoryIcon, 
@@ -84,7 +87,8 @@ const DashboardPage = () => {
       {/* Resumen */}
       <Grid container spacing={3} sx={{ mb: 4 }}>
         {summaryCards.map((card, index) => (
-          <Grid item xs={12} sm={6} md={3} key={index}>
+          // --- CORRECCIÓN: Se elimina la prop "item" que ya no es necesaria ---
+          <Grid xs={12} sm={6} md={3} key={index}>
             <Paper 
               sx={{ 
                 p: 3, 
@@ -114,7 +118,8 @@ const DashboardPage = () => {
 
       {/* Contenido principal */}
       <Grid container spacing={3}>
-        <Grid item xs={12} md={8}>
+        {/* --- CORRECCIÓN: Se elimina la prop "item" --- */}
+        <Grid xs={12} md={8}>
           <Paper sx={{ p: 3, borderRadius: 3, height: '100%' }}>
             <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
               Resumen de Actividades
@@ -130,7 +135,8 @@ const DashboardPage = () => {
           </Paper>
         </Grid>
         
-        <Grid item xs={12} md={4}>
+        {/* --- CORRECCIÓN: Se elimina la prop "item" --- */}
+        <Grid xs={12} md={4}>
           <Paper sx={{ p: 3, borderRadius: 3, height: '100%' }}>
             <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
               Tu Perfil

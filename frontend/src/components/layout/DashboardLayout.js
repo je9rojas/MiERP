@@ -1,36 +1,41 @@
-// src/components/layout/DashboardLayout.js
+// /frontend/src/components/layout/DashboardLayout.js
 import React, { useState } from 'react';
-import { Box, CssBaseline, Toolbar, useTheme } from '@mui/material';
+import { Box } from '@mui/material';
+import { Outlet } from 'react-router-dom';
+import DashboardAppBar from './DashboardAppBar';
 import DashboardSidebar from './DashboardSidebar';
-import DashboardAppBar from './DashboardAppBar'; // Nuevo componente
 
-const DashboardLayout = ({ children }) => {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const theme = useTheme();
+const DashboardLayout = () => {
+  // Estado para controlar si el menú lateral está abierto o cerrado
+  const [open, setOpen] = useState(false);
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
+  const handleDrawerOpen = () => {
+    setOpen(true);
+  };
+
+  const handleDrawerClose = () => {
+    setOpen(false);
   };
 
   return (
     <Box sx={{ display: 'flex' }}>
-      <CssBaseline />
-      <DashboardAppBar handleDrawerToggle={handleDrawerToggle} />
-      <DashboardSidebar 
-        mobileOpen={mobileOpen} 
-        handleDrawerToggle={handleDrawerToggle} 
-      />
-      <Box 
-        component="main" 
-        sx={{ 
-          flexGrow: 1, 
+      {/* Pasamos el estado y la función para abrir el menú a la barra superior */}
+      <DashboardAppBar open={open} handleDrawerOpen={handleDrawerOpen} />
+      
+      {/* Pasamos el estado y la función para cerrar el menú a la barra lateral */}
+      <DashboardSidebar open={open} handleDrawerClose={handleDrawerClose} />
+
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
           p: 3,
-          width: { sm: `calc(100% - ${theme.mixins.drawerWidth}px)` },
-          marginTop: { xs: '56px', sm: '64px' }
+          // Añadimos un paddingTop para que el contenido no quede debajo del AppBar
+          mt: (theme) => `calc(${theme.mixins.toolbar.minHeight}px + ${theme.spacing(1)})`,
         }}
       >
-        <Toolbar /> {/* Espacio para AppBar */}
-        {children}
+        {/* Aquí se renderizarán todas las páginas de tu dashboard */}
+        <Outlet />
       </Box>
     </Box>
   );
