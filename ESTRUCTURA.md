@@ -209,8 +209,6 @@ frontend/
 
 /setup.py
 
-
-
 /backend/requirements.txt
 /backend/requirements-dev.txt 
 /pyproject.toml
@@ -222,7 +220,12 @@ backend/app/core/security.py
 backend/app/core/config.py
 backend/app/core/secrets_manager.py
 
+/backend/app/dependencies/roles.py
+
+backend/app/models/customer.py
+backend/app/models/product.py
 backend/app/models/user.py
+
 
 /backend/app/routes/__init__.py
 /backend/app/routes/auth.py
@@ -231,11 +234,13 @@ backend/app/routes/products.py
 /backend/app/routes/users.py
 /backend/app/routes/customers.py
 
+backend/app/services/__init__.py
+backend/app/services/auth_service.py
+backend/app/services/templates/catalog_template.html
+backend/app/services/catalog_service.py
+
 
 /backend/scripts/create_superadmin.py
-
-backend/app/services/auth_service.py
-
 
 ----------------------------------
 
@@ -245,6 +250,7 @@ backend/app/services/auth_service.py
 /frontend/src/api/axiosConfig.js
 /frontend/src/api/authAPI.js
 /frontend/src/api/adminAPI.js.
+/frontend/src/api/productsAPI.js
 
 /frontend/src/app/contexts/AuthContext.js
 /frontend/src/app/store.js
@@ -252,8 +258,11 @@ backend/app/services/auth_service.py
 
 /frontend/src/components/auth/ProtectedRoute.js
 /frontend/src/components/auth/LoginForm.js
-
 /frontend/src/components/auth/LoginForm.js
+/frontend/src/components/layout/AuthLayout.js
+/frontend/src/components/layout/DashboardAppBar.js
+/frontend/src/components/layout/DashboardLayout.js
+/frontend/src/components/layout/DashboardSidebar.js
 
 /frontend/src/features/auth/pages/LoginPage.js
 
@@ -261,17 +270,11 @@ backend/app/services/auth_service.py
 /frontend/src/features/admin/pages/UserManagementPage.js
 /frontend/src/features/dashboard/pages/DashboardPage.js
 /frontend/src/features/auth/pages/RegisterPage.js
-/frontend/src/features/auth/authSlice.js
 /frontend/src/features/home/pages/HomePage.js
-
-
-/frontend/src/components/layout/AuthLayout.js
-/frontend/src/components/layout/DashboardLayout.js
-/frontend/src/components/layout/DashboardSidebar.js
-/frontend/src/components/layout/DashboardAppBar.js
+/frontend/src/features/inventory/pages/ProductCatalogPage.js
+/frontend/src/features/inventory/components/CatalogFilterForm.js
 
 /frontend/src/routes/AppRoutes.js
-
 
 /frontend/src/utils/auth/auth.js
 /frontend/src/utils/auth/roles.js
@@ -279,3 +282,8 @@ backend/app/services/auth_service.py
 
 
 ----------------------------
+
+
+
+NO VA
+/frontend/src/features/auth/authSlice.js

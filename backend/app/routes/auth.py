@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.database import db_client
 
 router = APIRouter(tags=["auth"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     credentials_exception = HTTPException(

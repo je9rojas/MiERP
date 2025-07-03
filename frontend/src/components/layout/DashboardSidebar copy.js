@@ -2,13 +2,14 @@
 import React from 'react';
 import { styled, useTheme } from '@mui/material/styles';
 import MuiDrawer from '@mui/material/Drawer';
+import { Link } from 'react-router-dom';
 import {
   Box, Typography, List, ListItemButton, ListItemIcon, ListItemText,
   Divider, IconButton, Collapse,
 } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 
-// Importación completa de iconos para todos los módulos
+// --- Tus imports de iconos se mantienen intactos ---
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import PeopleIcon from '@mui/icons-material/People';
@@ -49,9 +50,11 @@ import BackupIcon from '@mui/icons-material/Backup';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+// --- NUEVO ICONO IMPORTADO ---
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 
 
-// --- LÓGICA DE ESTILOS PARA LA TRANSICIÓN ---
+// --- LÓGICA DE ESTILOS PARA LA TRANSICIÓN (sin cambios) ---
 const openedMixin = (theme) => ({
   width: theme.mixins.drawerWidth,
   transition: theme.transitions.create('width', {
@@ -76,7 +79,7 @@ const closedMixin = (theme) => ({
   borderRight: 'none',
 });
 
-// --- COMPONENTES STYLED ---
+// --- COMPONENTES STYLED (sin cambios) ---
 const DrawerHeader = styled('div')(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
@@ -104,7 +107,7 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
   }),
 );
 
-// --- ESTRUCTURA DE DATOS PARA LOS MENÚS (COMPLETA) ---
+// --- ESTRUCTURA DE DATOS PARA LOS MENÚS (ACTUALIZADA) ---
 const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     {
@@ -135,6 +138,8 @@ const menuItems = [
       icon: <InventoryIcon />,
       subItems: [
         { text: 'Productos y Servicios', icon: <InventoryIcon />, path: '/inventario/productos' },
+        // --- NUEVO ENLACE AÑADIDO ---
+        { text: 'Generar Catálogo', icon: <PictureAsPdfIcon />, path: '/inventario/catalogo' },
         { text: 'Almacenes', icon: <WarehouseIcon />, path: '/inventario/almacenes' },
         { text: 'Control de Stock', icon: <TableViewIcon />, path: '/inventario/stock' },
         { text: 'Transferencias Internas', icon: <SyncAltIcon />, path: '/inventario/transferencias' },
@@ -197,15 +202,12 @@ const menuItems = [
 
 const DashboardSidebar = ({ open, handleDrawerClose }) => {
   const theme = useTheme();
-  // Estado para controlar qué menú desplegable está abierto
   const [openCollapse, setOpenCollapse] = React.useState({});
 
-  // Función para manejar el clic en los menús desplegables
   const handleCollapseClick = (name) => {
     setOpenCollapse(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
-  // --- FUNCIÓN DE RENDERIZADO DE MENÚS (COMPLETA) ---
   const renderMenuItems = (items, primaryColor = true) => {
     const iconColor = primaryColor ? theme.palette.primary.main : theme.palette.text.secondary;
     return items.map((item) => (
@@ -214,20 +216,9 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
           <>
             <ListItemButton
               onClick={() => handleCollapseClick(item.text)}
-              sx={{
-                minHeight: 48,
-                justifyContent: open ? 'initial' : 'center',
-                px: 2.5,
-              }}
+              sx={{ minHeight: 48, justifyContent: open ? 'initial' : 'center', px: 2.5 }}
             >
-              <ListItemIcon
-                sx={{
-                  minWidth: 0,
-                  mr: open ? 3 : 'auto',
-                  justifyContent: 'center',
-                  color: iconColor,
-                }}
-              >
+              <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : 'auto', justifyContent: 'center', color: iconColor }}>
                 {item.icon}
               </ListItemIcon>
               <ListItemText primary={item.text} sx={{ opacity: open ? 1 : 0 }} />
@@ -238,12 +229,12 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
                 {item.subItems.map((subItem) => (
                   <ListItemButton
                     key={subItem.text}
-                    component="a"
-                    href={subItem.path}
+                    component={Link}
+                    to={subItem.path}
                     sx={{ pl: 4 }}
                   >
-                    <ListItemIcon sx={{minWidth: 0, mr: 3, justifyContent: 'center', color: iconColor, opacity: 0.8 }}>
-                        {subItem.icon}
+                    <ListItemIcon sx={{ minWidth: 0, mr: 3, justifyContent: 'center', color: iconColor, opacity: 0.8 }}>
+                      {subItem.icon}
                     </ListItemIcon>
                     <ListItemText primary={subItem.text} sx={{ opacity: open ? 1 : 0 }} />
                   </ListItemButton>
@@ -253,22 +244,11 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
           </>
         ) : (
           <ListItemButton
-            component="a"
-            href={item.path}
-            sx={{
-              minHeight: 48,
-              justifyContent: open ? 'initial' : 'center',
-              px: 2.5,
-            }}
+            component={Link}
+            to={item.path}
+            sx={{ minHeight: 48, justifyContent: open ? 'initial' : 'center', px: 2.5 }}
           >
-            <ListItemIcon
-              sx={{
-                minWidth: 0,
-                mr: open ? 3 : 'auto',
-                justifyContent: 'center',
-                color: iconColor,
-              }}
-            >
+            <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : 'auto', justifyContent: 'center', color: iconColor }}>
               {item.icon}
             </ListItemIcon>
             <ListItemText primary={item.text} sx={{ opacity: open ? 1 : 0 }} />

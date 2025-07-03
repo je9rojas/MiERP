@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Catálogo de Productos</title>
+    <!-- El CSS puede quedar igual que en la respuesta anterior -->
+</head>
+<body>
+    <h1>Catálogo de Filtros Automotrices</h1>
+    <div class="product-grid">
+        {% for product in products %}
+        <div class="product-card">
+            <div class="product-header">
+                <div class="product-code">{{ product.main_code }}</div>
+                <div class="product-name">{{ product.name }}</div>
+            </div>
+            <hr>
+            <div class="product-body">
+                <div class="product-image">
+                    <img src="{{ product.image_url }}" alt="Foto de {{ product.name }}">
+                </div>
+                <div class="product-dimensions">
+                    <!-- Diagrama de Dimensiones -->
+                    <img src="{{ product.dimension_diagram_url }}" class="dimension-diagram" alt="Diagrama de medidas">
+                    
+                    <!-- Lógica para mostrar las medidas correctas -->
+                    <div class="measures-list">
+                    {% if product.dimension_schema == 'panel' or product.dimension_schema == 'cabin_round' %}
+                        <strong>A:</strong> {{ product.dimensions.A }} mm, <strong>B:</strong> {{ product.dimensions.B }} mm, <strong>H:</strong> {{ product.dimensions.H }} mm
+                    {% elif product.dimension_schema == 'round_air' %}
+                        <strong>A:</strong> {{ product.dimensions.A }} mm, <strong>B:</strong> {{ product.dimensions.B }} mm, <strong>C:</strong> {{ product.dimensions.C }} mm, <strong>D:</strong> {{ product.dimensions.D }} mm, <strong>H:</strong> {{ product.dimensions.H }} mm
+                    {% elif product.dimension_schema == 'fuel_cartridge' or product.dimension_schema == 'oil_cartridge' %}
+                        <strong>A:</strong> {{ product.dimensions.A }} mm, <strong>B:</strong> {{ product.dimensions.B }} mm, <strong>C:</strong> {{ product.dimensions.C }} mm, <strong>H:</strong> {{ product.dimensions.H }} mm
+                    {% elif product.dimension_schema == 'fuel_housing' %}
+                        <strong>A:</strong> {{ product.dimensions.A }} mm, <strong>B:</strong> {{ product.dimensions.B }} mm, <strong>C:</strong> {{ product.dimensions.C }}, <strong>F:</strong> {{ product.dimensions.F }} mm, <strong>G:</strong> {{ product.dimensions.G }} mm, <strong>H:</strong> {{ product.dimensions.H }} mm
+                    {% elif product.dimension_schema == 'fuel_lineal' %}
+                        <strong>A:</strong> {{ product.dimensions.A }} mm, <strong>F:</strong> {{ product.dimensions.F }} mm, <strong>G:</strong> {{ product.dimensions.G }} mm, <strong>H:</strong> {{ product.dimensions.H }} mm
+                    {% elif product.dimension_schema == 'oil_housing' %}
+                        <strong>A:</strong> {{ product.dimensions.A }} mm, <strong>B:</strong> {{ product.dimensions.B }}, <strong>C:</strong> {{ product.dimensions.C }} mm, <strong>G:</strong> {{ product.dimensions.G }} mm, <strong>H:</strong> {{ product.dimensions.H }} mm
+                    {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="product-footer">
+                <div class="cross-references">
+                    <strong>Códigos Alt.:</strong> {{ product.cross_references | join(', ') }}
+                </div>
+
+                {% if is_seller_view %}
+                <div class="seller-details">
+                    <strong>Precio:</strong> S/ {{ "%.2f"|format(product.price) }} | <strong>Stock:</strong> {{ product.stock_quantity }} | <strong>Puntos:</strong> {{ product.points }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

@@ -10,7 +10,7 @@ import {
   Divider, IconButton, Collapse,
 } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import { useAuth } from '../../app/contexts/AuthContext';
+import { useAuth } from '../../app/contexts/AuthContext'; // <-- IMPORTACIÓN CLAVE
 
 // --- Iconos ---
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -54,8 +54,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import AssessmentIcon from '@mui/icons-material/Assessment'; // <-- NUEVO ICONO PARA REPORTES
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'; // <-- NUEVO ICONO PARA REPORTES CON IA
+
 
 // --- Lógica de estilos y componentes styled (sin cambios) ---
 const openedMixin = (theme) => ({
@@ -109,7 +108,7 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
   }),
 );
 
-// --- ESTRUCTURA DE DATOS PARA LOS MENÚS CON ROLES Y NUEVO MÓDULO DE REPORTES ---
+// --- ESTRUCTURA DE DATOS PARA LOS MENÚS CON ROLES INTEGRADOS ---
 const ALL_ROLES = ['superadmin', 'admin', 'manager', 'vendedor', 'almacenero', 'contador', 'reclutador_rrhh'];
 const ADMIN_ROLES = ['superadmin', 'admin'];
 const MANAGER_ROLES = ['superadmin', 'admin', 'manager'];
@@ -118,7 +117,6 @@ const WAREHOUSE_ROLES = ['superadmin', 'admin', 'manager', 'almacenero'];
 const ACCOUNTANT_ROLES = ['superadmin', 'admin', 'manager', 'contador'];
 const HR_ROLES = ['superadmin', 'admin', 'manager', 'reclutador_rrhh'];
 
-// Menús operativos y de negocio (se ha quitado "Generar Catálogo" de Inventario)
 const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ALL_ROLES },
     {
@@ -152,6 +150,7 @@ const menuItems = [
       roles: WAREHOUSE_ROLES.concat(SELLER_ROLES),
       subItems: [
         { text: 'Productos y Servicios', icon: <InventoryIcon />, path: '/inventario/productos', roles: WAREHOUSE_ROLES.concat(ADMIN_ROLES) },
+        { text: 'Generar Catálogo', icon: <PictureAsPdfIcon />, path: '/inventario/catalogo', roles: SELLER_ROLES },
         { text: 'Almacenes', icon: <WarehouseIcon />, path: '/inventario/almacenes', roles: WAREHOUSE_ROLES.concat(ADMIN_ROLES) },
         { text: 'Control de Stock', icon: <TableViewIcon />, path: '/inventario/stock', roles: WAREHOUSE_ROLES },
         { text: 'Transferencias Internas', icon: <SyncAltIcon />, path: '/inventario/transferencias', roles: WAREHOUSE_ROLES },
@@ -186,25 +185,10 @@ const menuItems = [
         { text: 'Reclutamiento y Selección', icon: <PersonSearchIcon />, path: '/rrhh/reclutamiento', roles: HR_ROLES },
       ],
     },
-];
-
-// --- NUEVO MENÚ DE REPORTES ---
-const reportsMenuItems = [
-    {
-        text: 'Reportes',
-        icon: <AssessmentIcon />,
-        roles: [...new Set([...MANAGER_ROLES, ...SELLER_ROLES])], // Une y elimina duplicados
-        subItems: [
-            { text: 'Generar Catálogo', icon: <PictureAsPdfIcon />, path: '/reportes/catalogo', roles: SELLER_ROLES },
-            { text: 'Reporte de Ventas', icon: <LeaderboardIcon />, path: '/reportes/ventas', roles: MANAGER_ROLES },
-            { text: 'Análisis IA (Próximamente)', icon: <AutoAwesomeIcon />, path: '/reportes/ia', roles: MANAGER_ROLES },
-        ]
-    }
-];
+  ];
   
-// Menús de administración y sistema
-const adminMenuItems = [
-    {
+  const adminMenuItems = [
+      {
       text: 'Administración',
       icon: <BusinessIcon />,
       roles: ADMIN_ROLES,
@@ -229,31 +213,38 @@ const adminMenuItems = [
           { text: 'Copias de Seguridad', icon: <BackupIcon />, path: '/sistema/backups' },
       ]
     }
-];
+  ];
 
 const DashboardSidebar = ({ open, handleDrawerClose }) => {
   const theme = useTheme();
   const [openCollapse, setOpenCollapse] = React.useState({});
-  const { user } = useAuth();
+  const { user } = useAuth(); // Obtenemos el usuario del contexto
 
   const handleCollapseClick = (name) => {
     setOpenCollapse(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
+  // Función recursiva para renderizar los items, que ahora incluye una comprobación de rol
   const renderMenuItems = (items, primaryColor = true) => {
     const iconColor = primaryColor ? theme.palette.primary.main : theme.palette.text.secondary;
 
+    // Filtramos los menús basado en el rol del usuario
     const accessibleItems = items.filter(item => {
+        // Si el item no tiene 'roles' definidos, por defecto es visible (esto es opcional, puedes cambiarlo)
         if (!item.roles) return true;
+        // Si el usuario no ha cargado o no tiene rol, no muestra nada
         if (!user || !user.role) return false;
+        // Devuelve true si el rol del usuario está incluido en la lista de roles del item
         return item.roles.includes(user.role);
     });
 
     return accessibleItems.map((item) => {
+      // Si el item tiene sub-items, los filtramos también antes de renderizar
       const accessibleSubItems = item.subItems?.filter(subItem => 
           !subItem.roles || (user && subItem.roles.includes(user.role))
       ) || [];
 
+      // Si es un menú colapsable pero no tiene sub-items visibles, no lo renderizamos
       if (item.subItems && accessibleSubItems.length === 0) {
         return null;
       }
@@ -323,18 +314,14 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
       
       <Divider />
 
+      {/* La función renderMenuItems ahora se encarga de mostrar solo lo permitido */}
       <List component="nav">
         {renderMenuItems(menuItems, true)}
       </List>
       
       <Divider sx={{ mx: 2 }} />
-
-      <List component="nav">
-        {renderMenuItems(reportsMenuItems, true)}
-      </List>
       
-      <Divider sx={{ mx: 2 }} />
-      
+      {/* Esto solo mostrará "Administración" y/o "Sistema" si el rol es el correcto */}
       <List component="nav">
         {renderMenuItems(adminMenuItems, false)}
       </List>

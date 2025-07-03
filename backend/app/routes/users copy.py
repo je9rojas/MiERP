@@ -7,23 +7,31 @@ from datetime import datetime
 
 from app.core.database import db_client
 from app.models.user import UserCreate, UserOut, UserUpdate, UserRole
-# ELIMINAMOS LA IMPORTACIÓN DE get_current_user porque ya lo usa la dependencia de rol
-# from app.routes.auth import get_current_user 
-from app.dependencies.roles import role_checker # <-- NUEVA IMPORTACIÓN
+from app.routes.auth import get_current_user
 
 router = APIRouter()
 
-# --- LA ANTIGUA DEPENDENCIA 'get_current_admin_user' HA SIDO ELIMINADA ---
+# --- DEPENDENCIA DE SEGURIDAD ESPECÍFICA PARA ADMINS ---
+async def get_current_admin_user(current_user: dict = Depends(get_current_user)):
+    """
+    Dependencia que verifica si el usuario actual es 'superadmin' o 'admin'.
+    Si no lo es, lanza una excepción de acceso denegado.
+    """
+    if current_user.get("role") not in [UserRole.SUPERADMIN, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para realizar esta acción"
+        )
+    return current_user
 
-# --- ENDPOINTS CRUD AHORA USANDO LA DEPENDENCIA REUTILIZABLE ---
+# --- ENDPOINTS CRUD ---
 
 @router.post("/", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def create_new_user(
     user_data: UserCreate,
-    # El endpoint ahora declara explícitamente qué roles son necesarios
-    admin_user: dict = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN]))
+    admin_user: dict = Depends(get_current_admin_user)
 ):
-    """Crea un nuevo usuario en el sistema. Solo para superadmin y admin."""
+    """Crea un nuevo usuario en el sistema. Solo para administradores."""
     existing_user = await db_client.db.users.find_one({"username": user_data.username})
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El nombre de usuario ya existe")
@@ -45,8 +53,8 @@ async def create_new_user(
     return created_user
 
 @router.get("/", response_model=List[UserOut])
-async def get_all_users(admin_user: dict = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN]))):
-    """Lista todos los usuarios del sistema. Solo para superadmin y admin."""
+async def get_all_users(admin_user: dict = Depends(get_current_admin_user)):
+    """Lista todos los usuarios del sistema. Solo para administradores."""
     users_cursor = db_client.db.users.find({})
     users = await users_cursor.to_list(length=1000)
     return users
@@ -54,9 +62,9 @@ async def get_all_users(admin_user: dict = Depends(role_checker([UserRole.SUPERA
 @router.get("/{username}", response_model=UserOut)
 async def get_user_by_username_route(
     username: str,
-    admin_user: dict = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN]))
+    admin_user: dict = Depends(get_current_admin_user)
 ):
-    """Obtiene un usuario específico por su nombre de usuario. Solo para superadmin y admin."""
+    """Obtiene un usuario específico por su nombre de usuario. Solo para administradores."""
     user = await db_client.db.users.find_one({"username": username})
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario no encontrado")
@@ -66,9 +74,9 @@ async def get_user_by_username_route(
 async def update_user_details(
     username: str,
     user_update_data: UserUpdate,
-    admin_user: dict = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN]))
+    admin_user: dict = Depends(get_current_admin_user)
 ):
-    """Actualiza los detalles de un usuario. Solo para superadmin y admin."""
+    """Actualiza los detalles de un usuario. Solo para administradores."""
     update_data = user_update_data.model_dump(exclude_unset=True)
     
     if not update_data:
@@ -88,9 +96,9 @@ async def update_user_details(
 @router.delete("/{username}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_by_username(
     username: str,
-    admin_user: dict = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN]))
+    admin_user: dict = Depends(get_current_admin_user)
 ):
-    """Desactiva un usuario (soft delete). Solo para superadmin y admin."""
+    """Desactiva un usuario (soft delete). Solo para administradores."""
     if admin_user["username"] == username:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No puedes desactivarte a ti mismo")
 

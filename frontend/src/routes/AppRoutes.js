@@ -1,4 +1,6 @@
 // /frontend/src/routes/AppRoutes.js
+// CÓDIGO COMPLETO Y CORREGIDO - LISTO PARA COPIAR Y PEGAR
+
 import React from 'react';
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../app/contexts/AuthContext';
@@ -11,13 +13,13 @@ import Box from '@mui/material/Box';
 import LoginPage from '../features/auth/pages/LoginPage';
 import DashboardPage from '../features/dashboard/pages/DashboardPage';
 import HomePage from '../features/home/pages/HomePage';
-// --- NUEVA IMPORTACIÓN ---
 import UserManagementPage from '../features/admin/pages/UserManagementPage';
+// Se mantiene la misma importación, ya que el componente de la página es el mismo
+import ProductCatalogPage from '../features/inventory/pages/ProductCatalogPage';
 
 console.log('[AppRoutes] Configurando rutas');
 
-// --- COMPONENTE PROTECTEDROUTE MEJORADO ---
-// Ahora puede verificar no solo si estás autenticado, sino también tu rol.
+// --- COMPONENTE PROTECTEDROUTE (sin cambios) ---
 const ProtectedRoute = ({ allowedRoles }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
@@ -34,17 +36,14 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  // Si se especifica una lista de roles, verifica si el rol del usuario está incluido.
-  // Si no se especifica 'allowedRoles', permite el acceso a cualquier usuario autenticado.
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // Si el rol no está permitido, redirige al dashboard principal.
-    // Podrías crear una página de "Acceso Denegado" para una mejor experiencia.
+  if (allowedRoles && !allowedRoles.includes(user?.role)) {
     return <Navigate to="/dashboard" replace />;
   }
 
   return <Outlet />;
 };
 
+// --- COMPONENTE PUBLICROUTE (sin cambios) ---
 const PublicRoute = () => {
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) {
@@ -77,16 +76,27 @@ const AppRoutes = () => {
           {/* Rutas generales del dashboard */}
           <Route path="/dashboard" element={<DashboardPage />} />
           
-          {/* --- NUEVA RUTA DE ADMINISTRACIÓN CON PROTECCIÓN POR ROL --- */}
+          {/* --- RUTA DE REPORTES CON LA PÁGINA DEL CATÁLOGO (CORREGIDA) --- */}
+          {/* 
+            ANTES: <Route path="/inventario/catalogo" element={<ProductCatalogPage />} />
+            AHORA:
+          */}
+          <Route path="/reportes/catalogo" element={<ProductCatalogPage />} />
+          {/* En el futuro, aquí añadirás más rutas de reportes */}
+          {/* <Route path="/reportes/ventas" element={<PaginaReporteVentas />} /> */}
+
+
+          {/* --- RUTA DE ADMINISTRACIÓN CON PROTECCIÓN POR ROL --- */}
           <Route element={<ProtectedRoute allowedRoles={['superadmin', 'admin']} />}>
             <Route path="/admin/usuarios" element={<UserManagementPage />} />
             {/* Aquí puedes añadir más rutas que solo los administradores puedan ver */}
           </Route>
           
-          {/* Aquí irán las otras rutas (ventas, inventario, etc.) */}
+          {/* Aquí irán las otras rutas (ventas, finanzas, etc.) */}
         </Route>
       </Route>
       
+      {/* La regla "catch-all" que te estaba redirigiendo */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -77,3 +77,22 @@ Logs del Sistema: Indispensable para que tú, como desarrollador, puedas ver los
 Prioridad 4 (Funciones Avanzadas y de Mantenimiento):
 El resto de las funciones: gestión de backups, tareas programadas, intervenciones financieras, etc.
 ¿En cuál de estas funciones te gustaría que nos enfoquemos primero para empezar a diseñar la interfaz y la lógica? La Gestión de Usuarios y Roles suele ser el siguiente paso lógico.
+
+1. Filtros de aire
+1.1 Panel: Medidas A B H
+1.2 Redondo: Medidas A B C D H
+1.3 Oval: Medidas A B C D H
+
+2. Filtro de combustible 
+2.1 Cartucho de filtro: A B C H
+2.2 De carcasa: A B C F G H
+2.3 Lineal gasoleo: Medidas A F G H
+2.4 Lineal gasolina: Medidas A F G H
+
+3. Filtro de aceite
+3.1 Cartucho de filtro: A B C H
+3.2 De carcasa: A B C G H
+
+4. Filtro de habitaculo
+4.1 Redondo:  A B H
+4.2 Panel: A B H
