@@ -1,9 +1,10 @@
+# /backend/app/models/product.py
+# CÓDIGO COMPLETO Y CORREGIDO - LISTO PARA COPIAR Y PEGAR
+
 from pydantic import BaseModel, Field
 from typing import List, Optional, Union, Literal
 
 # --- MODELOS DE DIMENSIONES ESPECÍFICAS ---
-# Cada clase representa un conjunto de medidas válidas para un tipo/forma de filtro.
-
 class PanelDimensions(BaseModel):
     A: int = Field(..., description="Largo total en mm")
     B: int = Field(..., description="Ancho total en mm")
@@ -36,7 +37,7 @@ class FuelLinealDimensions(BaseModel):
     G: int = Field(..., description="Diámetro del tubo de salida en mm")
     H: int = Field(..., description="Diámetro del cuerpo en mm")
 
-class OilCartridgeDimensions(FuelCartridgeDimensions): # Reutiliza la misma estructura
+class OilCartridgeDimensions(FuelCartridgeDimensions):
     pass
 
 class OilHousingDimensions(BaseModel):
@@ -51,49 +52,38 @@ class CabinRoundDimensions(BaseModel):
     B: Optional[int] = Field(None, description="Diámetro interior en mm")
     H: int = Field(..., description="Altura en mm")
 
-# --- UNIÓN DE TODOS LOS MODELOS DE DIMENSIONES ---
-# Este campo puede ser de cualquiera de los tipos definidos aquí.
 AllDimensions = Union[
     PanelDimensions, RoundAirDimensions, FuelCartridgeDimensions,
     FuelHousingDimensions, FuelLinealDimensions, OilCartridgeDimensions,
     OilHousingDimensions, CabinRoundDimensions
 ]
 
-# --- CAMPO DISCRIMINADOR (LA CLAVE DE LA ARQUITECTURA) ---
-# Este campo nos dirá qué tipo de dimensión esperar.
 DimensionSchemaKey = Literal[
     'panel', 'round_air', 'fuel_cartridge', 'fuel_housing',
     'fuel_lineal', 'oil_cartridge', 'oil_housing', 'cabin_round'
 ]
 
-
-# --- MODELO PRINCIPAL DEL PRODUCTO ---
+# --- MODELO PRINCIPAL DEL PRODUCTO (SIMPLIFICADO) ---
 class Product(BaseModel):
     id: str = Field(..., alias="_id")
     main_code: str = Field(..., description="Código principal o SKU del producto")
     name: str = Field(..., description="Nombre descriptivo del producto")
     product_type: Literal["aire", "combustible", "aceite", "habitaculo"]
     
-    # El discriminador que nos dice qué estructura de dimensiones usar.
     dimension_schema: DimensionSchemaKey
-    
-    # El campo que contiene las dimensiones, validado contra la Unión.
     dimensions: AllDimensions
     
     cross_references: List[str] = Field(default_factory=list, description="Códigos alternativos")
     
-    # Datos para el vendedor/uso interno
     stock_quantity: int = Field(default=0)
     price: float = Field(default=0.0)
     points: int = Field(default=0)
     
-    image_url: Optional[str] = Field(None, description="URL de la foto del producto")
-    # URL para el diagrama de dimensiones, basado en el schema_key
-    dimension_diagram_url: Optional[str] = Field(None)
+    image_url: Optional[str] = Field(None, description="URL de la foto del producto (que ya incluye el diagrama)")
+    
+    # --- CAMPO ELIMINADO ---
+    # dimension_diagram_url: Optional[str] = Field(None) # Ya no es necesario
 
     class Config:
-        # Pydantic V2 usa 'from_attributes' en lugar de 'orm_mode'
-        from_attributes = True 
-        # Y 'validate_by_name' en lugar de 'allow_population_by_field_name'
+        from_attributes = True
         validate_by_name = True
-

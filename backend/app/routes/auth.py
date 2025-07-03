@@ -7,7 +7,7 @@ from app.core.security import create_access_token
 from app.core.config import settings
 from app.core.database import db_client
 
-router = APIRouter(tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):

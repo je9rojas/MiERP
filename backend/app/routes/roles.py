@@ -6,7 +6,7 @@ from app.core.database import db_client
 from app.models.user import RoleOut
 from app.routes.auth import get_current_user # Reutilizamos la dependencia de autenticación
 
-router = APIRouter()
+router = APIRouter(prefix="/roles", tags=["Roles Management"])
 
 @router.get("/", response_model=List[RoleOut])
 async def get_all_roles(current_user: dict = Depends(get_current_user)):

@@ -1,169 +1,110 @@
 # /backend/app/services/catalog_service.py
+# CÓDIGO COMPLETO CON EL CSS FINAL - LISTO PARA COPIAR Y PEGAR
 
-# --- Imports de las librerías necesarias ---
-# WeasyPrint para convertir HTML+CSS a PDF
 from weasyprint import HTML, CSS
-# Jinja2 para manejar las plantillas HTML con lógica (bucles, condicionales)
 from jinja2 import Environment, FileSystemLoader
-# 'os' para construir rutas de archivo de forma segura, sin importar el sistema operativo
 import os
 
-# --- Configuración del motor de plantillas Jinja2 ---
-# 1. Obtenemos la ruta del directorio donde se encuentra este archivo (catalog_service.py)
-#    os.path.dirname(__file__) devuelve la ruta de la carpeta 'services'
-# 2. Unimos esa ruta con el nombre de la carpeta 'templates' para obtener la ruta completa
 template_path = os.path.join(os.path.dirname(__file__), 'templates')
-
-# 3. Creamos un "entorno" de Jinja2, diciéndole que busque los archivos .html en esa ruta
 env = Environment(loader=FileSystemLoader(template_path))
 
-
-# --- La función principal que faltaba ---
 def create_catalog_pdf(products: list, is_seller_view: bool) -> bytes:
-    """
-    Crea el contenido en bytes de un PDF a partir de una lista de productos.
-    
-    Args:
-        products (list): Una lista de objetos de producto (validados por Pydantic).
-        is_seller_view (bool): True si el catálogo debe incluir precios y stock.
-
-    Returns:
-        bytes: El contenido binario del archivo PDF generado.
-    """
-    
-    # 1. Cargar la plantilla HTML desde la carpeta 'templates'
+    products_per_page = 8
+    product_pages = [products[i:i + products_per_page] for i in range(0, len(products), products_per_page)]
     template = env.get_template('catalog_template.html')
-    
-    # 2. Renderizar la plantilla: Jinja2 reemplazará las variables (ej. {{ product.name }})
-    #    y ejecutará la lógica (ej. {% for product in products %}) con los datos que le pasamos.
     html_out = template.render(
-        products=products, 
-        is_seller_view=is_seller_view
+        product_pages=product_pages,
+        is_seller_view=is_seller_view,
+        company_name="Mi Empresa de Filtros S.A.C"
     )
     
-    # 3. Definir los estilos CSS para el PDF. Esto controla todo el diseño.
     css_string = """
-        @page {
-            size: A4;
-            margin: 1.5cm;
-            
-            @top-center {
-                content: "Catálogo de Productos - MiERP PRO";
-                font-family: 'Helvetica', 'Arial', sans-serif;
-                font-size: 10pt;
-                color: #555;
-                font-weight: bold;
-            }
-            @bottom-right {
-                content: "Página " counter(page) " de " counter(pages);
-                font-family: 'Helvetica', 'Arial', sans-serif;
-                font-size: 9pt;
-                color: #555;
-            }
+        @page { size: A4; margin: 2cm; }
+        @page :first { margin: 0; }
+        body { font-family: 'Helvetica Neue', 'Arial', sans-serif; color: #333; font-size: 9pt; }
+        .cover-page {
+            width: 100%; height: 100%; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; text-align: center;
+            background-color: #f0f4f8; page-break-after: always;
         }
+        .cover-page .logo { font-size: 48px; font-weight: bold; color: #3498db; border: 3px solid #3498db; padding: 10px 20px; margin-bottom: 20px; }
+        .cover-page h1 { font-size: 36pt; color: #2c3e50; margin-bottom: 1cm; }
+        .cover-page .company-name { font-size: 18pt; color: #7f8c8d; margin-top: 1cm; }
 
-        body { font-family: 'Helvetica', 'Arial', sans-serif; color: #333; }
-        
-        h1 { 
-            text-align: center; 
-            color: #2c3e50; 
-            border-bottom: 2px solid #3498db; 
-            padding-bottom: 10px; 
-            margin-bottom: 1cm; 
-        }
-
+        .product-page { page-break-before: always; }
         .product-grid { 
             display: grid; 
-            grid-template-columns: 1fr 1fr; /* Dos columnas por página */
-            gap: 1cm; 
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: repeat(4, 1fr);
+            gap: 1.2cm 1cm;
         }
-
         .product-card {
-            border: 1px solid #ddd;
+            border: 1px solid #dee2e6;
             border-radius: 8px;
-            overflow: hidden;
             display: flex;
             flex-direction: column;
-            page-break-inside: avoid; /* ¡Crucial! Evita que una tarjeta se corte entre páginas */
-            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-            transition: box-shadow 0.3s;
+            page-break-inside: avoid;
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
-
         .product-header { 
             background-color: #f8f9fa; 
             padding: 8px 12px; 
-            border-bottom: 1px solid #ddd; 
+            border-bottom: 1px solid #dee2e6; 
         }
-
-        .product-code { 
-            font-weight: bold; 
-            font-size: 13pt; 
-            color: #3498db; 
-        }
-
-        .product-name { font-size: 9pt; color: #555; }
-
+        .product-code { font-weight: 700; font-size: 14pt; color: #0056b3; }
+        .product-name { font-size: 8pt; color: #6c757d; }
+        
         .product-body { 
             display: flex; 
             padding: 12px; 
-            gap: 12px; 
-            flex-grow: 1; /* Hace que esta sección ocupe el espacio disponible */
+            gap: 15px; 
+            flex-grow: 1;
+            align-items: center;
         }
-
-        .product-image { 
-            flex: 0 0 100px; /* No crece, no se encoge, base de 100px */
-            text-align: center; 
-            align-self: center; /* Centra la imagen verticalmente en su contenedor */
-        }
-
-        .product-image img { 
-            max-width: 100%; 
-            max-height: 80px; 
-            object-fit: contain; 
-        }
-
-        .product-dimensions { flex: 1; }
-
-        .dimension-diagram { 
-            width: 100%; 
-            height: auto; 
-            margin-bottom: 8px; 
-            border: 1px solid #eee; 
-            border-radius: 4px;
-        }
-
-        .measures-list { 
-            font-size: 9pt; 
-            line-height: 1.5; 
-            color: #2c3e50;
-        }
-
-        .measures-list strong { font-weight: 600; }
-
-        .product-footer { 
-            padding: 8px 12px; 
-            background-color: #f8f9fa; 
-            border-top: 1px solid #ddd; 
-            font-size: 8pt; 
-            margin-top: auto; /* Empuja el footer a la parte inferior de la tarjeta */
-        }
-
-        .cross-references { color: #666; }
-
-        .seller-details { 
-            margin-top: 5px; 
-            font-weight: bold; 
-            color: #e74c3c; /* Un rojo menos agresivo */
-            background-color: #fdf2f2;
-            padding: 4px 6px;
-            border-radius: 4px;
+        
+        .product-image-container { 
+            flex: 1.2;
             text-align: center;
+        }
+        .product-image-container img { max-width: 100%; max-height: 120px; object-fit: contain; }
+
+        .product-info-container { 
+            flex: 1; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .measures-list h4, .cross-references h4 {
+            margin: 0 0 5px 0;
+            font-size: 9pt;
+            color: #495057;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 3px;
+        }
+        .measures-list p, .cross-references p {
+            margin: 0 0 4px 0;
+            font-size: 8.5pt;
+        }
+        .cross-references p {
+            color: #6c757d;
+            word-wrap: break-word;
+        }
+        
+        .product-footer { 
+            text-align: center;
+            padding: 8px; 
+            background-color: #e9f5ff; 
+            border-top: 1px solid #dee2e6; 
+            font-size: 8.5pt;
+            font-weight: bold;
+            color: #004085;
+            display: flex;
+            justify-content: space-around;
         }
     """
     
-    # 4. Crear el objeto HTML a partir del string renderizado
     html = HTML(string=html_out)
-    
-    # 5. Escribir el PDF usando el objeto HTML y la hoja de estilos CSS.
-    #    Esto devuelve el contenido binario del PDF.
     return html.write_pdf(stylesheets=[CSS(string=css_string)])

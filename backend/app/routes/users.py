@@ -11,7 +11,7 @@ from app.models.user import UserCreate, UserOut, UserUpdate, UserRole
 # from app.routes.auth import get_current_user 
 from app.dependencies.roles import role_checker # <-- NUEVA IMPORTACIÓN
 
-router = APIRouter()
+router = APIRouter(prefix="/users", tags=["Users Management"])
 
 # --- LA ANTIGUA DEPENDENCIA 'get_current_admin_user' HA SIDO ELIMINADA ---
 
