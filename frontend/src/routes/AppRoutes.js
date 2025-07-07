@@ -1,103 +1,104 @@
 // /frontend/src/routes/AppRoutes.js
-// CÓDIGO COMPLETO Y CORREGIDO - LISTO PARA COPIAR Y PEGAR
+// CÓDIGO COMPLETO Y REESTRUCTURADO FINAL - LISTO PARA COPIAR Y PEGAR
 
 import React from 'react';
-import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../app/contexts/AuthContext';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import AuthLayout from '../components/layout/AuthLayout';
 import CircularProgress from '@mui/material/CircularProgress';
 import Box from '@mui/material/Box';
 
-// Importaciones directas de páginas
+// Importaciones de páginas
 import LoginPage from '../features/auth/pages/LoginPage';
 import DashboardPage from '../features/dashboard/pages/DashboardPage';
 import HomePage from '../features/home/pages/HomePage';
 import UserManagementPage from '../features/admin/pages/UserManagementPage';
-// Se mantiene la misma importación, ya que el componente de la página es el mismo
 import ProductCatalogPage from '../features/inventory/pages/ProductCatalogPage';
+import NewPurchaseOrderPage from '../features/purchasing/pages/NewPurchaseOrderPage';
 
-console.log('[AppRoutes] Configurando rutas');
+// --- COMPONENTE DE CARGA INICIAL (sin cambios) ---
+const AuthLoader = () => (
+  <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
+    <CircularProgress size={60} />
+  </Box>
+);
 
-// --- COMPONENTE PROTECTEDROUTE (sin cambios) ---
-const ProtectedRoute = ({ allowedRoles }) => {
-  const { user, isAuthenticated, isLoading } = useAuth();
+// --- COMPONENTE GUARDIÁN DE RUTAS ---
+// Este componente decide si el usuario puede ver la página solicitada o si debe ser redirigido.
+const PrivateRoute = ({ children, allowedRoles }) => {
+  const { isAuthenticated, user } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-        <CircularProgress size={60} />
-      </Box>
-    );
-  }
-
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    // Si no está autenticado, siempre redirige a /login, guardando la ruta que intentaba visitar.
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return <Navigate to="/dashboard" replace />;
+    // Si está autenticado pero no tiene el rol, redirige a /unauthorized.
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  return <Outlet />;
-};
-
-// --- COMPONENTE PUBLICROUTE (sin cambios) ---
-const PublicRoute = () => {
-  const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" height="100vh">
-        <CircularProgress size={60} />
-      </Box>
-    );
-  }
-  return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace />;
+  // Si está autenticado y tiene el rol (o no se requieren roles), muestra el contenido.
+  return children;
 };
 
 const AppRoutes = () => {
-  const location = useLocation();
-  console.log('[AppRoutes] Ruta actual:', location.pathname);
+  const { isInitialized, isAuthenticated } = useAuth();
   
+  if (!isInitialized) {
+    return <AuthLoader />;
+  }
+
   return (
     <Routes>
+      {/* --- RUTA PÚBLICA --- */}
       <Route path="/" element={<HomePage />} />
-
-      <Route element={<PublicRoute />}>
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={<LoginPage />} />
-        </Route>
-      </Route>
-
-      {/* --- ESTRUCTURA DE RUTAS PROTEGIDAS ACTUALIZADA --- */}
-      <Route element={<ProtectedRoute />}>
-        <Route element={<DashboardLayout />}>
-          {/* Rutas generales del dashboard */}
-          <Route path="/dashboard" element={<DashboardPage />} />
-          
-          {/* --- RUTA DE REPORTES CON LA PÁGINA DEL CATÁLOGO (CORREGIDA) --- */}
-          {/* 
-            ANTES: <Route path="/inventario/catalogo" element={<ProductCatalogPage />} />
-            AHORA:
-          */}
-          <Route path="/reportes/catalogo" element={<ProductCatalogPage />} />
-          {/* En el futuro, aquí añadirás más rutas de reportes */}
-          {/* <Route path="/reportes/ventas" element={<PaginaReporteVentas />} /> */}
-
-
-          {/* --- RUTA DE ADMINISTRACIÓN CON PROTECCIÓN POR ROL --- */}
-          <Route element={<ProtectedRoute allowedRoles={['superadmin', 'admin']} />}>
-            <Route path="/admin/usuarios" element={<UserManagementPage />} />
-            {/* Aquí puedes añadir más rutas que solo los administradores puedan ver */}
-          </Route>
-          
-          {/* Aquí irán las otras rutas (ventas, finanzas, etc.) */}
-        </Route>
-      </Route>
       
-      {/* La regla "catch-all" que te estaba redirigiendo */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* --- RUTA DE LOGIN --- */}
+      {/* Si el usuario ya está autenticado, redirige al dashboard. Si no, muestra LoginPage. */}
+      <Route 
+        path="/login" 
+        element={
+          isAuthenticated ? <Navigate to="/dashboard" replace /> : <AuthLayout><LoginPage /></AuthLayout>
+        } 
+      />
+
+      {/* --- RUTAS PRIVADAS (PROTEGIDAS) --- */}
+      {/* Todas estas rutas requieren autenticación. El componente PrivateRoute se encarga de ello. */}
+      <Route 
+        path="/dashboard"
+        element={<PrivateRoute><DashboardLayout><DashboardPage /></DashboardLayout></PrivateRoute>}
+      />
+      <Route 
+        path="/compras/nueva" 
+        element={
+          <PrivateRoute allowedRoles={['superadmin', 'admin', 'manager', 'almacenero']}>
+            <DashboardLayout><NewPurchaseOrderPage /></DashboardLayout>
+          </PrivateRoute>
+        } 
+      />
+      <Route 
+        path="/reportes/catalogo"
+        element={
+          <PrivateRoute allowedRoles={['superadmin', 'admin', 'manager', 'vendedor']}>
+            <DashboardLayout><ProductCatalogPage /></DashboardLayout>
+          </PrivateRoute>
+        }
+      />
+      <Route 
+        path="/admin/usuarios"
+        element={
+          <PrivateRoute allowedRoles={['superadmin', 'admin']}>
+            <DashboardLayout><UserManagementPage /></DashboardLayout>
+          </PrivateRoute>
+        }
+      />
+      
+      {/* --- RUTAS DE FALLBACK --- */}
+      <Route path="/unauthorized" element={<h1>403 - No Autorizado</h1>} />
+      <Route path="*" element={<h1>404 - Página no encontrada</h1>} />
     </Routes>
   );
 };

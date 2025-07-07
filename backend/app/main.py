@@ -1,15 +1,22 @@
 # /backend/app/main.py
-# CÓDIGO COMPLETO, CORREGIDO Y OPTIMIZADO - LISTO PARA COPIAR Y PEGAR
+# CÓDIGO COMPLETO Y CORREGIDO FINAL - LISTO PARA COPIAR Y PEGAR
 
 import asyncio
-from fastapi import FastAPI, HTTPException, APIRouter # <-- APIRouter importado
+from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
-# Importar los módulos de rutas
-from app.routes import auth, products, users, roles
+# --- Importar TODOS los módulos de rutas ---
+from app.routes import (
+    auth, 
+    products, 
+    users, 
+    roles, 
+    suppliers,           # <-- NUEVO
+    purchase_orders      # <-- NUEVO
+)
 
 # Importar lógica de negocio y configuración
-from app.services.auth_service import create_secure_superadmin # Asumo que rotate_credentials_job está aquí también
+from app.services.auth_service import create_secure_superadmin
 from app.core.database import db_client
 from app.core.config import settings
 from app.models.user import UserRole
@@ -20,12 +27,11 @@ rotation_task = None
 app = FastAPI(
     title="MiERP API",
     version="1.0.0",
-    # Mantenemos las docs bajo /api para consistencia
     docs_url="/api/docs" if settings.ENV == "development" else None,
     redoc_url=None
 )
 
-# Configura CORS (sin cambios)
+# Configura CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -34,27 +40,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- ARQUITECTURA DE RUTAS MODULAR (LA MEJOR PRÁCTICA) ---
+# --- ARQUITECTURA DE RUTAS MODULAR ---
 
-# 1. Se crea un router principal que agrupará todas las rutas bajo el prefijo "/api".
-#    Esto se alinea perfectamente con la `baseURL` de tu frontend en Axios.
+# 1. Se crea un router principal para agrupar todas las rutas bajo el prefijo "/api".
 api_router = APIRouter(prefix="/api")
 
 # 2. Se incluyen los routers de cada módulo DENTRO de este router principal.
-#    FastAPI ahora combinará el prefijo "/api" con el prefijo de cada módulo.
-#    Ejemplo para products: "/api" + "/products" = "/api/products"
-#    Ya no se necesita definir el prefijo completo en cada línea.
+#    Cada archivo de rutas (ej. products.py) es responsable de su propio prefijo (ej. "/products").
 api_router.include_router(auth.router)
 api_router.include_router(products.router)
 api_router.include_router(users.router)
 api_router.include_router(roles.router)
+api_router.include_router(suppliers.router)           # <-- NUEVO ROUTER INCLUIDO
+api_router.include_router(purchase_orders.router)      # <-- NUEVO ROUTER INCLUIDO
 
 # 3. Se incluye el router principal en la aplicación.
-#    Todas las rutas de la API estarán ahora bajo /api.
 app.include_router(api_router)
 
 
-# --- Lógica de Inicialización (sin cambios funcionales) ---
+# --- Lógica de Inicialización ---
 
 async def initialize_roles():
     """Verifica y crea los roles base si no existen en la base de datos."""
@@ -113,13 +117,13 @@ async def shutdown_event():
     await db_client.close()
     print("❌ Desconectado de MongoDB Atlas")
 
-# --- Rutas Raíz y de Salud (fuera del prefijo /api) ---
+# --- Rutas Raíz y de Salud ---
 
 @app.get("/")
 def read_root():
     return {"message": "MiERP API - Sistema de Gestión Empresarial"}
 
-@app.get("/health") # Cambiado de /api/health para que no entre en conflicto
+@app.get("/health")
 async def health_check():
     """Endpoint de verificación de salud del sistema"""
     try:
@@ -128,7 +132,6 @@ async def health_check():
             "status": "healthy",
             "environment": settings.ENV,
             "database": "connected",
-            # "credential_rotation": "active" if rotation_task and not rotation_task.done() else "inactive"
         }
     except Exception as e:
         raise HTTPException(

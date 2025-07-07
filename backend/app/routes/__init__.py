@@ -1,4 +1,9 @@
-from .auth import router as auth_router
-from .products import router as products_router
+# /backend/app/routes/__init__.py
+# CÓDIGO COMPLETO Y CORREGIDO - LISTO PARA COPIAR Y PEGAR
 
-__all__ = ["auth_router", "products_router"]
+from . import auth
+from . import products
+from . import users
+from . import roles
+from . import suppliers       # <-- LÍNEA AÑADIDA
+from . import purchase_orders # <-- LÍNEA AÑADIDA
