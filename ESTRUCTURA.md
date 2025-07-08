@@ -267,7 +267,7 @@ backend/app/services/catalog_service.py
 /frontend/src/app/store.js
 /frontend/src/app/theme.js
 
-/frontend/src/components/auth/ProtectedRoute.js
+
 /frontend/src/components/auth/LoginForm.js
 /frontend/src/components/auth/LoginForm.js
 /frontend/src/components/layout/AuthLayout.js
@@ -302,3 +302,5 @@ backend/app/services/catalog_service.py
 
 NO VA
 /frontend/src/features/auth/authSlice.js
+
+/frontend/src/components/auth/ProtectedRoute.js
