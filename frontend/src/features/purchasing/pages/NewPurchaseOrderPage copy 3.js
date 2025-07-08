@@ -1,29 +1,24 @@
 // /frontend/src/features/purchasing/pages/NewPurchaseOrderPage.js
-// CÓDIGO COMPLETO Y OPTIMIZADO PARA MUI v5 - LISTO PARA COPIAR Y PEGAR
 
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Container, Typography, Paper, Grid, TextField, Button, Box, IconButton, 
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Alert 
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Alert, Divider 
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-// Imports correctos para MUI v5
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import es from 'date-fns/locale/es';
 
-// Componentes de autocompletado que creamos
 import SupplierAutocomplete from '../components/SupplierAutocomplete';
 import ProductAutocomplete from '../components/ProductAutocomplete';
-
-// API (asumimos que existe y funciona)
 import { createPurchaseOrderAPI } from '../../../api/purchasingAPI';
 import { useAuth } from '../../../app/contexts/AuthContext';
 
-// Plantilla para una nueva fila, con un ID único para la key de React
 const createInitialItemRow = () => ({
-  id: Date.now() + Math.random(), // ID más robusto para evitar colisiones
+  id: Date.now() + Math.random(),
   product_code: '',
   description: '',
   related_quote: '',
@@ -33,6 +28,7 @@ const createInitialItemRow = () => ({
 
 const NewPurchaseOrderPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [supplier, setSupplier] = useState(null);
   const [headerData, setHeaderData] = useState({
     supplier_invoice_code: '',
@@ -101,7 +97,7 @@ const NewPurchaseOrderPage = () => {
 
     const purchaseOrderPayload = {
       supplier_code: supplier.code,
-      supplier_invoice_code: headerData.supplier_invoice_code,
+      supplier_invoice_code: headerData.supplier_invoice_code || null,
       purchase_date: headerData.purchase_date.toISOString().split('T')[0],
       issue_date: headerData.issue_date.toISOString().split('T')[0],
       due_date: headerData.due_date.toISOString().split('T')[0],
@@ -109,7 +105,7 @@ const NewPurchaseOrderPage = () => {
       items: items.map(item => ({
         product_code: item.product_code, description: item.description, related_quote: item.related_quote,
         quantity: parseInt(item.quantity, 10), unit_cost: parseFloat(item.unit_cost),
-      })).filter(item => item.product_code), // Enviar solo items con código
+      })).filter(item => item.product_code),
       tax_percentage: parseFloat(taxPercentage),
       other_charges: parseFloat(otherCharges),
       registered_by_user_id: user?.username,
@@ -121,7 +117,6 @@ const NewPurchaseOrderPage = () => {
     try {
       await createPurchaseOrderAPI(purchaseOrderPayload);
       setSuccess('¡Orden de Compra registrada exitosamente!');
-      // Resetear el formulario para una nueva orden
       setSupplier(null);
       setHeaderData({
           supplier_invoice_code: '', purchase_date: new Date(),
@@ -150,7 +145,7 @@ const NewPurchaseOrderPage = () => {
                   value={supplier} 
                   onSelect={(newValue) => {
                     setSupplier(newValue);
-                    if (!newValue) setError(null); // Limpiar error si se deselecciona
+                    if (newValue) setError(null);
                   }}
                   error={!!(error && !supplier)}
                   helperText={error && !supplier ? error : ''}
@@ -200,9 +195,45 @@ const NewPurchaseOrderPage = () => {
             </TableContainer>
             <Button onClick={addNewItemRow} sx={{ mt: 2 }}>Añadir Fila</Button>
             
-            <Grid container spacing={2} sx={{ mt: 2 }} justifyContent="flex-end">
-              <Grid item xs={12} md={5}>
-                {/* Aquí iría la sección de totales. Asegúrate de tenerla como la diseñamos. */}
+            <Grid container sx={{ mt: 2 }} justifyContent="flex-end">
+              <Grid item xs={12} md={5} lg={4}>
+                <Paper variant="outlined" sx={{ p: 2 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body1">Subtotal Neto:</Typography>
+                    <Typography variant="body1" fontWeight="bold">S/ {subtotal.toFixed(2)}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body1">Impuesto (%):</Typography>
+                    <TextField 
+                      size="small" 
+                      type="number" 
+                      value={taxPercentage} 
+                      onChange={(e) => setTaxPercentage(e.target.value)}
+                      sx={{ width: '100px' }}
+                      InputProps={{ inputProps: { step: 0.01, min: 0 } }}
+                    />
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography variant="body1">Monto Impuesto:</Typography>
+                    <Typography variant="body1" fontWeight="bold">S/ {taxAmount.toFixed(2)}</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="body1">Otros Cargos:</Typography>
+                    <TextField 
+                      size="small" 
+                      type="number" 
+                      value={otherCharges} 
+                      onChange={(e) => setOtherCharges(e.target.value)}
+                      sx={{ width: '100px' }}
+                      InputProps={{ inputProps: { step: 0.01, min: 0 } }}
+                    />
+                  </Box>
+                  <Divider />
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+                    <Typography variant="h6">TOTAL:</Typography>
+                    <Typography variant="h6" fontWeight="bold">S/ {totalAmount.toFixed(2)}</Typography>
+                  </Box>
+                </Paper>
               </Grid>
             </Grid>
             

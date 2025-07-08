@@ -37,3 +37,5 @@ db.users.findOne({role: "superadmin"})
 rm -rf node_modules
 rm package-lock.json
 
+
+sin abreviaturas ni comentarios que reemplacen código

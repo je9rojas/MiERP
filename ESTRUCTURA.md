@@ -239,6 +239,7 @@ backend/app/routes/products.py
 /backend/app/routes/suppliers.py
 /backend/app/routes/purchase_orders.py
 
+/backend/app/schemas/purchase_order.py
 
 
 backend/app/services/__init__.py
@@ -253,6 +254,7 @@ backend/app/services/catalog_service.py
 
 /frontend/src/main.js
 /frontend/src/App.js
+/frontend/src/index.js
 
 /frontend/src/api/axiosConfig.js
 /frontend/src/api/authAPI.js

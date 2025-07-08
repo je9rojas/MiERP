@@ -1,10 +1,10 @@
 // /frontend/src/components/layout/DashboardSidebar.js
-// CÓDIGO COMPLETO Y OPTIMIZADO - LISTO PARA COPIAR Y PEGAR
+// CÓDIGO FINAL Y COMPLETO - LISTO PARA COPIAR Y PEGAR
 
 import React from 'react';
 import { styled, useTheme } from '@mui/material/styles';
 import MuiDrawer from '@mui/material/Drawer';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   Box, Typography, List, ListItemButton, ListItemIcon, ListItemText,
   Divider, IconButton, Collapse,
@@ -54,10 +54,10 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import AssessmentIcon from '@mui/icons-material/Assessment'; // <-- NUEVO ICONO PARA REPORTES
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'; // <-- NUEVO ICONO PARA REPORTES CON IA
+import AssessmentIcon from '@mui/icons-material/Assessment';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
-// --- Lógica de estilos y componentes styled (sin cambios) ---
+// --- ESTILOS OPTIMIZADOS: Leen el ancho del menú directamente del tema ---
 const openedMixin = (theme) => ({
   width: theme.mixins.drawerWidth,
   transition: theme.transitions.create('width', {
@@ -65,8 +65,6 @@ const openedMixin = (theme) => ({
     duration: theme.transitions.duration.enteringScreen,
   }),
   overflowX: 'hidden',
-  boxShadow: theme.shadows[2],
-  borderRight: 'none',
 });
 
 const closedMixin = (theme) => ({
@@ -79,7 +77,6 @@ const closedMixin = (theme) => ({
   [theme.breakpoints.up('sm')]: {
     width: `calc(${theme.spacing(8)} + 1px)`,
   },
-  borderRight: 'none',
 });
 
 const DrawerHeader = styled('div')(({ theme }) => ({
@@ -87,8 +84,6 @@ const DrawerHeader = styled('div')(({ theme }) => ({
   alignItems: 'center',
   justifyContent: 'flex-end',
   padding: theme.spacing(0, 1),
-  backgroundColor: theme.palette.primary.dark,
-  color: theme.palette.primary.contrastText,
   ...theme.mixins.toolbar,
 }));
 
@@ -109,7 +104,7 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
   }),
 );
 
-// --- ESTRUCTURA DE DATOS PARA LOS MENÚS CON ROLES Y NUEVO MÓDULO DE REPORTES ---
+// --- Estructura de Datos para los Menús y Roles ---
 const ALL_ROLES = ['superadmin', 'admin', 'manager', 'vendedor', 'almacenero', 'contador', 'reclutador_rrhh'];
 const ADMIN_ROLES = ['superadmin', 'admin'];
 const MANAGER_ROLES = ['superadmin', 'admin', 'manager'];
@@ -118,13 +113,10 @@ const WAREHOUSE_ROLES = ['superadmin', 'admin', 'manager', 'almacenero'];
 const ACCOUNTANT_ROLES = ['superadmin', 'admin', 'manager', 'contador'];
 const HR_ROLES = ['superadmin', 'admin', 'manager', 'reclutador_rrhh'];
 
-// Menús operativos y de negocio (se ha quitado "Generar Catálogo" de Inventario)
 const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ALL_ROLES },
     {
-      text: 'Ventas y CRM',
-      icon: <PointOfSaleIcon />,
-      roles: SELLER_ROLES,
+      text: 'Ventas y CRM', icon: <PointOfSaleIcon />, roles: SELLER_ROLES,
       subItems: [
         { text: 'Dashboard de Ventas', icon: <LeaderboardIcon />, path: '/ventas/dashboard', roles: MANAGER_ROLES },
         { text: 'Clientes', icon: <PeopleIcon />, path: '/ventas/clientes', roles: SELLER_ROLES },
@@ -136,9 +128,7 @@ const menuItems = [
       ],
     },
     {
-      text: 'Compras',
-      icon: <ShoppingCartIcon />,
-      roles: WAREHOUSE_ROLES.concat(ACCOUNTANT_ROLES),
+      text: 'Compras', icon: <ShoppingCartIcon />, roles: WAREHOUSE_ROLES.concat(ACCOUNTANT_ROLES),
       subItems: [
         { text: 'Proveedores', icon: <LocalShippingIcon />, path: '/compras/proveedores', roles: WAREHOUSE_ROLES },
         { text: 'Órdenes de Compra', icon: <ReceiptLongIcon />, path: '/compras/ordenes', roles: WAREHOUSE_ROLES },
@@ -147,9 +137,7 @@ const menuItems = [
       ],
     },
     {
-      text: 'Inventario',
-      icon: <InventoryIcon />,
-      roles: WAREHOUSE_ROLES.concat(SELLER_ROLES),
+      text: 'Inventario', icon: <InventoryIcon />, roles: WAREHOUSE_ROLES.concat(SELLER_ROLES),
       subItems: [
         { text: 'Productos y Servicios', icon: <InventoryIcon />, path: '/inventario/productos', roles: WAREHOUSE_ROLES.concat(ADMIN_ROLES) },
         { text: 'Almacenes', icon: <WarehouseIcon />, path: '/inventario/almacenes', roles: WAREHOUSE_ROLES.concat(ADMIN_ROLES) },
@@ -161,9 +149,7 @@ const menuItems = [
       ],
     },
     {
-      text: 'Finanzas',
-      icon: <AccountBalanceIcon />,
-      roles: ACCOUNTANT_ROLES,
+      text: 'Finanzas', icon: <AccountBalanceIcon />, roles: ACCOUNTANT_ROLES,
       subItems: [
         { text: 'Dashboard Financiero', icon: <LeaderboardIcon />, path: '/finanzas/dashboard', roles: MANAGER_ROLES },
         { text: 'Cuentas por Cobrar', icon: <PriceCheckIcon />, path: '/finanzas/cuentas-cobrar', roles: ACCOUNTANT_ROLES },
@@ -175,9 +161,7 @@ const menuItems = [
       ],
     },
     {
-      text: 'Recursos Humanos',
-      icon: <BadgeIcon />,
-      roles: HR_ROLES,
+      text: 'Recursos Humanos', icon: <BadgeIcon />, roles: HR_ROLES,
       subItems: [
         { text: 'Gestión de Empleados', icon: <PeopleIcon />, path: '/rrhh/empleados', roles: HR_ROLES.concat(ADMIN_ROLES) },
         { text: 'Nómina / Planillas', icon: <PaymentIcon />, path: '/rrhh/nomina', roles: HR_ROLES },
@@ -188,12 +172,9 @@ const menuItems = [
     },
 ];
 
-// --- NUEVO MENÚ DE REPORTES ---
 const reportsMenuItems = [
     {
-        text: 'Reportes',
-        icon: <AssessmentIcon />,
-        roles: [...new Set([...MANAGER_ROLES, ...SELLER_ROLES])], // Une y elimina duplicados
+        text: 'Reportes', icon: <AssessmentIcon />, roles: [...new Set([...MANAGER_ROLES, ...SELLER_ROLES])],
         subItems: [
             { text: 'Generar Catálogo', icon: <PictureAsPdfIcon />, path: '/reportes/catalogo', roles: SELLER_ROLES },
             { text: 'Reporte de Ventas', icon: <LeaderboardIcon />, path: '/reportes/ventas', roles: MANAGER_ROLES },
@@ -202,12 +183,9 @@ const reportsMenuItems = [
     }
 ];
   
-// Menús de administración y sistema
 const adminMenuItems = [
     {
-      text: 'Administración',
-      icon: <BusinessIcon />,
-      roles: ADMIN_ROLES,
+      text: 'Administración', icon: <BusinessIcon />, roles: ADMIN_ROLES,
       subItems: [
           { text: 'Configuración General', icon: <SettingsIcon />, path: '/admin/configuracion' },
           { text: 'Usuarios y Roles', icon: <AdminPanelSettingsIcon />, path: '/admin/usuarios' },
@@ -218,9 +196,7 @@ const adminMenuItems = [
       ]
     },
     {
-      text: 'Sistema',
-      icon: <BuildCircleIcon />,
-      roles: ['superadmin'],
+      text: 'Sistema', icon: <BuildCircleIcon />, roles: ['superadmin'],
       subItems: [
           { text: 'Auditoría de Usuarios', icon: <AdminPanelSettingsIcon />, path: '/sistema/auditoria' },
           { text: 'Bitácora de Cambios', icon: <HistoryToggleOffIcon />, path: '/sistema/changelog' },
@@ -231,10 +207,15 @@ const adminMenuItems = [
     }
 ];
 
+// --- Componente Principal (Ya no recibe 'drawerWidth') ---
 const DashboardSidebar = ({ open, handleDrawerClose }) => {
+  const location = useLocation();
   const theme = useTheme();
-  const [openCollapse, setOpenCollapse] = React.useState({});
   const { user } = useAuth();
+  // AÑADE ESTA LÍNEA PARA DEPURAR
+  console.log('USER OBJECT IN SIDEBAR:', user); 
+
+  const [openCollapse, setOpenCollapse] = React.useState({});
 
   const handleCollapseClick = (name) => {
     setOpenCollapse(prev => ({ ...prev, [name]: !prev[name] }));
@@ -242,17 +223,12 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
 
   const renderMenuItems = (items, primaryColor = true) => {
     const iconColor = primaryColor ? theme.palette.primary.main : theme.palette.text.secondary;
-
-    const accessibleItems = items.filter(item => {
-        if (!item.roles) return true;
-        if (!user || !user.role) return false;
-        return item.roles.includes(user.role);
-    });
+    const accessibleItems = items.filter(item => !item.roles || (user && user.role && item.roles.includes(user.role)));
 
     return accessibleItems.map((item) => {
-      const accessibleSubItems = item.subItems?.filter(subItem => 
-          !subItem.roles || (user && subItem.roles.includes(user.role))
-      ) || [];
+      const accessibleSubItems = item.subItems?.filter(subItem => !subItem.roles || (user && user.role && subItem.roles.includes(user.role))) || [];
+      const isActive = item.path === location.pathname;
+      const isParentActive = item.subItems?.some(sub => location.pathname.startsWith(sub.path));
 
       if (item.subItems && accessibleSubItems.length === 0) {
         return null;
@@ -264,7 +240,10 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
             <>
               <ListItemButton
                 onClick={() => handleCollapseClick(item.text)}
-                sx={{ minHeight: 48, justifyContent: open ? 'initial' : 'center', px: 2.5 }}
+                sx={{ 
+                  minHeight: 48, justifyContent: open ? 'initial' : 'center', px: 2.5,
+                  bgcolor: isParentActive ? 'action.hover' : 'transparent',
+                }}
               >
                 <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : 'auto', justifyContent: 'center', color: iconColor }}>
                   {item.icon}
@@ -279,6 +258,7 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
                       key={subItem.text}
                       component={Link}
                       to={subItem.path}
+                      selected={location.pathname === subItem.path}
                       sx={{ pl: 4 }}
                     >
                       <ListItemIcon sx={{ minWidth: 0, mr: 3, justifyContent: 'center', color: iconColor, opacity: 0.8 }}>
@@ -294,6 +274,7 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
             <ListItemButton
               component={Link}
               to={item.path}
+              selected={isActive}
               sx={{ minHeight: 48, justifyContent: open ? 'initial' : 'center', px: 2.5 }}
             >
               <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : 'auto', justifyContent: 'center', color: iconColor }}>
@@ -311,31 +292,31 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
     <Drawer variant="permanent" open={open}>
       <DrawerHeader>
         <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, pl: 2, opacity: open ? 1 : 0, transition: 'opacity 0.3s' }}>
-           <Box sx={{ width: 40, height: 40, backgroundColor: theme.palette.primary.light, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 1.5 }}>
-            <Typography variant="h6" fontWeight="bold">M</Typography>
-          </Box>
+           <Box sx={{ width: 40, height: 40, backgroundColor: 'primary.light', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 1.5 }}>
+            <Typography variant="h6" fontWeight="bold" color="primary.contrastText">M</Typography>
+           </Box>
           <Typography variant="h6" fontWeight="bold">MiERP PRO</Typography>
         </Box>
-        <IconButton onClick={handleDrawerClose} sx={{ color: 'white' }}>
-          <ChevronLeftIcon />
+        <IconButton onClick={handleDrawerClose}>
+          <ChevronLeftIcon sx={{ color: 'white' }} />
         </IconButton>
       </DrawerHeader>
       
       <Divider />
 
-      <List component="nav">
+      <List component="nav" sx={{ p: 1 }}>
         {renderMenuItems(menuItems, true)}
       </List>
       
-      <Divider sx={{ mx: 2 }} />
+      <Divider sx={{ mx: 2, my: 1 }} />
 
-      <List component="nav">
+      <List component="nav" sx={{ p: 1 }}>
         {renderMenuItems(reportsMenuItems, true)}
       </List>
       
-      <Divider sx={{ mx: 2 }} />
+      <Divider sx={{ mx: 2, my: 1 }} />
       
-      <List component="nav">
+      <List component="nav" sx={{ p: 1 }}>
         {renderMenuItems(adminMenuItems, false)}
       </List>
     </Drawer>

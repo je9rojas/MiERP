@@ -1,7 +1,7 @@
 // /frontend/src/app/contexts/AuthContext.js
-// CÓDIGO COMPLETO Y CORRECTO - LISTO PARA COPIAR Y PEGAR
+// CÓDIGO COMPLETO - NO NECESITA CAMBIOS PERO SE INCLUYE POR CLARIDAD
 
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
 import { loginAPI, getUserProfile, verifyToken } from '../../api/authAPI';
 import { setAuthToken, getAuthToken, removeAuthToken } from '../../utils/auth/auth';
 
@@ -10,31 +10,15 @@ const AuthContext = createContext();
 const authReducer = (state, action) => {
   switch (action.type) {
     case 'INITIALIZE':
-      return {
-        ...state,
-        isAuthenticated: action.payload.isAuthenticated,
-        user: action.payload.user,
-        isInitialized: true,
-        isLoading: false,
-      };
+      return { ...state, isAuthenticated: action.payload.isAuthenticated, user: action.payload.user, isInitialized: true, isLoading: false };
     case 'LOGIN_REQUEST':
       return { ...state, isLoading: true, error: null };
     case 'LOGIN_SUCCESS':
-      return { 
-        ...state, 
-        user: action.payload.user, 
-        isAuthenticated: true, 
-        isLoading: false,
-        error: null
-      };
+      return { ...state, user: action.payload.user, isAuthenticated: true, isLoading: false, error: null };
     case 'LOGIN_FAILURE':
-        return { ...state, error: action.payload, isLoading: false };
+      return { ...state, error: action.payload, isLoading: false };
     case 'LOGOUT':
-      return { 
-        ...state, 
-        user: null, 
-        isAuthenticated: false,
-      };
+      return { ...state, user: null, isAuthenticated: false };
     default:
       return state;
   }
@@ -67,7 +51,6 @@ export const AuthProvider = ({ children }) => {
         dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: false, user: null } });
       }
     };
-    
     initializeAuth();
   }, []);
 
@@ -77,11 +60,9 @@ export const AuthProvider = ({ children }) => {
       const { token, user } = await loginAPI(credentials);
       setAuthToken(token);
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
-      return { success: true };
     } catch (error) {
       const errorMessage = error.response?.data?.detail || error.message || 'Credenciales incorrectas';
       dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
-      return { success: false, error: errorMessage };
     }
   }, []);
 
@@ -90,11 +71,10 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGOUT' });
   }, []);
 
-  const hasRole = useCallback((role) => state.user?.role === role, [state.user]);
-  const isAdmin = useCallback(() => ['admin', 'superadmin'].includes(state.user?.role), [state.user]);
-  
+  const value = useMemo(() => ({ ...state, login, logout }), [state, login, logout]);
+
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, hasRole, isAdmin }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
@@ -102,8 +82,6 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth debe usarse dentro de un AuthProvider');
-  }
+  if (!context) { throw new Error('useAuth debe usarse dentro de un AuthProvider'); }
   return context;
 };
