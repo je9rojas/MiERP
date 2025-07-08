@@ -228,6 +228,8 @@ backend/app/models/user.py
 /backend/app/models/supplier.py
 /backend/app/models/purchase_order.py
 /backend/app/models/credit_note.py
+/backend/app/models/shared.py
+backend/app/models/reception.py
 
 
 /backend/app/routes/__init__.py
