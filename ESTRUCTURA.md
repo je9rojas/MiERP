@@ -248,6 +248,10 @@ backend/app/services/__init__.py
 backend/app/services/auth_service.py
 backend/app/services/templates/catalog_template.html
 backend/app/services/catalog_service.py
+backend/app/services/user_service.py
+backend/app/services/role_service.py
+backend/app/services/product_service.py
+
 
 
 /backend/scripts/create_superadmin.py
@@ -284,11 +288,18 @@ backend/app/services/catalog_service.py
 /frontend/src/features/dashboard/pages/DashboardPage.js
 /frontend/src/features/auth/pages/RegisterPage.js
 /frontend/src/features/home/pages/HomePage.js
+
 /frontend/src/features/inventory/pages/ProductCatalogPage.js
 /frontend/src/features/inventory/components/CatalogFilterForm.js
+frontend/src/features/inventory/pages/NewProductPage.js
+frontend/src/features/inventory/components/ProductForm.js
+frontend/src/features/inventory/pages/ProductListPage.j
+
+
 /frontend/src/features/purchasing/pages/NewPurchaseOrderPage.js
 /frontend/src/features/purchasing/components/SupplierAutocomplete.js
 /frontend/src/features/purchasing/components/ProductAutocomplete.js
+
 
 
 /frontend/src/routes/AppRoutes.js

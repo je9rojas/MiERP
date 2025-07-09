@@ -105,13 +105,13 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
 );
 
 // --- Estructura de Datos para los Menús y Roles ---
-const ALL_ROLES = ['superadmin', 'admin', 'manager', 'vendedor', 'almacenero', 'contador', 'reclutador_rrhh'];
+const ALL_ROLES = ['superadmin', 'admin', 'manager', 'sales', 'warehouse', 'accountant', 'hr_recruiter'];
 const ADMIN_ROLES = ['superadmin', 'admin'];
 const MANAGER_ROLES = ['superadmin', 'admin', 'manager'];
-const SELLER_ROLES = ['superadmin', 'admin', 'manager', 'vendedor'];
-const WAREHOUSE_ROLES = ['superadmin', 'admin', 'manager', 'almacenero'];
-const ACCOUNTANT_ROLES = ['superadmin', 'admin', 'manager', 'contador'];
-const HR_ROLES = ['superadmin', 'admin', 'manager', 'reclutador_rrhh'];
+const SELLER_ROLES = ['superadmin', 'admin', 'manager', 'sales'];
+const WAREHOUSE_ROLES = ['superadmin', 'admin', 'manager', 'warehouse'];
+const ACCOUNTANT_ROLES = ['superadmin', 'admin', 'manager', 'accountant'];
+const HR_ROLES = ['superadmin', 'admin', 'manager', 'hr_recruiter'];
 
 const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ALL_ROLES },

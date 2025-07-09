@@ -38,4 +38,4 @@ rm -rf node_modules
 rm package-lock.json
 
 
-sin abreviaturas ni comentarios que reemplacen código
+Muestrame el codigo corregido, completo y optimizado sin abreviaturas ni comentarios que reemplacen el código

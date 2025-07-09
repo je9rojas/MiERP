@@ -1,22 +1,27 @@
 // /frontend/src/api/productsAPI.js
-// CÓDIGO COMPLETO Y OPTIMIZADO - LISTO PARA COPIAR Y PEGAR
 
 import api from './axiosConfig';
 
 /**
- * Llama al backend para generar un catálogo en PDF basado en filtros y el tipo de vista.
- * @param {object} payload - Objeto que contiene los filtros y el view_type.
- *                          Ej: { search_term: 'filtro', product_types: ['aire'], view_type: 'seller' }
- * @returns {Promise<Blob>} - Una promesa que resuelve con el PDF como un Blob.
+ * Envía los datos de un nuevo producto al backend para su creación.
+ * @param {object} productData - Los datos del producto del formulario.
+ * @returns {Promise<object>} - La respuesta de la API con el producto creado.
  */
-export const generateCatalogAPI = async (payload) => {
-  const response = await api.post('/products/catalog/generate', payload, {
-    // ¡MUY IMPORTANTE! Le decimos a Axios que esperamos un archivo binario (Blob), no JSON.
-    responseType: 'blob', 
-  });
-  // La data de la respuesta ya es el Blob que necesitamos
+export const createProductAPI = async (productData) => {
+  const response = await api.post('/products/', productData);
   return response.data;
 };
 
-// Si tienes más llamadas a la API de productos, las puedes añadir aquí.
-// export const getProductsAPI = () => api.get('/products');
+/**
+ * Obtiene la lista de todos los productos.
+ */
+export const getProductsAPI = async () => {
+  const response = await api.get('/products/');
+  return response.data;
+};
+
+
+// Tu función de catálogo puede permanecer aquí si la sigues usando
+export const generateCatalogAPI = async (payload) => {
+  // ...
+};

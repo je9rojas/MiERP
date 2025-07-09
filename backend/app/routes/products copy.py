@@ -1,5 +1,5 @@
 # /backend/app/routes/products.py
-# CÓDIGO CORREGIDO CON SUPERADMIN INCLUIDO EN LOS PERMISOS
+# CÓDIGO CORREGIDO Y CONSISTENTE CON ROLES EN INGLÉS
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
@@ -13,57 +13,34 @@ from app.models.user import UserRole
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
-# Definimos los roles permitidos en una lista clara
-ROLES_ALLOWED_TO_CREATE_PRODUCTS = [
-    UserRole.SUPERADMIN,  # <-- ¡ROL AÑADIDO!
-    UserRole.ADMIN,
-    UserRole.MANAGER,
-    UserRole.WAREHOUSE,
-]
-
-# Endpoint para crear un nuevo producto
 @router.post("/", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
 async def create_new_product(
     product: ProductCreate,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    # Usamos la lista de roles definida arriba
-    _user: dict = Depends(role_checker(ROLES_ALLOWED_TO_CREATE_PRODUCTS))
+    # Ahora usamos los nombres en inglés del Enum
+    _user: dict = Depends(role_checker([UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE]))
 ):
     """
-    Crea un nuevo producto en el inventario.
-    Roles permitidos: superadmin, admin, manager, warehouse.
+    Creates a new product in the inventory.
+    Allowed roles: admin, manager, warehouse.
     """
-    print("--- [PRODUCTS] Petición para crear nuevo producto recibida ---")
-    print(product.model_dump_json(indent=2))
-    print("---------------------------------------------------------")
-
     try:
         created_product = await product_service.create_product(db, product)
-        print(f"✅ Producto '{created_product.sku}' creado exitosamente en la base de datos.")
         return created_product
-        
-    except ValueError as ve:
-        print(f"❌ Error de validación: {ve}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
-        
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        print(f"❌ ERROR INESPERADO al crear producto: {type(e).__name__} - {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ocurrió un error interno inesperado al procesar su solicitud."
-        )
+        print(f"Error creating product: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An unexpected error occurred while creating the product.")
 
-# Endpoint para obtener todos los productos
 @router.get("/", response_model=List[ProductOut])
 async def get_all_products(
     db: AsyncIOMotorDatabase = Depends(get_db),
     _user: dict = Depends(role_checker(UserRole.all_roles()))
 ):
-    """Obtiene una lista de todos los productos activos."""
+    """Retrieves a list of all active products."""
     products = await product_service.get_all_products(db)
     return products
-
-
 
 
 # --- PUEDES MANTENER TU RUTA DE CATÁLOGO AQUÍ, PERO NECESITARÁ AJUSTES ---

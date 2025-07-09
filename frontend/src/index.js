@@ -1,28 +1,37 @@
+// /frontend/src/index.js
+// CÓDIGO FINAL Y COMPLETO CON TODOS LOS PROVIDERS NECESARIOS
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './index.css';
-import App from './App';
 import { BrowserRouter } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
 import { AuthProvider } from './app/contexts/AuthContext';
+import { SnackbarProvider } from 'notistack';
 
-console.log('[index] Iniciando aplicación');
+// --- NUEVAS IMPORTACIONES PARA EL SELECTOR DE FECHAS ---
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { es } from 'date-fns/locale'; // Para poner el calendario en español
 
-const startTime = performance.now();
+import App from './App';
+import theme from './app/theme';
+import './index.css';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
+
 root.render(
-  <BrowserRouter>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
-  </BrowserRouter>
+  <React.StrictMode>
+    <BrowserRouter>
+      <ThemeProvider theme={theme}>
+        <AuthProvider>
+          <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
+            {/* --- NUEVO PROVIDER PARA LAS FECHAS --- */}
+            <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
+              <App />
+            </LocalizationProvider>
+          </SnackbarProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </BrowserRouter>
+  </React.StrictMode>
 );
-
-// Medición de rendimiento opcional
-const measureStartup = () => {
-  const endTime = performance.now();
-  const loadTime = endTime - startTime;
-  console.log(`[index] 🕒 Tiempo de inicio: ${loadTime.toFixed(2)} ms`);
-};
-
-setTimeout(measureStartup, 0);
