@@ -1,5 +1,5 @@
 # /backend/app/models/product.py
-# ARQUITECTURA DE MODELOS FINAL, ROBUSTA Y ESCALABLE
+# ARQUITECTURA DE MODELOS FINAL, COMPLETA Y ROBUSTA
 
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
@@ -54,7 +54,7 @@ class Application(BaseModel):
 
 # --- ARQUITECTURA DE MODELOS PRINCIPALES ---
 
-# 1. Modelo de Entrada (DTO - Data Transfer Object):
+# 1. Modelo de Entrada para CREACIÓN (DTO - Data Transfer Object):
 # Define los datos que el frontend DEBE enviar para crear un producto.
 class ProductCreate(BaseModel):
     sku: str = Field(..., description="SKU (Stock Keeping Unit) único del producto.")
@@ -71,7 +71,25 @@ class ProductCreate(BaseModel):
     applications: Optional[List[Application]] = Field(None, description="Lista de vehículos compatibles.")
 
 
-# 2. Modelo de Base de Datos (La "Fuente de la Verdad"):
+# 2. Modelo de Entrada para ACTUALIZACIÓN (DTO)
+#    Todos los campos son opcionales, ya que el usuario puede querer actualizar solo uno o varios campos.
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    brand: Optional[str] = None
+    product_type: Optional[ProductType] = None
+    cost: Optional[float] = Field(None, ge=0)
+    price: Optional[float] = Field(None, ge=0)
+    stock_quantity: Optional[int] = Field(None, ge=0)
+    points_on_sale: Optional[int] = Field(None, ge=0)
+    specifications: Optional[Dict[str, Any]] = None
+    cross_references: Optional[List[CrossReference]] = None
+    applications: Optional[List[Application]] = None
+    image_urls: Optional[List[str]] = None
+    is_active: Optional[bool] = None
+
+
+# 3. Modelo de Base de Datos (La "Fuente de la Verdad"):
 # Representa el documento COMPLETO como se almacena en MongoDB.
 # Contiene todos los campos, incluyendo los generados por el servidor.
 class ProductInDB(BaseModel):
@@ -101,7 +119,7 @@ class ProductInDB(BaseModel):
         json_encoders = {ObjectId: str} # Asegura que los ObjectId se conviertan a string al serializar a JSON.
 
 
-# 3. Modelo de Salida (DTO - Data Transfer Object):
+# 4. Modelo de Salida (DTO - Data Transfer Object):
 # Define los datos que la API devuelve al frontend.
 # En este caso, es seguro mostrar todos los campos del modelo de la base de datos.
 class ProductOut(ProductInDB):

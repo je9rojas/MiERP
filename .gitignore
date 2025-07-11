@@ -1,5 +1,4 @@
 # Ignorar node_modules en backend y frontend
-/backend/node_modules/
 /frontend/node_modules/
 
 # Ignorar archivos .env en la raíz

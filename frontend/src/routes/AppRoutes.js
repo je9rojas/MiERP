@@ -26,6 +26,7 @@ import ProductListPage from '../features/inventory/pages/ProductListPage'; // <-
 import NewProductPage from '../features/inventory/pages/NewProductPage';   // <-- NUEVA PÁGINA
 import NewPurchaseOrderPage from '../features/purchasing/pages/NewPurchaseOrderPage';
 import PurchaseOrderListPage from '../features/purchasing/pages/PurchaseOrderListPage';
+import EditProductPage from '../features/inventory/pages/EditProductPage';
 
 
 // --- Componentes Guardianes para la Lógica de Rutas ---
@@ -89,6 +90,7 @@ const AppRoutes = () => {
           {/* Rutas de Inventario */}
           <Route path="/inventario/productos" element={<ProductListPage />} />
           <Route path="/inventario/productos/nuevo" element={<NewProductPage />} />
+          <Route path="/inventario/productos/editar/:sku" element={<EditProductPage />} />
           <Route path="/reportes/catalogo" element={<ProductCatalogPage />} />
 
           {/* Rutas de Compras */}

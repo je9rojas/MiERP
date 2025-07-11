@@ -38,4 +38,7 @@ rm -rf node_modules
 rm package-lock.json
 
 
-Muestrame el codigo corregido, completo y optimizado sin abreviaturas ni comentarios que reemplacen el código
+Muestrame la versión final y profesional del codigo basolutamente completo, corregido y optimizado con las mejores prácticas sin ninguna abreviaturas ni comentarios que reemplacen el código y ordénalo en secciones lógicas para máxima claridad y mantenibilidad.
+
+
+Me centraré exclusivamente en señalarte los cambios necesarios en los dos archivos que me has pasado. usando comentarios y resumenes

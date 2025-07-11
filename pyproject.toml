@@ -1,6 +1,15 @@
+# /backend/pyproject.toml
+
 [build-system]
 requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "mierp_backend"
+version = "1.0.0"
+description = "El backend para el sistema MiERP PRO."
+# authors = [{name="Tu Nombre", email="tu@email.com"}]
+requires-python = ">=3.10"
 
 [tool.black]
 line-length = 88
@@ -20,3 +29,12 @@ select = ["E", "F", "I", "B", "C4", "W", "UP"]
 ignore = []
 line-length = 88
 target-version = "py310"
+
+# --- ADICIÓN CLAVE ---
+# Excluye el directorio del entorno virtual de los análisis de ruff.
+exclude = [
+    ".git",
+    ".venv",
+    "build",
+    "dist",
+]

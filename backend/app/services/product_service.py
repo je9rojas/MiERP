@@ -2,7 +2,7 @@
 # SERVICIO FINAL Y REFACTORIZADO CON ARQUITECTURA LIMPIA
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from app.models.product import ProductCreate, ProductInDB, ProductUpdate
 
@@ -83,14 +83,11 @@ async def update_product_by_sku(db: AsyncIOMotorDatabase, sku: str, product_upda
     Actualiza un producto existente por su SKU.
     También actualiza automáticamente el campo `updated_at`.
     """
-    # Exclude_unset=True asegura que solo se actualicen los campos que se enviaron en la petición.
     update_data = product_update_data.model_dump(exclude_unset=True)
     
     if not update_data:
-        # Si no se envió ningún dato para actualizar, no hacemos nada.
         return await get_product_by_sku(db, sku)
 
-    # Añadimos la actualización del campo `updated_at` a la operación.
     update_data["updated_at"] = datetime.now(timezone.utc)
 
     result = await db.products.update_one(
@@ -102,3 +99,63 @@ async def update_product_by_sku(db: AsyncIOMotorDatabase, sku: str, product_upda
         return await get_product_by_sku(db, sku)
     
     return None
+
+# --- NUEVA FUNCIÓN ---
+async def deactivate_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> bool:
+    """
+    Desactiva un producto (borrado lógico) cambiando su estado a 'inactive'.
+    Devuelve True si la operación fue exitosa, False en caso contrario.
+    """
+    result = await db.products.update_one(
+        {"sku": sku},
+        {"$set": {
+            "is_active": False,
+            "updated_at": datetime.now(timezone.utc)
+        }}
+    )
+    return result.modified_count > 0
+
+
+# --- NUEVA FUNCIÓN DE BÚSQUEDA AVANZADA ---
+async def get_products_with_filters_and_pagination(
+    db: AsyncIOMotorDatabase,
+    search: Optional[str] = None,
+    brand: Optional[str] = None,
+    product_type: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 10,
+) -> Dict[str, Any]:
+    """
+    Obtiene productos con filtros, búsqueda y paginación.
+    Devuelve tanto la lista de productos para la página actual como el conteo total.
+    """
+    query = {"is_active": True}
+    
+    # 1. Construir la consulta de forma dinámica
+    if search:
+        # Búsqueda de texto no sensible a mayúsculas/minúsculas en los campos 'name' y 'sku'
+        query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"sku": {"$regex": search, "$options": "i"}},
+        ]
+    if brand:
+        query["brand"] = brand
+    if product_type:
+        query["product_type"] = product_type
+
+    # 2. Contar el número total de documentos que coinciden con la consulta (antes de paginar)
+    total_count = await db.products.count_documents(query)
+
+    # 3. Aplicar paginación
+    # .skip() salta los documentos de las páginas anteriores
+    # .limit() limita el número de documentos a devolver
+    skip = (page - 1) * page_size
+    products_cursor = db.products.find(query).skip(skip).limit(page_size)
+    
+    products_list = []
+    async for product_doc in products_cursor:
+        products_list.append(ProductInDB(**product_doc))
+        
+    # 4. Devolver un diccionario con los datos y la información de paginación
+    return {"total": total_count, "items": products_list}
+

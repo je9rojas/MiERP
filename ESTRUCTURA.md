@@ -211,7 +211,6 @@ frontend/
 
 /backend/requirements.txt
 /backend/requirements-dev.txt 
-/pyproject.toml
 
 /backend/app/main.py
 
@@ -281,6 +280,11 @@ backend/app/services/product_service.py
 /frontend/src/components/layout/DashboardLayout.js
 /frontend/src/components/layout/DashboardSidebar.js
 
+/frontend/src/constants/productConstants.js
+/frontend/src/constants/apiConfig.js
+/frontend/src/constants/rolesAndPermissions.js
+/frontend/src/constants/validationSchemas.js
+
 /frontend/src/features/auth/pages/LoginPage.js
 
 /frontend/src/features/admin/components/UserFormModal.js
@@ -294,13 +298,13 @@ backend/app/services/product_service.py
 frontend/src/features/inventory/pages/NewProductPage.js
 frontend/src/features/inventory/components/ProductForm.js
 frontend/src/features/inventory/pages/ProductListPage.j
-
+/frontend/src/features/inventory/pages/EditProductPage.js
 
 /frontend/src/features/purchasing/pages/NewPurchaseOrderPage.js
 /frontend/src/features/purchasing/components/SupplierAutocomplete.js
 /frontend/src/features/purchasing/components/ProductAutocomplete.js
 
-
+/frontend/src/hooks/useDebounce.js
 
 /frontend/src/routes/AppRoutes.js
 
