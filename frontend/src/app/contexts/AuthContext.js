@@ -2,7 +2,7 @@
 // CÓDIGO COMPLETO - NO NECESITA CAMBIOS PERO SE INCLUYE POR CLARIDAD
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
-import { loginAPI, getUserProfile, verifyToken } from '../../api/authAPI';
+import { loginAPI, getUserProfile, verifyToken } from '../../features/auth/api/authAPI';
 import { setAuthToken, getAuthToken, removeAuthToken } from '../../utils/auth/auth';
 
 const AuthContext = createContext();

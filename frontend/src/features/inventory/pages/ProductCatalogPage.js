@@ -7,7 +7,7 @@ import {
   FormControl, FormLabel, RadioGroup, FormControlLabel, Radio, Alert
 } from '@mui/material';
 import CatalogFilterForm from '../components/CatalogFilterForm';
-import { generateCatalogAPI } from '../../../api/productsAPI';
+import { generateCatalogAPI } from '../api/productsAPI';
 import { useAuth } from '../../../app/contexts/AuthContext'; // Importar para verificar roles
 
 const ProductCatalogPage = () => {

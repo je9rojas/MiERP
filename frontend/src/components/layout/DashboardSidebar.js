@@ -2,7 +2,7 @@
 // VERSIÓN FINAL, COMPLETA Y PROFESIONAL
 
 import React from 'react';
-import { styled, useTheme } from '@mui/material/styles';
+import { styled } from '@mui/material/styles';
 import MuiDrawer from '@mui/material/Drawer';
 import { Link, useLocation } from 'react-router-dom';
 import {
@@ -174,7 +174,6 @@ const adminMenuItems = [
 // --- SECCIÓN 5: Componente Principal del Sidebar ---
 const DashboardSidebar = ({ open, handleDrawerClose }) => {
   const location = useLocation();
-  const theme = useTheme();
   const { user } = useAuth();
   
   const [openCollapse, setOpenCollapse] = React.useState({});

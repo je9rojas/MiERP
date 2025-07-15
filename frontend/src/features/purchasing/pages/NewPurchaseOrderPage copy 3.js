@@ -1,253 +1,174 @@
 // /frontend/src/features/purchasing/pages/NewPurchaseOrderPage.js
+// PÁGINA PARA CREAR ÓRDENES DE COMPRA CON ARQUITECTURA DE HOOKS Y COMPONENTES
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+
 import { 
   Container, Typography, Paper, Grid, TextField, Button, Box, IconButton, 
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Alert, Divider 
-} from '@mui/material';
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Divider
+} from '@mui/material'; // 'Alert' ha sido eliminado
+
+
 import DeleteIcon from '@mui/icons-material/Delete';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import es from 'date-fns/locale/es';
+import { DatePicker } from '@mui/x-date-pickers'; // LocalizationProvider ya está en index.js
+import { useSnackbar } from 'notistack';
 
-import SupplierAutocomplete from '../components/SupplierAutocomplete';
-import ProductAutocomplete from '../components/ProductAutocomplete';
-import { createPurchaseOrderAPI } from '../../../api/purchasingAPI';
+// --- SECCIÓN 1: IMPORTACIONES CORREGIDAS ---
 import { useAuth } from '../../../app/contexts/AuthContext';
+// Importamos los componentes comunes desde su ubicación centralizada
+import SupplierAutocomplete from '../../../components/common/SupplierAutocomplete';
+import ProductAutocomplete from '../../../components/common/ProductAutocomplete';
+// Importamos la función de la API desde su nuevo módulo
+import { createPurchaseOrderAPI } from '../api/purchasingAPI';
 
-const createInitialItemRow = () => ({
-  id: Date.now() + Math.random(),
-  product_code: '',
-  description: '',
-  related_quote: '',
-  quantity: 1,
-  unit_cost: 0,
-});
 
-const NewPurchaseOrderPage = () => {
+// --- SECCIÓN 2: CUSTOM HOOK (Lógica del Estado) ---
+/**
+ * Hook personalizado que encapsula toda la lógica de estado y los handlers
+ * para el formulario de la orden de compra.
+ * Esto mantiene el componente principal de la UI limpio y centrado en la presentación.
+ */
+const usePurchaseOrderForm = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
+
   const [supplier, setSupplier] = useState(null);
   const [headerData, setHeaderData] = useState({
-    supplier_invoice_code: '',
-    purchase_date: new Date(),
-    issue_date: new Date(),
-    due_date: new Date(),
-    payment_method: 'Crédito 30 días',
+    order_date: new Date(),
+    expected_delivery_date: null,
+    notes: '',
   });
-  const [items, setItems] = useState([createInitialItemRow()]);
-  const [taxPercentage, setTaxPercentage] = useState(18.0);
-  const [otherCharges, setOtherCharges] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState('');
+  const [items, setItems] = useState([{ id: Date.now(), product: null, quantity: 1, unit_cost: 0 }]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleHeaderChange = (e) => {
-    setHeaderData({ ...headerData, [e.target.name]: e.target.value });
-  };
-  
-  const handleDateChange = (name, newValue) => {
-    setHeaderData({ ...headerData, [name]: newValue });
-  };
+  // --- Handlers de Eventos Optimizados ---
+  const handleDateChange = useCallback((name, newValue) => {
+    setHeaderData(prev => ({ ...prev, [name]: newValue }));
+  }, []);
 
-  const handleItemChange = (index, e) => {
-    const { name, value } = e.target;
-    const updatedItems = items.map((item, i) => 
-      i === index ? { ...item, [name]: value } : item
-    );
-    setItems(updatedItems);
-  };
-  
-  const handleProductSelect = (index, product) => {
-    if (!product) return;
-    const updatedItems = items.map((item, i) => 
-      i === index ? { ...item, product_code: product.main_code, description: product.name } : item
-    );
-    setItems(updatedItems);
-  };
+  const handleProductSelect = useCallback((index, selectedProduct) => {
+    setItems(prevItems => prevItems.map((item, i) => 
+      i === index ? { 
+        ...item, 
+        product: selectedProduct,
+        unit_cost: selectedProduct?.cost || 0 
+      } : item
+    ));
+  }, []);
 
-  const addNewItemRow = () => {
-    setItems([...items, createInitialItemRow()]);
-  };
-
-  const removeItemRow = (index) => {
-    const updatedItems = items.filter((_, i) => i !== index);
-    if (updatedItems.length === 0) {
-      setItems([createInitialItemRow()]);
-    } else {
-      setItems(updatedItems);
-    }
-  };
-
-  const subtotal = useMemo(() => items.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unit_cost)), 0), [items]);
-  const taxAmount = useMemo(() => subtotal * (Number(taxPercentage) / 100), [subtotal, taxPercentage]);
-  const totalAmount = useMemo(() => subtotal + taxAmount + Number(otherCharges), [subtotal, taxAmount, otherCharges]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const handleSubmit = useCallback(async (event) => {
+    event.preventDefault();
     if (!supplier) {
-      setError("Por favor, seleccione un proveedor.");
+      enqueueSnackbar("Por favor, seleccione un proveedor.", { variant: 'warning' });
       return;
     }
-    setIsLoading(true);
-    setError(null);
-    setSuccess('');
+    setIsSubmitting(true);
 
-    const purchaseOrderPayload = {
-      supplier_code: supplier.code,
-      supplier_invoice_code: headerData.supplier_invoice_code || null,
-      purchase_date: headerData.purchase_date.toISOString().split('T')[0],
-      issue_date: headerData.issue_date.toISOString().split('T')[0],
-      due_date: headerData.due_date.toISOString().split('T')[0],
-      payment_method: headerData.payment_method,
+    const payload = {
+      supplier_id: supplier._id,
+      order_date: headerData.order_date,
+      expected_delivery_date: headerData.expected_delivery_date,
+      notes: headerData.notes,
       items: items.map(item => ({
-        product_code: item.product_code, description: item.description, related_quote: item.related_quote,
-        quantity: parseInt(item.quantity, 10), unit_cost: parseFloat(item.unit_cost),
-      })).filter(item => item.product_code),
-      tax_percentage: parseFloat(taxPercentage),
-      other_charges: parseFloat(otherCharges),
-      registered_by_user_id: user?.username,
-      buyer_name: "Mi Empresa de Filtros S.A.C",
-      buyer_tax_id: "98765432-1",
-      buyer_legal_address: "Calle Falsa 123, Mi Ciudad"
+        product_id: item.product._id,
+        quantity_ordered: parseInt(String(item.quantity), 10),
+        unit_cost: parseFloat(String(item.unit_cost)),
+      })).filter(item => item.product_id),
     };
 
     try {
-      await createPurchaseOrderAPI(purchaseOrderPayload);
-      setSuccess('¡Orden de Compra registrada exitosamente!');
-      setSupplier(null);
-      setHeaderData({
-          supplier_invoice_code: '', purchase_date: new Date(),
-          issue_date: new Date(), due_date: new Date(), payment_method: 'Crédito 30 días',
-      });
-      setItems([createInitialItemRow()]);
+      await createPurchaseOrderAPI(payload);
+      enqueueSnackbar('Orden de Compra creada exitosamente.', { variant: 'success' });
+      setTimeout(() => navigate('/compras/ordenes'), 1500);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Ocurrió un error al registrar la compra.');
-    } finally {
-      setIsLoading(false);
+      const errorMsg = err.response?.data?.detail || 'Ocurrió un error al guardar la orden.';
+      enqueueSnackbar(errorMsg, { variant: 'error' });
+      setIsSubmitting(false);
     }
+}, [supplier, headerData, items, navigate, enqueueSnackbar]); // <-- 'user' ha sido eliminado de las dependencias
+
+
+
+
+
+  return {
+    models: { supplier, headerData, items, isSubmitting },
+    handlers: { setSupplier, handleDateChange, handleProductSelect, handleItemFieldChange, addNewItemRow, removeItemRow, handleSubmit }
   };
+};
+
+
+// --- SECCIÓN 3: COMPONENTES DE PRESENTACIÓN (UI) ---
+// Estos componentes son "tontos" y solo se encargan de mostrar la UI.
+
+const OrderHeader = ({ supplier, onSupplierSelect, headerData, onDateChange }) => (
+  <Grid container spacing={2} sx={{ mb: 4 }}>
+    <Grid item xs={12} md={6}><SupplierAutocomplete value={supplier} onSelect={onSupplierSelect} /></Grid>
+    <Grid item xs={12} sm={6} md={3}><DatePicker label="Fecha de Orden" value={headerData.order_date} onChange={(val) => onDateChange('order_date', val)} renderInput={(params) => <TextField {...params} fullWidth required />} /></Grid>
+    <Grid item xs={12} sm={6} md={3}><DatePicker label="Fecha de Entrega Estimada" value={headerData.expected_delivery_date} onChange={(val) => onDateChange('expected_delivery_date', val)} renderInput={(params) => <TextField {...params} fullWidth />} /></Grid>
+  </Grid>
+);
+
+const OrderItemsTable = ({ items, handlers }) => (
+  <>
+    <TableContainer component={Paper} variant="outlined">
+      <Table size="small">
+        <TableHead><TableRow><TableCell>Producto</TableCell><TableCell>Descripción</TableCell><TableCell>Cantidad</TableCell><TableCell>Costo Unit.</TableCell><TableCell>Total</TableCell><TableCell></TableCell></TableRow></TableHead>
+        <TableBody>
+          {items.map((item, index) => (
+            <TableRow key={item.id}>
+              <TableCell sx={{ width: '25%' }}><ProductAutocomplete onSelect={(prod) => handlers.handleProductSelect(index, prod)} /></TableCell>
+              <TableCell><Typography variant="body2">{item.product?.name || ''}</Typography></TableCell>
+              <TableCell sx={{ width: '10%' }}><TextField type="number" name="quantity" value={item.quantity} onChange={(e) => handlers.handleItemFieldChange(index, e)} size="small" fullWidth /></TableCell>
+              <TableCell sx={{ width: '15%' }}><TextField type="number" name="unit_cost" value={item.unit_cost} onChange={(e) => handlers.handleItemFieldChange(index, e)} size="small" fullWidth /></TableCell>
+              <TableCell>S/ {(item.quantity * item.unit_cost).toFixed(2)}</TableCell>
+              <TableCell align="right">
+                {items.length > 1 && <IconButton onClick={() => handlers.removeItemRow(index)} color="error" size="small"><DeleteIcon /></IconButton>}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+    <Button onClick={handlers.addNewItemRow} sx={{ mt: 2 }}>Añadir Producto</Button>
+  </>
+);
+
+const OrderTotals = ({ items }) => {
+  const totalAmount = useMemo(() => items.reduce((acc, item) => acc + (Number(item.quantity) * Number(item.unit_cost)), 0), [items]);
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
+      <Typography variant="h5" fontWeight="bold">Total de la Orden: S/ {totalAmount.toFixed(2)}</Typography>
+    </Box>
+  );
+};
+
+
+// --- SECCIÓN 4: COMPONENTE PRINCIPAL DE LA PÁGINA (Orquestador) ---
+const NewPurchaseOrderPage = () => {
+  const { models, handlers } = usePurchaseOrderForm();
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
-        <Paper sx={{ p: { xs: 2, md: 3 } }}>
-          <Typography variant="h4" component="h1" gutterBottom>
-            Registrar Nueva Compra
-          </Typography>
-          
-          <form onSubmit={handleSubmit}>
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-              <Grid item xs={12} md={6}>
-                <SupplierAutocomplete 
-                  value={supplier} 
-                  onSelect={(newValue) => {
-                    setSupplier(newValue);
-                    if (newValue) setError(null);
-                  }}
-                  error={!!(error && !supplier)}
-                  helperText={error && !supplier ? error : ''}
-                /> 
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField name="supplier_invoice_code" label="N° Factura Proveedor" value={headerData.supplier_invoice_code} onChange={handleHeaderChange} fullWidth required />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <DatePicker label="Fecha de Compra" value={headerData.purchase_date} onChange={(val) => handleDateChange('purchase_date', val)} renderInput={(params) => <TextField {...params} fullWidth required />} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <DatePicker label="Fecha de Emisión" value={headerData.issue_date} onChange={(val) => handleDateChange('issue_date', val)} renderInput={(params) => <TextField {...params} fullWidth required />} />
-              </Grid>
-              <Grid item xs={12} sm={6} md={4}>
-                <DatePicker label="Fecha de Vencimiento" value={headerData.due_date} onChange={(val) => handleDateChange('due_date', val)} renderInput={(params) => <TextField {...params} fullWidth required />} />
-              </Grid>
-            </Grid>
-            
-            <TableContainer component={Paper} variant="outlined">
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{width: '25%', p: 1.5}}>Código Producto</TableCell>
-                    <TableCell sx={{ p: 1.5 }}>Descripción</TableCell>
-                    <TableCell sx={{width: '10%', p: 1.5}}>Cantidad</TableCell>
-                    <TableCell sx={{width: '15%', p: 1.5}}>Costo Unit.</TableCell>
-                    <TableCell sx={{width: '15%', p: 1.5}}>Total</TableCell>
-                    <TableCell sx={{width: '5%', p: 1.5}}></TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {items.map((item, index) => (
-                    <TableRow key={item.id}>
-                      <TableCell><ProductAutocomplete onSelect={(prod) => handleProductSelect(index, prod)} /></TableCell>
-                      <TableCell><TextField variant="outlined" size="small" name="description" value={item.description} onChange={(e) => handleItemChange(index, e)} fullWidth /></TableCell>
-                      <TableCell><TextField variant="outlined" size="small" type="number" name="quantity" value={item.quantity} onChange={(e) => handleItemChange(index, e)} InputProps={{ inputProps: { min: 1 } }} fullWidth /></TableCell>
-                      <TableCell><TextField variant="outlined" size="small" type="number" name="unit_cost" value={item.unit_cost} onChange={(e) => handleItemChange(index, e)} InputProps={{ inputProps: { step: 0.01, min: 0 } }} fullWidth /></TableCell>
-                      <TableCell>S/ {(item.quantity * item.unit_cost).toFixed(2)}</TableCell>
-                      <TableCell align="right">
-                        <IconButton onClick={() => removeItemRow(index)} color="error" disabled={items.length <= 1}><DeleteIcon /></IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <Button onClick={addNewItemRow} sx={{ mt: 2 }}>Añadir Fila</Button>
-            
-            <Grid container sx={{ mt: 2 }} justifyContent="flex-end">
-              <Grid item xs={12} md={5} lg={4}>
-                <Paper variant="outlined" sx={{ p: 2 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body1">Subtotal Neto:</Typography>
-                    <Typography variant="body1" fontWeight="bold">S/ {subtotal.toFixed(2)}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                    <Typography variant="body1">Impuesto (%):</Typography>
-                    <TextField 
-                      size="small" 
-                      type="number" 
-                      value={taxPercentage} 
-                      onChange={(e) => setTaxPercentage(e.target.value)}
-                      sx={{ width: '100px' }}
-                      InputProps={{ inputProps: { step: 0.01, min: 0 } }}
-                    />
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body1">Monto Impuesto:</Typography>
-                    <Typography variant="body1" fontWeight="bold">S/ {taxAmount.toFixed(2)}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                    <Typography variant="body1">Otros Cargos:</Typography>
-                    <TextField 
-                      size="small" 
-                      type="number" 
-                      value={otherCharges} 
-                      onChange={(e) => setOtherCharges(e.target.value)}
-                      sx={{ width: '100px' }}
-                      InputProps={{ inputProps: { step: 0.01, min: 0 } }}
-                    />
-                  </Box>
-                  <Divider />
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-                    <Typography variant="h6">TOTAL:</Typography>
-                    <Typography variant="h6" fontWeight="bold">S/ {totalAmount.toFixed(2)}</Typography>
-                  </Box>
-                </Paper>
-              </Grid>
-            </Grid>
-            
-            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-              <Button type="submit" variant="contained" color="primary" size="large" disabled={isLoading || !supplier}>
-                {isLoading ? 'Registrando...' : 'Confirmar y Recibir Mercancía'}
-              </Button>
-            </Box>
-            
-            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-            {success && <Alert severity="success" sx={{ mt: 2 }}>{success}</Alert>}
-          </form>
-        </Paper>
-      </LocalizationProvider>
+    <Container maxWidth="lg" sx={{ my: 4 }}>
+      <Paper component="form" onSubmit={handlers.handleSubmit} sx={{ p: { xs: 2, md: 3 } }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Registrar Nueva Orden de Compra
+        </Typography>
+        <Divider sx={{ my: 2 }} />
+        
+        <OrderHeader supplier={models.supplier} onSupplierSelect={handlers.setSupplier} headerData={models.headerData} onDateChange={handlers.handleDateChange} />
+        <OrderItemsTable items={models.items} handlers={handlers} />
+        <OrderTotals items={models.items} />
+        
+        <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button type="submit" variant="contained" size="large" disabled={models.isSubmitting || !models.supplier}>
+            {models.isSubmitting ? 'Guardando...' : 'Guardar Orden de Compra'}
+          </Button>
+        </Box>
+      </Paper>
     </Container>
   );
 };

@@ -1,53 +1,59 @@
 // /frontend/src/features/inventory/pages/ProductListPage.js
-// VERSIÓN FINAL Y PROFESIONAL CON LÓGICA OPTIMIZADA Y ESTRUCTURA CLARA
+// VERSIÓN FINAL Y PROFESIONAL CON ARQUITECTURA OPTIMIZADA
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box, Button, Container, Paper, Typography, Alert,
-  IconButton, Tooltip, Dialog, DialogActions, DialogContent,
-  DialogContentText, DialogTitle, TextField, Grid, InputAdornment, MenuItem
+  Box, Container, Paper, Alert, IconButton, Tooltip, Typography
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
-import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import SearchIcon from '@mui/icons-material/Search';
+import HistoryIcon from '@mui/icons-material/History';
 import { useSnackbar } from 'notistack';
 
-import { getProductsAPI, deactivateProductAPI } from '../../../api/productsAPI';
+// API y Hooks
+import { getProductsAPI, deactivateProductAPI } from '../api/productsAPI';
 import { useDebounce } from '../../../hooks/useDebounce';
+
+// Constantes y Componentes Reutilizables
 import { PRODUCT_CATEGORIES, FILTER_TYPES, PRODUCT_SHAPES } from '../../../constants/productConstants';
+import PageHeader from '../../../components/common/PageHeader';
+import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
+import FilterBar from '../../../components/common/FilterBar';
+
+// --- Definición de los Filtros para esta página ---
+// Se define fuera del componente para que no se recree en cada render.
+const productFilterDefinitions = [
+  { name: 'search', label: 'Buscar por SKU o Nombre', type: 'search', gridSize: 4 },
+  { name: 'category', label: 'Filtrar por Producto', type: 'select', options: PRODUCT_CATEGORIES, gridSize: 3 },
+  { name: 'product_type', label: 'Filtrar por Tipo', type: 'select', options: FILTER_TYPES, gridSize: 3, disabled: (filters) => filters.category !== 'filter' },
+  { name: 'shape', label: 'Filtrar por Forma', type: 'select', options: PRODUCT_SHAPES, gridSize: 2, disabled: (filters) => filters.category !== 'filter' },
+];
 
 
 const ProductListPage = () => {
   // --- SECCIÓN 1: Hooks y Estados ---
-  // Centralizamos todos los hooks y estados al principio para una mejor legibilidad.
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
 
+  // Estados para la data de la tabla y UI
   const [products, setProducts] = useState([]);
   const [rowCount, setRowCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   
+  // Estados para el diálogo de confirmación
   const [isDeleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [productToDeactivate, setProductToDeactivate] = useState(null);
 
+  // Estados para paginación y filtros
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
-  const [filters, setFilters] = useState({
-    search: '',
-    category: '',
-    product_type: '',
-    shape: '',
-  });
+  const [filters, setFilters] = useState({ search: '', category: '', product_type: '', shape: '' });
   const debouncedSearchTerm = useDebounce(filters.search, 500);
-
 
   // --- SECCIÓN 2: Lógica de Datos y Handlers ---
 
-  // useCallback memoriza la función para que no se recree en cada render,
-  // optimizando el rendimiento y estabilizando las dependencias de otros hooks.
   const fetchProducts = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -55,12 +61,14 @@ const ProductListPage = () => {
         page: paginationModel.page + 1,
         pageSize: paginationModel.pageSize,
         search: debouncedSearchTerm.trim(),
-        product_category: filters.category, // Mapeo correcto al backend
+        product_category: filters.category,
         product_type: filters.product_type,
         shape: filters.shape,
       };
       const response = await getProductsAPI(params);
-      setProducts(response.items);
+      const flattenedProducts = response.items.map(p => ({ ...p, ...(p.specifications || {}) }));
+      
+      setProducts(flattenedProducts);
       setRowCount(response.total);
       setError(null);
     } catch (err) {
@@ -71,22 +79,21 @@ const ProductListPage = () => {
     }
   }, [paginationModel, debouncedSearchTerm, filters]);
 
-  // useEffect que llama a fetchProducts cuando cambian sus dependencias.
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
   const handleFilterChange = useCallback((event) => {
     const { name, value } = event.target;
-    const newState = { ...filters, [name]: value };
-    // Si el usuario cambia la categoría principal, reseteamos los filtros dependientes
-    // para evitar una combinación inválida (ej. categoría "Batería" con tipo "Aire").
-    if (name === 'category' && value !== 'filter') {
-      newState.product_type = '';
-      newState.shape = '';
-    }
-    setFilters(newState);
-  }, [filters]);
+    setFilters(prevFilters => {
+      const newFilters = { ...prevFilters, [name]: value };
+      if (name === 'category' && value !== 'filter') {
+        newFilters.product_type = '';
+        newFilters.shape = '';
+      }
+      return newFilters;
+    });
+  }, []);
 
   const handleOpenDeleteDialog = useCallback((product) => {
     setProductToDeactivate(product);
@@ -95,67 +102,57 @@ const ProductListPage = () => {
 
   const handleCloseDeleteDialog = useCallback(() => {
     setDeleteConfirmationOpen(false);
+    setProductToDeactivate(null);
   }, []);
 
   const handleConfirmDeactivation = useCallback(async () => {
     if (!productToDeactivate) return;
     try {
       await deactivateProductAPI(productToDeactivate.sku);
-      enqueueSnackbar(`Producto '${productToDeactivate.name}' desactivado correctamente.`, { variant: 'success' });
-      fetchProducts(); // Vuelve a cargar los datos para reflejar el cambio.
+      enqueueSnackbar(`Producto '${productToDeactivate.name}' desactivado.`, { variant: 'success' });
+      fetchProducts();
     } catch (err) {
-      const errorMessage = err.response?.data?.detail || 'Error al desactivar el producto.';
-      enqueueSnackbar(errorMessage, { variant: 'error' });
+      enqueueSnackbar(err.response?.data?.detail || 'Error al desactivar el producto.', { variant: 'error' });
     } finally {
       handleCloseDeleteDialog();
     }
   }, [productToDeactivate, enqueueSnackbar, fetchProducts, handleCloseDeleteDialog]);
   
   // --- SECCIÓN 3: Definición de Columnas para DataGrid ---
-  // useMemo optimiza el rendimiento al evitar que este array se recalcule en cada render,
-  // a menos que cambien sus dependencias (navigate, handleOpenDeleteDialog).
   const columns = useMemo(() => [
-    { field: 'sku', headerName: 'Código/SKU', width: 180 },
-    { 
-      field: 'category',
-      headerName: 'Producto', 
-      width: 150,
-      valueFormatter: (value) => {
-        const category = PRODUCT_CATEGORIES.find(c => c.value === value);
-        return category ? category.label : value;
-      }
+    { field: 'sku', headerName: 'Código/SKU', width: 140 },
+    { field: 'name', headerName: 'Nombre', flex: 1, minWidth: 200 },
+    { field: 'brand', headerName: 'Marca', width: 120 },
+    {
+      field: 'cost',
+      headerName: 'Costo',
+      type: 'number',
+      width: 110,
+      align: 'right',
+      headerAlign: 'right',
+      valueFormatter: (value) => value != null ? `S/ ${Number(value).toFixed(2)}` : ''
     },
-    { 
-      field: 'product_type',
-      headerName: 'Tipo', 
-      width: 150,
-      valueFormatter: (value) => {
-        const type = FILTER_TYPES.find(t => t.value === value);
-        return type ? type.label : value;
-      }
-    },
-    { field: 'brand', headerName: 'Marca', width: 150 },
     {
       field: 'price',
-      headerName: 'Precio (S/.)',
+      headerName: 'Precio',
       type: 'number',
-      width: 130,
-      valueFormatter: (value) => {
-        if (typeof value !== 'number' || isNaN(value)) return '';
-        return `S/ ${value.toFixed(2)}`;
-      },
+      width: 110,
+      align: 'right',
+      headerAlign: 'right',
+      valueFormatter: (value) => value != null ? `S/ ${Number(value).toFixed(2)}` : ''
     },
-    { field: 'stock_quantity', headerName: 'Stock', type: 'number', width: 100 },
+    { field: 'stock_quantity', headerName: 'Stock', type: 'number', width: 90, align: 'center', headerAlign: 'center' },
     {
       field: 'actions',
       headerName: 'Acciones',
       type: 'actions',
-      width: 120,
-      align: 'center',
-      headerAlign: 'center',
+      width: 130,
+      align: 'right',
+      headerAlign: 'right',
       getActions: (params) => [
-        <Tooltip title="Editar Producto" key="edit"><IconButton onClick={() => navigate(`/inventario/productos/editar/${params.row.sku}`)} color="primary"><EditIcon /></IconButton></Tooltip>,
-        <Tooltip title="Desactivar Producto" key="delete"><IconButton onClick={() => handleOpenDeleteDialog(params.row)} color="error"><DeleteIcon /></IconButton></Tooltip>,
+        <Tooltip title="Ver Movimientos" key="history"><IconButton onClick={() => console.log(`Ver movimientos para: ${params.row.sku}`)} size="small"><HistoryIcon /></IconButton></Tooltip>,
+        <Tooltip title="Editar Producto" key="edit"><IconButton onClick={() => navigate(`/inventario/productos/editar/${params.row.sku}`)} size="small" color="primary"><EditIcon /></IconButton></Tooltip>,
+        <Tooltip title="Desactivar Producto" key="delete"><IconButton onClick={() => handleOpenDeleteDialog(params.row)} size="small" color="error"><DeleteIcon /></IconButton></Tooltip>,
       ],
     },
   ], [navigate, handleOpenDeleteDialog]);
@@ -165,34 +162,16 @@ const ProductListPage = () => {
     <>
       <Container maxWidth="xl">
         <Paper sx={{ p: { xs: 2, md: 3 }, my: 4, borderRadius: 2, boxShadow: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
-            <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }}>Gestión de Productos</Typography>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={() => navigate('/inventario/productos/nuevo')} sx={{ fontWeight: 'bold' }}>Añadir Producto</Button>
-          </Box>
-
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6} md={4}>
-              <TextField fullWidth variant="outlined" label="Buscar por SKU o Nombre" name="search" value={filters.search} onChange={handleFilterChange} InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon /></InputAdornment>) }} />
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <TextField select fullWidth label="Filtrar por Producto" name="category" value={filters.category} onChange={handleFilterChange}>
-                <MenuItem value=""><em>Todos</em></MenuItem>
-                {PRODUCT_CATEGORIES.map(option => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <TextField select fullWidth label="Filtrar por Tipo" name="product_type" value={filters.product_type} onChange={handleFilterChange} disabled={filters.category !== 'filter'}>
-                <MenuItem value=""><em>Todos</em></MenuItem>
-                {FILTER_TYPES.map(option => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
-              </TextField>
-            </Grid>
-            <Grid item xs={12} sm={6} md={2}>
-              <TextField select fullWidth label="Filtrar por Forma" name="shape" value={filters.shape} onChange={handleFilterChange} disabled={filters.category !== 'filter'}>
-                <MenuItem value=""><em>Todas</em></MenuItem>
-                {PRODUCT_SHAPES.map(option => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
-              </TextField>
-            </Grid>
-          </Grid>
+          <PageHeader
+            title="Gestión de Productos"
+            buttonText="Añadir Producto"
+            onButtonClick={() => navigate('/inventario/productos/nuevo')}
+          />
+          <FilterBar
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            filterDefinitions={productFilterDefinitions}
+          />
         
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
@@ -207,7 +186,7 @@ const ProductListPage = () => {
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
               paginationMode="server"
-              checkboxSelection
+              density="compact"
               disableRowSelectionOnClick
               localeText={{ noRowsLabel: 'No se encontraron productos que coincidan con los filtros.' }}
             />
@@ -215,18 +194,16 @@ const ProductListPage = () => {
         </Paper>
       </Container>
       
-      <Dialog open={isDeleteConfirmationOpen} onClose={handleCloseDeleteDialog}>
-        <DialogTitle>Confirmar Desactivación</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
+      <ConfirmationDialog
+        open={isDeleteConfirmationOpen}
+        onClose={handleCloseDeleteDialog}
+        onConfirm={handleConfirmDeactivation}
+        title="Confirmar Desactivación de Producto"
+      >
+        <Typography>
             ¿Seguro que deseas desactivar el producto <strong>{productToDeactivate?.name}</strong>?
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDeleteDialog}>Cancelar</Button>
-          <Button onClick={handleConfirmDeactivation} color="error" variant="contained">Desactivar</Button>
-        </DialogActions>
-      </Dialog>
+        </Typography>
+      </ConfirmationDialog>
     </>
   );
 };

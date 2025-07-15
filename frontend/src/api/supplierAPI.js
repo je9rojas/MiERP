@@ -1,8 +1,7 @@
 // /frontend/src/api/supplierAPI.js
 // CÓDIGO COMPLETO - LISTO PARA COPIAR Y PEGAR
 
-import api from './axiosConfig';
-
+import api from '../app/axiosConfig';
 /**
  * Busca proveedores en el backend basándose en un término de búsqueda.
  * @param {string} query - El texto que el usuario ha escrito para buscar.

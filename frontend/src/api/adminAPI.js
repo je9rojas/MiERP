@@ -1,5 +1,5 @@
 // /frontend/src/api/adminAPI.js
-import api from './axiosConfig'; // Usamos la instancia de axios ya configurada
+import api from '../app/axiosConfig';
 
 export const getUsers = () => {
   return api.get('/users');

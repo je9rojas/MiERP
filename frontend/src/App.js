@@ -1,34 +1,20 @@
 // /frontend/src/App.js
-// CÓDIGO FINAL, SIMPLIFICADO Y CORRECTO
+// COMPONENTE RAÍZ Y CONTENEDOR PRINCIPAL DE LA APLICACIÓN
 
-import React, { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import CssBaseline from '@mui/material/CssBaseline'; // Mantenemos CssBaseline para normalizar estilos
+import React from 'react';
+import { CssBaseline } from '@mui/material';
 import AppRoutes from './routes/AppRoutes';
 
+/**
+ * El componente App es el contenedor más alto de la lógica de la UI.
+ * Su única responsabilidad es establecer estilos base consistentes para toda la aplicación
+ * (a través de CssBaseline) y renderizar el componente que gestiona todas las rutas.
+ * No contiene lógica de negocio.
+ */
 function App() {
-  // Este hook es útil para la depuración, lo mantenemos.
-  const location = useLocation();
-  useEffect(() => {
-    // Usamos un log más descriptivo
-    console.log(`[App] Navegación detectada. Nueva ruta: ${location.pathname}`);
-  }, [location]);
-
-  // Este log nos ayuda a ver cuándo se re-renderiza el componente App
-  console.log(`[App] Renderizando el componente principal de la aplicación.`);
-
   return (
     <>
-      {/* 
-        CssBaseline resetea los estilos del navegador para que Material-UI se vea consistente.
-        No necesita estar dentro de un ThemeProvider aquí porque el tema ya fue provisto en index.js.
-      */}
       <CssBaseline />
-      
-      {/* 
-        Renderizamos el componente que gestiona todas las rutas de la aplicación.
-        Como <App /> está envuelto por AuthProvider en index.js, AppRoutes también lo está.
-      */}
       <AppRoutes />
     </>
   );

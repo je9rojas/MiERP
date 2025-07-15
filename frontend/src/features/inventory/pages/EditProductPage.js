@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Box, Typography, Paper, Container, CircularProgress, Alert } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import ProductForm from '../components/ProductForm';
-import { getProductBySkuAPI, updateProductAPI } from '../../../api/productsAPI';
+import { getProductBySkuAPI, updateProductAPI } from '../api/productsAPI';
 
 const EditProductPage = () => {
   const { sku } = useParams(); // Obtiene el SKU de la URL

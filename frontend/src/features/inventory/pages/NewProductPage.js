@@ -7,7 +7,7 @@ import { Typography, Paper, Container, Box } from '@mui/material';
 import { useSnackbar } from 'notistack';
 
 import ProductForm from '../components/ProductForm'; // El componente de UI del formulario
-import { createProductAPI } from '../../../api/productsAPI'; // La función que llama a la API
+import { createProductAPI } from '../api/productsAPI'; // La función que llama a la API
 
 /**
  * NewProductPage es un "componente contenedor inteligente".
