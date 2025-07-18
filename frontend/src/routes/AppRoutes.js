@@ -32,7 +32,7 @@ const EditProductPage = lazy(() => import('../features/inventory/pages/EditProdu
 const ProductCatalogPage = lazy(() => import('../features/inventory/pages/ProductCatalogPage'));
 const NewPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/NewPurchaseOrderPage'));
 const PurchaseOrderListPage = lazy(() => import('../features/purchasing/pages/PurchaseOrderListPage'));
-
+const DataManagementPage = lazy(() => import('../features/admin/pages/DataManagementPage'));
 
 // --- SECCIÓN 3: COMPONENTES GUARDIANES DE RUTAS (Route Guards) ---
 // La lógica de estos componentes no cambia.
@@ -85,6 +85,7 @@ const AppRoutes = () => {
         <Route path="/admin" element={<PrivateRoutesGuard allowedRoles={['superadmin', 'admin']} />}>
           <Route element={<DashboardLayout />}>
             <Route path="usuarios" element={<UserManagementPage />} />
+            <Route path="gestion-datos" element={<DataManagementPage />} />
           </Route>
         </Route>
         

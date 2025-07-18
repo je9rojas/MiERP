@@ -1,4 +1,4 @@
-// /frontend/src/api/productsAPI.js
+// /frontend/src/features/inventory/api/productsAPI.js
 
 import api from '../../../app/axiosConfig';
 
@@ -24,9 +24,18 @@ export const getProductsAPI = async (params) => {
 };
 
 
-// Tu función de catálogo puede permanecer aquí si la sigues usando
+/**
+ * Solicita la generación de un catálogo en PDF al backend.
+ * @param {object} payload - Los filtros para el catálogo (search_term, product_types, view_type).
+ * @returns {Promise<Blob>} - Una promesa que resuelve a un Blob de PDF.
+ */
 export const generateCatalogAPI = async (payload) => {
-  // ...
+  console.log('[API] Solicitando catálogo con payload:', payload); // Para depuración
+  const response = await api.post('/products/catalog', payload, {
+    // ¡ESTO ES CRUCIAL! Le dice a Axios que la respuesta es un archivo, no JSON.
+    responseType: 'blob', 
+  });
+  return response.data; // response.data será el Blob del PDF
 };
 
 
@@ -36,7 +45,8 @@ export const generateCatalogAPI = async (payload) => {
  * @returns {Promise<object>} - Los datos del producto.
  */
 export const getProductBySkuAPI = async (sku) => {
-  const response = await api.get(`/products/${sku}`);
+  const encodedSku = encodeURIComponent(sku);
+  const response = await api.get(`/products/${encodedSku}`);
   return response.data;
 };
 
@@ -47,7 +57,8 @@ export const getProductBySkuAPI = async (sku) => {
  * @returns {Promise<object>} - El producto con los datos actualizados.
  */
 export const updateProductAPI = async (sku, productData) => {
-  const response = await api.put(`/products/${sku}`, productData);
+  const encodedSku = encodeURIComponent(sku);
+  const response = await api.put(`/products/${encodedSku}`, productData);
   return response.data;
 };
 
@@ -58,6 +69,9 @@ export const updateProductAPI = async (sku, productData) => {
  * @returns {Promise<void>}
  */
 export const deactivateProductAPI = async (sku) => {
-  await api.delete(`/products/${sku}`);
+
+  const encodedSku = encodeURIComponent(sku);
+  await api.delete(`/products/${encodedSku}`);
+
 };
 

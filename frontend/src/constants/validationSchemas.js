@@ -14,7 +14,8 @@ export const productSchema = yup.object({
   sku: yup
     .string()
     .trim()
-    .required('El SKU es obligatorio.'),
+    .required('El SKU es obligatorio.')
+    .matches(/^[^/]*$/, 'El SKU no puede contener el carácter "/"'),
   name: yup
     .string()
     .trim()
@@ -46,4 +47,12 @@ export const productSchema = yup.object({
     .typeError('El precio debe ser un número.')
     .min(0, 'El precio no puede ser negativo.')
     .required('El precio es obligatorio.'),
+
+  weight_kg: yup.number() // <-- AÑADE ESTO
+    .min(0, 'El peso no puede ser negativo')
+    .nullable(),  
+
+   main_image_url: yup.string().url('Debe ser una URL válida (ej. https://...)').nullable(),
+
+
 });

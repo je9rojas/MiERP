@@ -1,7 +1,7 @@
-# /backend/app/routes/products.py
+# /backend/app/modules/inventory/product_routes.py
 # ARCHIVO FINAL, COMPLETO Y OPTIMIZADO CON PAGINACIÓN Y FILTRADO
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from typing import List, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
@@ -11,6 +11,8 @@ from .product_models import ProductCreate, ProductOut, ProductUpdate
 
 from app.dependencies.roles import role_checker
 from app.modules.users.user_models import UserRole
+
+from .product_models import CatalogFilterPayload
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -125,5 +127,39 @@ async def deactivate_product_route(
     print(f"✅ Producto '{sku}' desactivado exitosamente.")
     return None
 
-# La ruta del catálogo se puede añadir aquí en el futuro si se necesita,
-# pero se mantiene fuera por ahora para enfocarnos en el CRUD principal.
+# --- Endpoint del Catálogo ---
+
+@router.post("/catalog",
+             summary="Generar Catálogo de Productos en PDF",
+             response_class=Response, # <-- Devuelve una respuesta directa, no un JSON.
+             responses={
+                 200: {
+                     "content": {"application/pdf": {}},
+                     "description": "Catálogo PDF generado exitosamente."
+                 },
+                 404: {"description": "No se encontraron productos con los filtros especificados."}
+             })
+async def generate_product_catalog(
+    filters: CatalogFilterPayload, # <-- Usamos un modelo para validar el payload
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _user: dict = Depends(role_checker(UserRole.all_roles())) # Ajusta los roles si es necesario
+):
+    """
+    Genera un catálogo de productos en formato PDF basado en los filtros proporcionados.
+    """
+    print(f"--- [CATALOG] Petición para generar catálogo con filtros: {filters} ---")
+    try:
+        # Llama a una nueva función de servicio que aún no hemos creado
+        pdf_bytes = await product_service.generate_catalog_pdf(db, filters)
+        
+        if not pdf_bytes:
+            print("❌ No se encontraron productos para generar el catálogo.")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron productos para los filtros seleccionados.")
+
+        print("✅ Catálogo PDF generado, enviando respuesta.")
+        return Response(content=pdf_bytes, media_type="application/pdf")
+
+    except Exception as e:
+        print(f"❌ ERROR INESPERADO al generar catálogo: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno al generar el catálogo.")
+

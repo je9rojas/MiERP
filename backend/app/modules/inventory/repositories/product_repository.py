@@ -27,9 +27,15 @@ class ProductRepository:
         result = await self.collection.update_one({"sku": sku}, {"$set": update_data})
         return result.modified_count
 
+    async def find_all(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Encuentra todos los documentos que coinciden con una consulta, sin paginación."""
+        cursor = self.collection.find(query)
+        return await cursor.to_list(length=None) # length=None para obtener todos los documentos
+
     async def find_paginated(self, query: Dict[str, Any], skip: int, page_size: int) -> List[Dict[str, Any]]:
         cursor = self.collection.find(query).skip(skip).limit(page_size)
         return await cursor.to_list(length=page_size)
 
     async def count_documents(self, query: Dict[str, Any]) -> int:
         return await self.collection.count_documents(query)
+    

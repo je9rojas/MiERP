@@ -316,6 +316,104 @@ backend/app/services/product_service.py
 --------------------------------------------
 
 
+/backend
+\backend\static\product_images\
+
+/app/
+
+
+
+
+/backend/app/core/
+/backend/app/core/config.py
+/backend/app/core/database.py
+/backend/app/core/secrets_manager.py
+/backend/app/core/security.py
+/backend/app/dependencies/
+/backend/app/dependencies/roles.py
+/backend/app/models/shared.py
+
+/backend/app/modules/auth/auth_routes.py
+/backend/app/modules/auth/auth_service.py
+
+
+/backend/app/modules/crm/repositories/customer_repository.py
+/backend/app/modules/crm/repositories/supplier_repository.py
+/backend/app/modules/crm/crm_service.py
+/backend/app/modules/crm/customer_models.py
+/backend/app/modules/crm/customer_routes.py
+/backend/app/modules/crm/supplier_models.py
+/backend/app/modules/crm/supplier_routes.py
+
+
+/backend/app/modules/data_management/data_management_service.py
+
+/backend/app/modules/inventory/repositories/product_repository.py
+/backend/app/modules/inventory/
+/backend/app/modules/inventory/
+/backend/app/modules/inventory/
+/backend/app/modules/inventory/
+/backend/app/modules/inventory/
+/backend/app/modules/inventory/
+/backend/app/modules/inventory/catalog_generator.py
+
+/backend/app/modules/purchasing/
+/backend/app/modules/purchasing/
+/backend/app/modules/purchasing/
+/backend/app/modules/purchasing/
+/backend/app/modules/purchasing/
+/backend/app/modules/purchasing/
+
+/backend/app/modules/roles/
+/backend/app/modules/roles/
+/backend/app/modules/roles/
+/backend/app/modules/roles/
+/backend/app/modules/roles/
+/backend/app/modules/roles/
+
+/backend/app/modules/users/
+/backend/app/modules/users/
+/backend/app/modules/users/
+/backend/app/modules/users/
+/backend/app/modules/users/
+
+
+
+/repositories/base.repository.py
+
+
+
+
+
+
+
+
+
+
+
+
+/scripts
+/secure
+/venv
+
+
+
+
+
+
+
+
+
+
+/frontend
+
+
+
+
+
+
+
+
 
 
 backend/app/repositories/base_repository.py
@@ -330,7 +428,9 @@ frontend/src/config/dataGridConfig.js.
 frontend/src/components/layout/ListPageLayout.js
 
 
+/frontend/src/features/admin/api/dataManagementAPI.js
 
+/frontend/src/features/admin/components/DataImporter.js
 
-
+/frontend/src/features/inventory/components/ProductGridToolbar.js
 

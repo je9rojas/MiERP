@@ -20,6 +20,7 @@ import { PRODUCT_CATEGORIES, FILTER_TYPES, PRODUCT_SHAPES } from '../../../const
 import PageHeader from '../../../components/common/PageHeader';
 import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
 import FilterBar from '../../../components/common/FilterBar';
+import ProductGridToolbar from '../components/ProductGridToolbar'; 
 
 // --- SECCIÓN 2: DEFINICIÓN DE CONFIGURACIONES (FUERA DEL COMPONENTE) ---
 // Definir esto fuera evita que se recree en cada render.
@@ -132,23 +133,25 @@ const ProductListPage = () => {
     {
       field: 'actions', headerName: 'Acciones', type: 'actions', width: 130, align: 'right', headerAlign: 'right',
       getActions: (params) => [
-        <Tooltip title="Ver Movimientos" key="history"><IconButton onClick={() => navigate(`/inventario/productos/movimientos/${params.row.sku}`)} size="small"><HistoryIcon /></IconButton></Tooltip>,
-        <Tooltip title="Editar Producto" key="edit"><IconButton onClick={() => navigate(`/inventario/productos/editar/${params.row.sku}`)} size="small" color="primary"><EditIcon /></IconButton></Tooltip>,
+        <Tooltip title="Ver Movimientos" key="history"><IconButton onClick={() => navigate(`/inventario/productos/movimientos/${encodeURIComponent(params.row.sku)}`)} size="small"><HistoryIcon /></IconButton></Tooltip>,
+        <Tooltip title="Editar Producto" key="edit"><IconButton onClick={() => navigate(`/inventario/productos/editar/${encodeURIComponent(params.row.sku)}`)} size="small" color="primary"><EditIcon /></IconButton></Tooltip>,
         <Tooltip title="Desactivar Producto" key="delete"><IconButton onClick={() => handleOpenDeleteDialog(params.row)} size="small" color="error"><DeleteIcon /></IconButton></Tooltip>,
       ],
     },
   ], [navigate, handleOpenDeleteDialog]);
 
   // --- SECCIÓN 6: RENDERIZADO DEL COMPONENTE ---
+
+
   return (
     <>
       <Container maxWidth="xl">
         <Paper sx={{ p: { xs: 2, md: 3 }, my: 4, borderRadius: 2, boxShadow: 3 }}>
-          <PageHeader
-            title="Gestión de Productos"
-            buttonText="Añadir Producto"
-            onButtonClick={() => navigate('/inventario/productos/nuevo')}
-          />
+          {/* 2. REEMPLAZA PageHeader CON UN Typography SIMPLE */}
+          <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
+            Gestión de Productos
+          </Typography>
+
           <FilterBar
             filters={filters}
             onFilterChange={handleFilterChange}
@@ -157,7 +160,7 @@ const ProductListPage = () => {
         
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error.message}</Alert>}
 
-          <Box sx={{ height: 650, width: '100%' }}>
+          <Box sx={{ height: 650, minHeight: 400, width: '100%' }}>
             <DataGrid
               rows={data?.items || []}
               columns={columns}
@@ -169,6 +172,28 @@ const ProductListPage = () => {
               onPaginationModelChange={setPaginationModel}
               paginationMode="server"
               density="compact"
+
+              // --- 3. Y 4. AÑADE ESTAS PROPS PARA LA TOOLBAR ---
+
+
+              // --- BLOQUE DE DEPURACIÓN AÑADIDO ---
+              slots={{
+                toolbar: (props) => {
+                  // LOG #1: Confirma que el DataGrid intenta renderizar la toolbar
+                  console.log('[ProductListPage] Renderizando ProductGridToolbar...');
+                  return (
+                    <ProductGridToolbar 
+                      {...props}
+                      // LOG #2: Confirma que la función se pasa correctamente
+                      onAddClick={() => {
+                        console.log('[ProductListPage] onAddClick se está ejecutando! Navegando a /inventario/productos/nuevo');
+                        navigate('/inventario/productos/nuevo');
+                      }}
+                    />
+                  );
+                },
+              }}                    
+
             />
           </Box>
         </Paper>

@@ -1,5 +1,4 @@
 // /frontend/src/components/layout/DashboardSidebar.js
-// VERSIÓN FINAL, COMPLETA Y PROFESIONAL
 
 import React from 'react';
 import { styled } from '@mui/material/styles';
@@ -11,7 +10,8 @@ import {
 } from '@mui/material';
 import { useAuth } from '../../app/contexts/AuthContext';
 
-// --- SECCIÓN 1: IMPORTACIÓN COMPLETA DE ICONOS ---
+// --- SECCIÓN 1: IMPORTACIÓN DE ICONOS ---
+// Se mantienen todos los iconos necesarios para la interfaz del menú.
 import {
     Dashboard as DashboardIcon, PointOfSale as PointOfSaleIcon, People as PeopleIcon,
     RequestQuote as RequestQuoteIcon, ShoppingCart as ShoppingCartIcon, ReceiptLong as ReceiptLongIcon,
@@ -28,22 +28,25 @@ import {
     Backup as BackupIcon, Settings as SettingsIcon, ExpandLess as ExpandLessIcon,
     ExpandMore as ExpandMoreIcon, PictureAsPdf as PictureAsPdfIcon, Assessment as AssessmentIcon,
     AutoAwesome as AutoAwesomeIcon, ChevronLeft as ChevronLeftIcon,
+    ImportExport as ImportExportIcon,
 } from '@mui/icons-material';
 
-// --- SECCIÓN 2: IMPORTACIÓN DE ROLES DESDE LA FUENTE ÚNICA DE VERDAD ---
+// --- SECCIÓN 2: IMPORTACIÓN DE PERMISOS (USANDO EL NUEVO SISTEMA) ---
+// Se importan los nuevos grupos de permisos basados en acciones y la función de ayuda.
 import {
-  ADMIN_ACCESS,
-  SALES_ACCESS,
-  WAREHOUSE_ACCESS,
-  ACCOUNTANT_ACCESS,
-  HR_ACCESS,
-  MANAGER_ACCESS,
-  ALL_ROLES,
-  ROLES,
+  ROLES, ALL_ROLES, hasPermission,
+  CAN_ACCESS_SALES_MODULE, CAN_VIEW_SALES_DASHBOARD, CAN_MANAGE_CLIENTS, CAN_MANAGE_QUOTES, CAN_MANAGE_SALES_ORDERS, CAN_USE_POS, CAN_MANAGE_INVOICES, CAN_MANAGE_RETURNS,
+  CAN_ACCESS_PURCHASING_MODULE, CAN_MANAGE_SUPPLIERS, CAN_MANAGE_PURCHASE_ORDERS, CAN_RECEIVE_GOODS, CAN_MANAGE_PAYABLES,
+  CAN_ACCESS_INVENTORY_MODULE, CAN_MANAGE_PRODUCTS, CAN_MANAGE_WAREHOUSES, CAN_CONTROL_STOCK, CAN_MANAGE_TRANSFERS, CAN_ADJUST_INVENTORY, CAN_MANAGE_LOTS, CAN_VIEW_INVENTORY_VALUATION,
+  CAN_ACCESS_FINANCE_MODULE, CAN_VIEW_FINANCE_DASHBOARD, CAN_MANAGE_RECEIVABLES,
+  CAN_ACCESS_HR_MODULE, CAN_MANAGE_EMPLOYEES,
+  CAN_ACCESS_REPORTS_MODULE, CAN_GENERATE_CATALOG,
+  CAN_ACCESS_ADMIN_MODULE,
 } from '../../constants/rolesAndPermissions';
 
 
 // --- SECCIÓN 3: COMPONENTES DE ESTILO (Styled Components) ---
+// Esta sección no requiere cambios, define la apariencia del Drawer.
 const openedMixin = (theme) => ({
   width: theme.mixins.drawerWidth,
   transition: theme.transitions.create('width', {
@@ -84,94 +87,97 @@ const Drawer = styled(MuiDrawer, { shouldForwardProp: (prop) => prop !== 'open' 
   }),
 );
 
-// --- SECCIÓN 4: DEFINICIÓN DE LA ESTRUCTURA DEL MENÚ ---
+// --- SECCIÓN 4: DEFINICIÓN DE LA ESTRUCTURA DEL MENÚ (REFACTORIZADA CON NUEVOS PERMISOS) ---
+// Cada elemento y sub-elemento del menú ahora usa un grupo de permisos claro y descriptivo.
 const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ALL_ROLES },
-    { text: 'Ventas y CRM', icon: <PointOfSaleIcon />, roles: SALES_ACCESS,
+    { text: 'Ventas y CRM', icon: <PointOfSaleIcon />, roles: CAN_ACCESS_SALES_MODULE,
       subItems: [
-        { text: 'Dashboard de Ventas', icon: <LeaderboardIcon />, path: '/ventas/dashboard', roles: MANAGER_ACCESS },
-        { text: 'Clientes', icon: <PeopleIcon />, path: '/ventas/clientes', roles: SALES_ACCESS },
-        { text: 'Cotizaciones', icon: <RequestQuoteIcon />, path: '/ventas/cotizaciones', roles: SALES_ACCESS },
-        { text: 'Pedidos de Venta', icon: <ShoppingCartIcon />, path: '/ventas/pedidos', roles: SALES_ACCESS },
-        { text: 'Punto de Venta (POS)', icon: <PointOfSaleIcon />, path: '/ventas/pos', roles: SALES_ACCESS },
-        { text: 'Facturación', icon: <ReceiptLongIcon />, path: '/ventas/facturacion', roles: [...new Set([...ACCOUNTANT_ACCESS, ROLES.SALES])] },
-        { text: 'Devoluciones (RMA)', icon: <AssignmentReturnIcon />, path: '/ventas/devoluciones', roles: SALES_ACCESS },
+        { text: 'Dashboard de Ventas', icon: <LeaderboardIcon />, path: '/ventas/dashboard', roles: CAN_VIEW_SALES_DASHBOARD },
+        { text: 'Clientes', icon: <PeopleIcon />, path: '/ventas/clientes', roles: CAN_MANAGE_CLIENTS },
+        { text: 'Cotizaciones', icon: <RequestQuoteIcon />, path: '/ventas/cotizaciones', roles: CAN_MANAGE_QUOTES },
+        { text: 'Pedidos de Venta', icon: <ShoppingCartIcon />, path: '/ventas/pedidos', roles: CAN_MANAGE_SALES_ORDERS },
+        { text: 'Punto de Venta (POS)', icon: <PointOfSaleIcon />, path: '/ventas/pos', roles: CAN_USE_POS },
+        { text: 'Facturación', icon: <ReceiptLongIcon />, path: '/ventas/facturacion', roles: CAN_MANAGE_INVOICES },
+        { text: 'Devoluciones (RMA)', icon: <AssignmentReturnIcon />, path: '/ventas/devoluciones', roles: CAN_MANAGE_RETURNS },
       ],
     },
-    { text: 'Compras', icon: <ShoppingCartIcon />, roles: [...new Set([...WAREHOUSE_ACCESS, ...ACCOUNTANT_ACCESS])],
+    { text: 'Compras', icon: <ShoppingCartIcon />, roles: CAN_ACCESS_PURCHASING_MODULE,
       subItems: [
-        { text: 'Proveedores', icon: <LocalShippingIcon />, path: '/compras/proveedores', roles: WAREHOUSE_ACCESS },
-        { text: 'Órdenes de Compra', icon: <ReceiptLongIcon />, path: '/compras/ordenes', roles: WAREHOUSE_ACCESS },
-        { text: 'Recepción de Mercancía', icon: <WarehouseIcon />, path: '/compras/recepciones', roles: WAREHOUSE_ACCESS },
-        { text: 'Cuentas por Pagar', icon: <PaymentIcon />, path: '/compras/cuentas-pagar', roles: ACCOUNTANT_ACCESS },
+        { text: 'Proveedores', icon: <LocalShippingIcon />, path: '/compras/proveedores', roles: CAN_MANAGE_SUPPLIERS },
+        { text: 'Órdenes de Compra', icon: <ReceiptLongIcon />, path: '/compras/ordenes', roles: CAN_MANAGE_PURCHASE_ORDERS },
+        { text: 'Recepción de Mercancía', icon: <WarehouseIcon />, path: '/compras/recepciones', roles: CAN_RECEIVE_GOODS },
+        { text: 'Cuentas por Pagar', icon: <PaymentIcon />, path: '/compras/cuentas-pagar', roles: CAN_MANAGE_PAYABLES },
       ],
     },
-    { text: 'Inventario', icon: <InventoryIcon />, roles: [...new Set([...WAREHOUSE_ACCESS, ...SALES_ACCESS])],
+    { text: 'Inventario', icon: <InventoryIcon />, roles: CAN_ACCESS_INVENTORY_MODULE,
       subItems: [
-        { text: 'Productos y Servicios', icon: <InventoryIcon />, path: '/inventario/productos', roles: WAREHOUSE_ACCESS },
-        { text: 'Almacenes', icon: <WarehouseIcon />, path: '/inventario/almacenes', roles: WAREHOUSE_ACCESS },
-        { text: 'Control de Stock', icon: <TableViewIcon />, path: '/inventario/stock', roles: WAREHOUSE_ACCESS },
-        { text: 'Transferencias Internas', icon: <SyncAltIcon />, path: '/inventario/transferencias', roles: WAREHOUSE_ACCESS },
-        { text: 'Ajustes de Inventario', icon: <TuneIcon />, path: '/inventario/ajustes', roles: WAREHOUSE_ACCESS },
-        { text: 'Lotes y Vencimientos', icon: <EventRepeatIcon />, path: '/inventario/lotes', roles: WAREHOUSE_ACCESS },
-        { text: 'Valorización de Inventario', icon: <StackedLineChartIcon />, path: '/inventario/valorizacion', roles: ACCOUNTANT_ACCESS },
+        { text: 'Productos y Servicios', icon: <InventoryIcon />, path: '/inventario/productos', roles: CAN_MANAGE_PRODUCTS },
+        { text: 'Almacenes', icon: <WarehouseIcon />, path: '/inventario/almacenes', roles: CAN_MANAGE_WAREHOUSES },
+        { text: 'Control de Stock', icon: <TableViewIcon />, path: '/inventario/stock', roles: CAN_CONTROL_STOCK },
+        { text: 'Transferencias Internas', icon: <SyncAltIcon />, path: '/inventario/transferencias', roles: CAN_MANAGE_TRANSFERS },
+        { text: 'Ajustes de Inventario', icon: <TuneIcon />, path: '/inventario/ajustes', roles: CAN_ADJUST_INVENTORY },
+        { text: 'Lotes y Vencimientos', icon: <EventRepeatIcon />, path: '/inventario/lotes', roles: CAN_MANAGE_LOTS },
+        { text: 'Valorización de Inventario', icon: <StackedLineChartIcon />, path: '/inventario/valorizacion', roles: CAN_VIEW_INVENTORY_VALUATION },
       ],
     },
-    { text: 'Finanzas', icon: <AccountBalanceIcon />, roles: ACCOUNTANT_ACCESS,
+    { text: 'Finanzas', icon: <AccountBalanceIcon />, roles: CAN_ACCESS_FINANCE_MODULE,
       subItems: [
-        { text: 'Dashboard Financiero', icon: <LeaderboardIcon />, path: '/finanzas/dashboard', roles: MANAGER_ACCESS },
-        { text: 'Cuentas por Cobrar', icon: <PriceCheckIcon />, path: '/finanzas/cuentas-cobrar', roles: ACCOUNTANT_ACCESS },
-        { text: 'Gestión de Cobranzas', icon: <AccountBalanceWalletIcon />, path: '/finanzas/cobranzas', roles: ACCOUNTANT_ACCESS },
-        { text: 'Gestión de Pagos', icon: <PaymentIcon />, path: '/finanzas/pagos', roles: ACCOUNTANT_ACCESS },
-        { text: 'Conciliación Bancaria', icon: <AccountBalanceIcon />, path: '/finanzas/conciliacion', roles: ACCOUNTANT_ACCESS },
-        { text: 'Caja Chica', icon: <SavingsIcon />, path: '/finanzas/caja-chica', roles: ACCOUNTANT_ACCESS },
-        { text: 'Exportación Contable', icon: <FileUploadIcon />, path: '/finanzas/exportacion', roles: ACCOUNTANT_ACCESS },
+        { text: 'Dashboard Financiero', icon: <LeaderboardIcon />, path: '/finanzas/dashboard', roles: CAN_VIEW_FINANCE_DASHBOARD },
+        { text: 'Cuentas por Cobrar', icon: <PriceCheckIcon />, path: '/finanzas/cuentas-cobrar', roles: CAN_MANAGE_RECEIVABLES },
+        { text: 'Gestión de Cobranzas', icon: <AccountBalanceWalletIcon />, path: '/finanzas/cobranzas', roles: CAN_MANAGE_RECEIVABLES },
+        { text: 'Gestión de Pagos', icon: <PaymentIcon />, path: '/finanzas/pagos', roles: CAN_MANAGE_PAYABLES },
+        { text: 'Conciliación Bancaria', icon: <AccountBalanceIcon />, path: '/finanzas/conciliacion', roles: CAN_MANAGE_PAYABLES },
+        { text: 'Caja Chica', icon: <SavingsIcon />, path: '/finanzas/caja-chica', roles: CAN_MANAGE_PAYABLES },
+        { text: 'Exportación Contable', icon: <FileUploadIcon />, path: '/finanzas/exportacion', roles: CAN_MANAGE_PAYABLES },
       ],
     },
-    { text: 'Recursos Humanos', icon: <BadgeIcon />, roles: HR_ACCESS,
+    { text: 'Recursos Humanos', icon: <BadgeIcon />, roles: CAN_ACCESS_HR_MODULE,
       subItems: [
-        { text: 'Gestión de Empleados', icon: <PeopleIcon />, path: '/rrhh/empleados', roles: HR_ACCESS },
-        { text: 'Nómina / Planillas', icon: <PaymentIcon />, path: '/rrhh/nomina', roles: HR_ACCESS },
-        { text: 'Control de Asistencia', icon: <CoPresentIcon />, path: '/rrhh/asistencia', roles: HR_ACCESS },
-        { text: 'Gestión de Contratos', icon: <ArticleIcon />, path: '/rrhh/contratos', roles: HR_ACCESS },
-        { text: 'Reclutamiento y Selección', icon: <PersonSearchIcon />, path: '/rrhh/reclutamiento', roles: HR_ACCESS },
+        { text: 'Gestión de Empleados', icon: <PeopleIcon />, path: '/rrhh/empleados', roles: CAN_MANAGE_EMPLOYEES },
+        { text: 'Nómina / Planillas', icon: <PaymentIcon />, path: '/rrhh/nomina', roles: CAN_MANAGE_EMPLOYEES },
+        { text: 'Control de Asistencia', icon: <CoPresentIcon />, path: '/rrhh/asistencia', roles: CAN_MANAGE_EMPLOYEES },
+        { text: 'Gestión de Contratos', icon: <ArticleIcon />, path: '/rrhh/contratos', roles: CAN_MANAGE_EMPLOYEES },
+        { text: 'Reclutamiento y Selección', icon: <PersonSearchIcon />, path: '/rrhh/reclutamiento', roles: CAN_MANAGE_EMPLOYEES },
       ],
     },
 ];
 
 const reportsMenuItems = [
-    { text: 'Reportes', icon: <AssessmentIcon />, roles: MANAGER_ACCESS,
+    { text: 'Reportes', icon: <AssessmentIcon />, roles: CAN_ACCESS_REPORTS_MODULE,
       subItems: [
-        { text: 'Generar Catálogo', icon: <PictureAsPdfIcon />, path: '/reportes/catalogo', roles: SALES_ACCESS },
-        { text: 'Reporte de Ventas', icon: <LeaderboardIcon />, path: '/reportes/ventas', roles: MANAGER_ACCESS },
-        { text: 'Análisis IA (Próximamente)', icon: <AutoAwesomeIcon />, path: '/reportes/ia', roles: MANAGER_ACCESS },
+        { text: 'Generar Catálogo', icon: <PictureAsPdfIcon />, path: '/reportes/catalogo', roles: CAN_GENERATE_CATALOG },
+        { text: 'Reporte de Ventas', icon: <LeaderboardIcon />, path: '/reportes/ventas', roles: CAN_VIEW_SALES_DASHBOARD },
+        { text: 'Análisis IA (Próximamente)', icon: <AutoAwesomeIcon />, path: '/reportes/ia', roles: CAN_VIEW_SALES_DASHBOARD },
       ]
     }
 ];
   
 const adminMenuItems = [
-    { text: 'Administración', icon: <BusinessIcon />, roles: ADMIN_ACCESS,
+    { text: 'Administración', icon: <BusinessIcon />, roles: CAN_ACCESS_ADMIN_MODULE,
       subItems: [
-          { text: 'Configuración General', icon: <SettingsIcon />, path: '/admin/configuracion' },
-          { text: 'Usuarios y Roles', icon: <AdminPanelSettingsIcon />, path: '/admin/usuarios' },
-          { text: 'Sucursales', icon: <StoreIcon />, path: '/admin/sucursales' },
-          { text: 'Impuestos y Monedas', icon: <MonetizationOnIcon />, path: '/admin/impuestos' },
-          { text: 'Unidades de Medida', icon: <StraightenIcon />, path: '/admin/unidades' },
-          { text: 'Tipos de Documentos', icon: <FilePresentIcon />, path: '/admin/documentos' },
+          { text: 'Configuración General', icon: <SettingsIcon />, path: '/admin/configuracion', roles: CAN_ACCESS_ADMIN_MODULE },
+          { text: 'Usuarios y Roles', icon: <AdminPanelSettingsIcon />, path: '/admin/usuarios', roles: CAN_ACCESS_ADMIN_MODULE },
+          { text: 'Gestión de Datos', icon: <ImportExportIcon />, path: '/admin/gestion-datos', roles: CAN_ACCESS_ADMIN_MODULE },
+          { text: 'Sucursales', icon: <StoreIcon />, path: '/admin/sucursales', roles: CAN_ACCESS_ADMIN_MODULE },
+          { text: 'Impuestos y Monedas', icon: <MonetizationOnIcon />, path: '/admin/impuestos', roles: CAN_ACCESS_ADMIN_MODULE },
+          { text: 'Unidades de Medida', icon: <StraightenIcon />, path: '/admin/unidades', roles: CAN_ACCESS_ADMIN_MODULE },
+          { text: 'Tipos de Documentos', icon: <FilePresentIcon />, path: '/admin/documentos', roles: CAN_ACCESS_ADMIN_MODULE },
       ]
     },
     { text: 'Sistema', icon: <BuildCircleIcon />, roles: [ROLES.SUPERADMIN],
       subItems: [
-          { text: 'Auditoría de Usuarios', icon: <AdminPanelSettingsIcon />, path: '/sistema/auditoria' },
-          { text: 'Bitácora de Cambios', icon: <HistoryToggleOffIcon />, path: '/sistema/changelog' },
-          { text: 'Logs del Sistema', icon: <DnsIcon />, path: '/sistema/logs' },
-          { text: 'Tareas Programadas', icon: <ScheduleIcon />, path: '/sistema/cron' },
-          { text: 'Copias de Seguridad', icon: <BackupIcon />, path: '/sistema/backups' },
+          { text: 'Auditoría de Usuarios', icon: <AdminPanelSettingsIcon />, path: '/sistema/auditoria', roles: [ROLES.SUPERADMIN] },
+          { text: 'Bitácora de Cambios', icon: <HistoryToggleOffIcon />, path: '/sistema/changelog', roles: [ROLES.SUPERADMIN] },
+          { text: 'Logs del Sistema', icon: <DnsIcon />, path: '/sistema/logs', roles: [ROLES.SUPERADMIN] },
+          { text: 'Tareas Programadas', icon: <ScheduleIcon />, path: '/sistema/cron', roles: [ROLES.SUPERADMIN] },
+          { text: 'Copias de Seguridad', icon: <BackupIcon />, path: '/sistema/backups', roles: [ROLES.SUPERADMIN] },
       ]
     }
 ];
 
-// --- SECCIÓN 5: Componente Principal del Sidebar ---
+// --- SECCIÓN 5: COMPONENTE PRINCIPAL DEL SIDEBAR ---
+// Contiene la lógica para renderizar los menús y manejar su estado.
 const DashboardSidebar = ({ open, handleDrawerClose }) => {
   const location = useLocation();
   const { user } = useAuth();
@@ -182,20 +188,39 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
     setOpenCollapse(prev => ({ ...prev, [name]: !prev[name] }));
   };
 
+  /**
+   * Renderiza una lista de elementos de menú, filtrando aquellos a los que el usuario
+   * no tiene acceso, basado en la función de ayuda `hasPermission`.
+   * @param {Array<object>} items - La lista de elementos de menú a renderizar.
+   * @returns {Array<React.ReactNode>} - Un array de componentes de React listos para ser renderizados.
+   */
   const renderMenuItems = (items) => {
-    const accessibleItems = items.filter(item => !item.roles || (user && user.role && item.roles.includes(user.role)));
+    // Usamos la nueva función `hasPermission` para verificar el acceso.
+    const accessibleItems = items.filter(item => hasPermission(item.roles, user?.role));
 
     return accessibleItems.map((item) => {
-      const accessibleSubItems = item.subItems?.filter(subItem => !subItem.roles || (user && user.role && subItem.roles.includes(user.role))) || [];
+      // La misma lógica de `hasPermission` se aplica a los sub-items.
+      const accessibleSubItems = item.subItems?.filter(subItem => hasPermission(subItem.roles, user?.role)) || [];
       const isParentActive = item.subItems?.some(sub => location.pathname.startsWith(sub.path));
 
-      if (item.subItems && accessibleSubItems.length === 0) return null;
+      // Si un item principal no tiene sub-items visibles, no se renderiza.
+      if (item.subItems && accessibleSubItems.length === 0) {
+        return null;
+      }
       
       return (
         <React.Fragment key={item.text}>
           {item.subItems ? (
-            <>
-              <ListItemButton onClick={() => handleCollapseClick(item.text)} sx={{ minHeight: 48, justifyContent: open ? 'initial' : 'center', px: 2.5, bgcolor: isParentActive ? 'action.hover' : 'transparent' }}>
+            <React.Fragment>
+              <ListItemButton 
+                onClick={() => handleCollapseClick(item.text)} 
+                sx={{ 
+                  minHeight: 48, 
+                  justifyContent: open ? 'initial' : 'center', 
+                  px: 2.5, 
+                  bgcolor: isParentActive ? 'action.hover' : 'transparent' 
+                }}
+              >
                 <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : 'auto', justifyContent: 'center' }}>{item.icon}</ListItemIcon>
                 <ListItemText primary={item.text} sx={{ opacity: open ? 1 : 0 }} />
                 {open && (openCollapse[item.text] ? <ExpandLessIcon /> : <ExpandMoreIcon />)}
@@ -205,12 +230,12 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
                   {accessibleSubItems.map((subItem) => (
                     <ListItemButton key={subItem.text} component={Link} to={subItem.path} selected={location.pathname === subItem.path} sx={{ pl: 4 }}>
                       <ListItemIcon sx={{ minWidth: 0, mr: 3, justifyContent: 'center', opacity: 0.8 }}>{subItem.icon}</ListItemIcon>
-                      <ListItemText primary={subItem.text} sx={{ opacity: open ? 1 : 0 }} />
+                      <ListItemText primary={subItem.text} />
                     </ListItemButton>
                   ))}
                 </List>
               </Collapse>
-            </>
+            </React.Fragment>
           ) : (
             <ListItemButton component={Link} to={item.path} selected={location.pathname === item.path} sx={{ minHeight: 48, justifyContent: open ? 'initial' : 'center', px: 2.5 }}>
               <ListItemIcon sx={{ minWidth: 0, mr: open ? 3 : 'auto', justifyContent: 'center' }}>{item.icon}</ListItemIcon>
@@ -222,6 +247,7 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
     });
   };
 
+  // El JSX que se devuelve para renderizar el componente.
   return (
     <Drawer variant="permanent" open={open}>
       <DrawerHeader>
