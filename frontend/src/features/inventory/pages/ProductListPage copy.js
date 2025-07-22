@@ -1,5 +1,5 @@
 // /frontend/src/features/inventory/pages/ProductListPage.js
-// PÁGINA DE LISTA DE PRODUCTOS OPTIMIZADA Y LISTA PARA PRODUCCIÓN
+// PÁGINA DE LISTA DE PRODUCTOS CON GESTIÓN DE ESTADO PROFESIONAL USANDO REACT QUERY
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,16 +14,16 @@ import HistoryIcon from '@mui/icons-material/History';
 import { useSnackbar } from 'notistack';
 
 // --- SECCIÓN 1: IMPORTACIONES DE LA APLICACIÓN ---
-// Se importan los componentes, APIs y hooks necesarios para la página.
 import { getProductsAPI, deactivateProductAPI } from '../api/productsAPI';
 import { useDebounce } from '../../../hooks/useDebounce';
 import { PRODUCT_CATEGORIES, FILTER_TYPES, PRODUCT_SHAPES } from '../../../constants/productConstants';
+import PageHeader from '../../../components/common/PageHeader';
 import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
 import FilterBar from '../../../components/common/FilterBar';
-import ProductGridToolbar from '../components/ProductGridToolbar';
+import ProductGridToolbar from '../components/ProductGridToolbar'; 
 
-// --- SECCIÓN 2: DEFINICIÓN DE CONFIGURACIONES ESTÁTICAS ---
-// Definir esto fuera del componente evita que se recree en cada renderizado.
+// --- SECCIÓN 2: DEFINICIÓN DE CONFIGURACIONES (FUERA DEL COMPONENTE) ---
+// Definir esto fuera evita que se recree en cada render.
 const productFilterDefinitions = [
   { name: 'search', label: 'Buscar por SKU o Nombre', type: 'search', gridSize: 4 },
   { name: 'category', label: 'Filtrar por Producto', type: 'select', options: PRODUCT_CATEGORIES, gridSize: 3 },
@@ -31,25 +31,32 @@ const productFilterDefinitions = [
   { name: 'shape', label: 'Filtrar por Forma', type: 'select', options: PRODUCT_SHAPES, gridSize: 2, disabled: (filters) => filters.category !== 'filter' },
 ];
 
-/**
- * Componente de página que muestra una lista paginada y filtrable de productos.
- * Permite realizar acciones como editar, desactivar y crear nuevos productos.
- */
+
 const ProductListPage = () => {
-  // --- SECCIÓN 3: HOOKS Y GESTIÓN DE ESTADO ---
+  // --- SECCIÓN 3: HOOKS Y ESTADOS DE UI ---
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
 
+  // Estados que controlan la interacción del usuario: paginación y filtros.
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
   const [filters, setFilters] = useState({ search: '', category: '', product_type: '', shape: '' });
+  
+  // Estado para el diálogo de confirmación.
   const [isDeleteConfirmationOpen, setDeleteConfirmationOpen] = useState(false);
   const [productToDeactivate, setProductToDeactivate] = useState(null);
+
+  // Hook personalizado para evitar llamadas a la API en cada pulsación de tecla.
   const debouncedFilters = useDebounce(filters, 400);
 
-  // --- SECCIÓN 4: LÓGICA DE OBTENCIÓN Y MUTACIÓN DE DATOS (REACT QUERY) ---
+  // --- SECCIÓN 4: LÓGICA DE DATOS CON REACT QUERY ---
+
+  // `useQuery` se encarga de obtener los datos, manejar la caché, el estado de carga y los errores.
   const { data, isLoading, error } = useQuery({
+    // La 'queryKey' es un array que identifica unívocamente esta consulta.
+    // React Query volverá a ejecutar la consulta si cualquier valor de esta clave cambia.
     queryKey: ['products', paginationModel, debouncedFilters],
+    // 'queryFn' es la función asíncrona que obtiene los datos.
     queryFn: async () => {
       const params = {
         page: paginationModel.page + 1,
@@ -60,16 +67,22 @@ const ProductListPage = () => {
         shape: debouncedFilters.shape,
       };
       const response = await getProductsAPI(params);
+      // El aplanamiento de datos se realiza aquí, dentro de la lógica de datos.
       const flattenedProducts = response.items.map(p => ({ ...p, ...(p.specifications || {}) }));
       return { items: flattenedProducts, total: response.total };
     },
+    // `keepPreviousData: true` mejora la UX al paginar, mostrando los datos anteriores
+    // mientras se cargan los nuevos, evitando un parpadeo de la tabla vacía.
     keepPreviousData: true,
   });
 
+  // `useMutation` maneja las operaciones de escritura (POST, PUT, DELETE).
   const { mutate: deactivateProduct, isPending: isDeactivating } = useMutation({
     mutationFn: deactivateProductAPI,
     onSuccess: (data, sku) => {
       enqueueSnackbar(`Producto con SKU '${sku}' desactivado correctamente.`, { variant: 'success' });
+      // Invalida la caché de 'products', lo que le dice a React Query que los datos están obsoletos
+      // y provoca que `useQuery` vuelva a ejecutar la consulta para refrescar la tabla.
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (err) => {
@@ -77,9 +90,11 @@ const ProductListPage = () => {
     }
   });
 
-  // --- SECCIÓN 5: MANEJADORES DE EVENTOS Y MEMOIZACIÓN ---
+  // --- SECCIÓN 5: HANDLERS Y MEMOIZACIÓN ---
+
   const handleFilterChange = useCallback((event) => {
     const { name, value } = event.target;
+    // Volvemos a la primera página si se cambia un filtro para no ver una página vacía.
     setPaginationModel(prev => ({ ...prev, page: 0 }));
     setFilters(prevFilters => {
       const newFilters = { ...prevFilters, [name]: value };
@@ -98,13 +113,11 @@ const ProductListPage = () => {
 
   const handleCloseDeleteDialog = useCallback(() => {
     setDeleteConfirmationOpen(false);
-    setProductToDeactivate(null);
   }, []);
 
   const handleConfirmDeactivation = useCallback(() => {
-    if (productToDeactivate) {
-      deactivateProduct(productToDeactivate.sku);
-    }
+    if (!productToDeactivate) return;
+    deactivateProduct(productToDeactivate.sku);
     handleCloseDeleteDialog();
   }, [productToDeactivate, deactivateProduct, handleCloseDeleteDialog]);
 
@@ -128,20 +141,13 @@ const ProductListPage = () => {
   ], [navigate, handleOpenDeleteDialog]);
 
   // --- SECCIÓN 6: RENDERIZADO DEL COMPONENTE ---
+
+
   return (
     <>
       <Container maxWidth="xl">
-        <Paper 
-          sx={{ 
-            p: { xs: 2, md: 3 }, 
-            my: 4, 
-            borderRadius: 2, 
-            boxShadow: 3,
-            display: 'flex',
-            flexDirection: 'column',
-            height: 'calc(100vh - 120px)'
-          }}
-        >
+        <Paper sx={{ p: { xs: 2, md: 3 }, my: 4, borderRadius: 2, boxShadow: 3 }}>
+          {/* 2. REEMPLAZA PageHeader CON UN Typography SIMPLE */}
           <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
             Gestión de Productos
           </Typography>
@@ -154,7 +160,7 @@ const ProductListPage = () => {
         
           {error && <Alert severity="error" sx={{ mb: 2 }}>{error.message}</Alert>}
 
-          <Box sx={{ flexGrow: 1, width: '100%', mt: 2 }}>
+          <Box sx={{ height: 650, minHeight: 400, width: '100%' }}>
             <DataGrid
               rows={data?.items || []}
               columns={columns}
@@ -166,14 +172,28 @@ const ProductListPage = () => {
               onPaginationModelChange={setPaginationModel}
               paginationMode="server"
               density="compact"
+
+              // --- 3. Y 4. AÑADE ESTAS PROPS PARA LA TOOLBAR ---
+
+
+              // --- BLOQUE DE DEPURACIÓN AÑADIDO ---
               slots={{
-                toolbar: (props) => (
-                  <ProductGridToolbar 
-                    {...props}
-                    onAddClick={() => navigate('/inventario/productos/nuevo')}
-                  />
-                ),
+                toolbar: (props) => {
+                  // LOG #1: Confirma que el DataGrid intenta renderizar la toolbar
+                  console.log('[ProductListPage] Renderizando ProductGridToolbar...');
+                  return (
+                    <ProductGridToolbar 
+                      {...props}
+                      // LOG #2: Confirma que la función se pasa correctamente
+                      onAddClick={() => {
+                        console.log('[ProductListPage] onAddClick se está ejecutando! Navegando a /inventario/productos/nuevo');
+                        navigate('/inventario/productos/nuevo');
+                      }}
+                    />
+                  );
+                },
               }}                    
+
             />
           </Box>
         </Paper>

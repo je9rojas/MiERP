@@ -10,6 +10,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import ValidationError
 
 # --- SECCIÓN DE IMPORTACIONES DE MÓDULOS ---
+# Se importan los repositorios y modelos de otros módulos para interactuar con sus datos.
 from app.modules.inventory.repositories.product_repository import ProductRepository
 from app.modules.inventory.product_models import ProductCreate, ProductUpdate, ProductInDB
 
@@ -18,8 +19,8 @@ from app.modules.inventory.product_models import ProductCreate, ProductUpdate, P
 async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
     """
     Obtiene todos los datos de los productos y los formatea en un string CSV.
-    Este archivo está diseñado para ser una plantilla perfecta para la re-importación,
-    con un formato CSV robusto y datos complejos serializados en JSON.
+    Los campos complejos (listas y diccionarios) se serializan a formato JSON
+    para crear un backup completo que puede ser utilizado como plantilla para la re-importación.
     """
     product_repo = ProductRepository(db)
     all_products: List[Dict] = await product_repo.find_all({})
@@ -32,8 +33,6 @@ async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
         'points_on_sale', 'weight_kg', 'is_active',
         'specifications_json', 'oem_codes_json', 'cross_references_json', 'applications_json'
     ]
-    # Se utiliza el comportamiento por defecto de DictWriter (quoting minimal),
-    # que es el estándar y más compatible para CSV.
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
     writer.writeheader()
 
@@ -41,38 +40,24 @@ async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
         return output.getvalue()
 
     for product in all_products:
-        # Se construye un diccionario para la fila, manteniendo los tipos de datos originales.
-        row_data = {
-            "operation": "",
-            "sku": product.get("sku"),
-            "name": product.get("name"),
-            "brand": product.get("brand"),
-            "main_image_url": product.get("main_image_url"),
-            "description": product.get("description"),
-            "category": product.get("category"),
-            "product_type": product.get("product_type"),
-            "shape": product.get("shape"),
-            "cost": product.get("cost"),
-            "price": product.get("price"),
-            "stock_quantity": product.get("stock_quantity"),
-            "points_on_sale": product.get("points_on_sale"),
-            "weight_kg": product.get("weight_kg"),
-            "is_active": product.get("is_active"),
-            'specifications_json': json.dumps(product.get('specifications', {})),
-            'oem_codes_json': json.dumps(product.get('oem_codes', [])),
-            'cross_references_json': json.dumps(product.get('cross_references', [])),
-            'applications_json': json.dumps(product.get('applications', [])),
-        }
-        writer.writerow(row_data)
+        product['specifications_json'] = json.dumps(product.get('specifications', {}))
+        product['oem_codes_json'] = json.dumps(product.get('oem_codes', []))
+        product['cross_references_json'] = json.dumps(product.get('cross_references', []))
+        product['applications_json'] = json.dumps(product.get('applications', []))
+        
+        clean_product = {key: str(value) if value is not None else "" for key, value in product.items()}
+        clean_product['operation'] = ''
+        
+        writer.writerow(clean_product)
 
     return output.getvalue()
 
 # --- SECCIÓN DE SERVICIOS DE IMPORTACIÓN ---
 
-async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -> Dict:
+async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -> dict:
     """
-    Procesa un archivo CSV para gestionar productos. Es robusto contra errores
-    de formato, codificación y filas vacías, y devuelve un resumen detallado.
+    Procesa un archivo CSV para gestionar productos, con una lógica de procesamiento
+    de filas inmutable para garantizar que todas las filas se procesen correctamente.
     """
     product_repo = ProductRepository(db)
     
@@ -98,8 +83,11 @@ async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -
     errors = []
 
     for idx, original_row in enumerate(rows):
-        row_num = idx + 2
+        # Ignora filas vacías o sin SKU
+        if not original_row:
+            continue
         
+        row_num = idx + 2
         sku_value = original_row.get("sku") if isinstance(original_row, dict) else None
         if not sku_value or not sku_value.strip():
             continue
@@ -110,7 +98,7 @@ async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -
 
         try:
             # Etapa 3: Procesamiento Inmutable de una Fila Individual
-            data_to_process = {
+            data_for_validation = {
                 key: value for key, value in original_row.items()
                 if value is not None and value != '' and not key.endswith('_json')
             }
@@ -118,27 +106,26 @@ async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -
             for json_field in ['specifications', 'oem_codes', 'cross_references', 'applications']:
                 json_value = original_row.get(f"{json_field}_json")
                 if json_value:
-                    data_to_process[json_field] = json.loads(json_value)
+                    data_for_validation[json_field] = json.loads(json_value)
 
-            if 'cost' in data_to_process: data_to_process['cost'] = float(data_to_process['cost'])
-            if 'price' in data_to_process: data_to_process['price'] = float(data_to_process['price'])
-            if 'stock_quantity' in data_to_process: data_to_process['stock_quantity'] = int(data_to_process['stock_quantity'])
-            if 'points_on_sale' in data_to_process: data_to_process['points_on_sale'] = float(data_to_process['points_on_sale'])
-            if 'weight_kg' in data_to_process: data_to_process['weight_kg'] = float(data_to_process['weight_kg'])
+            if 'cost' in data_for_validation: data_for_validation['cost'] = float(data_for_validation['cost'])
+            if 'price' in data_for_validation: data_for_validation['price'] = float(data_for_validation['price'])
+            if 'stock_quantity' in data_for_validation: data_for_validation['stock_quantity'] = int(data_for_validation['stock_quantity'])
+            if 'points_on_sale' in data_for_validation: data_for_validation['points_on_sale'] = float(data_for_validation['points_on_sale'])
+            if 'weight_kg' in data_for_validation: data_for_validation['weight_kg'] = float(data_for_validation['weight_kg'])
             
-            # Etapa 4: Ejecución de la Operación en la Base de Datos
+            # Etapa 4: Ejecución de la Operación
             if operation == "upsert":
                 existing_product = await product_repo.find_by_sku(sku)
                 
-                if existing_product:
-                    update_model = ProductUpdate(**data_to_process)
+                if existing_product: # UPDATE
+                    update_model = ProductUpdate(**data_for_validation)
                     update_data = update_model.model_dump(exclude_unset=True)
                     if update_data:
-                        matched_count = await product_repo.update_one(sku, update_data)
-                        if matched_count > 0:
-                            summary["products_updated"] += 1
-                else:
-                    create_model = ProductCreate(**data_to_process)
+                        await product_repo.update_one(sku, update_data)
+                        summary["products_updated"] += 1
+                else: # INSERT
+                    create_model = ProductCreate(**data_for_validation)
                     new_product_in_db = ProductInDB(**create_model.model_dump())
                     product_doc_to_insert = new_product_in_db.model_dump(by_alias=True)
                     await product_repo.insert_one(product_doc_to_insert)

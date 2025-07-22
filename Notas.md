@@ -137,3 +137,6 @@ React Query: Es la optimización de mayor impacto para la experiencia del usuari
 Formik y Yup: Es la segunda de mayor impacto, profesionaliza tus formularios y te ahorrará cientos de líneas de código y bugs.
 Lazy Loading: Es una optimización de rendimiento crucial que se vuelve indispensable a medida que la aplicación crece en número de páginas.
 Mi recomendación es que sigas con tu plan de construir el módulo de Proveedores. Cuando lo hagas, intenta construirlo desde el principio usando React Query y Formik. Será un excelente ejercicio de aprendizaje y verás la diferencia monumental en la calidad y cantidad de código que escribes.
+
+
+solo quiero implemntar la busqueda por documento y el historial de movimientos, dime los pasos a seguir

@@ -32,9 +32,9 @@ async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
         'points_on_sale', 'weight_kg', 'is_active',
         'specifications_json', 'oem_codes_json', 'cross_references_json', 'applications_json'
     ]
-    # Se utiliza el comportamiento por defecto de DictWriter (quoting minimal),
-    # que es el estándar y más compatible para CSV.
-    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
+    # Se utiliza QUOTE_NONNUMERIC para asegurar que todos los campos de texto
+    # (especialmente los JSON) estén correctamente entrecomillados.
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore', quoting=csv.QUOTE_NONNUMERIC)
     writer.writeheader()
 
     if not all_products:
