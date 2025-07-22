@@ -4,25 +4,25 @@
 import csv
 import io
 import json
+from typing import List, Dict
 from fastapi import UploadFile, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import ValidationError
-from typing import List
 
-# --- SECCIÓN DE IMPORTACIONES DE MÓDulos ---
+# --- SECCIÓN DE IMPORTACIONES DE MÓDULOS ---
 from app.modules.inventory.repositories.product_repository import ProductRepository
-from app.modules.inventory.product_models import ProductCreate, ProductUpdate
+from app.modules.inventory.product_models import ProductCreate, ProductUpdate, ProductInDB
 
 # --- SECCIÓN DE SERVICIOS DE EXPORTACIÓN ---
 
 async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
     """
     Obtiene todos los datos de los productos y los formatea en un string CSV.
-    Los campos complejos (listas y diccionarios) se serializan a formato JSON
-    para crear un backup completo que puede ser re-importado.
+    Este archivo está diseñado para ser una plantilla perfecta para la re-importación,
+    con un formato CSV robusto y datos complejos serializados en JSON.
     """
     product_repo = ProductRepository(db)
-    all_products: List[dict] = await product_repo.find_all({})
+    all_products: List[Dict] = await product_repo.find_all({})
 
     output = io.StringIO()
     
@@ -32,6 +32,8 @@ async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
         'points_on_sale', 'weight_kg', 'is_active',
         'specifications_json', 'oem_codes_json', 'cross_references_json', 'applications_json'
     ]
+    # Se utiliza el comportamiento por defecto de DictWriter (quoting minimal),
+    # que es el estándar y más compatible para CSV.
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
     writer.writeheader()
 
@@ -39,29 +41,46 @@ async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
         return output.getvalue()
 
     for product in all_products:
-        product['specifications_json'] = json.dumps(product.get('specifications', {}))
-        product['oem_codes_json'] = json.dumps(product.get('oem_codes', []))
-        product['cross_references_json'] = json.dumps(product.get('cross_references', []))
-        product['applications_json'] = json.dumps(product.get('applications', []))
-        
-        clean_product = {key: str(value) if value is not None else "" for key, value in product.items()}
-        clean_product['operation'] = ''
-        
-        writer.writerow(clean_product)
+        # Se construye un diccionario para la fila, manteniendo los tipos de datos originales.
+        row_data = {
+            "operation": "",
+            "sku": product.get("sku"),
+            "name": product.get("name"),
+            "brand": product.get("brand"),
+            "main_image_url": product.get("main_image_url"),
+            "description": product.get("description"),
+            "category": product.get("category"),
+            "product_type": product.get("product_type"),
+            "shape": product.get("shape"),
+            "cost": product.get("cost"),
+            "price": product.get("price"),
+            "stock_quantity": product.get("stock_quantity"),
+            "points_on_sale": product.get("points_on_sale"),
+            "weight_kg": product.get("weight_kg"),
+            "is_active": product.get("is_active"),
+            'specifications_json': json.dumps(product.get('specifications', {})),
+            'oem_codes_json': json.dumps(product.get('oem_codes', [])),
+            'cross_references_json': json.dumps(product.get('cross_references', [])),
+            'applications_json': json.dumps(product.get('applications', [])),
+        }
+        writer.writerow(row_data)
 
     return output.getvalue()
 
 # --- SECCIÓN DE SERVICIOS DE IMPORTACIÓN ---
 
-async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -> dict:
+
+
+
+
+async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -> Dict:
     """
-    Procesa un archivo CSV para crear, actualizar o desactivar productos.
-    Es robusto contra errores de formato, codificación y filas vacías.
-    Devuelve un resumen detallado de la operación.
+    Procesa un archivo CSV para gestionar productos. Es robusto contra errores
+    de formato, codificación y filas vacías, y devuelve un resumen detallado.
     """
     product_repo = ProductRepository(db)
     
-    # --- Lectura y Decodificación Robusta del Archivo ---
+    # Etapa 1: Lectura y Decodificación Segura del Archivo
     contents = await file.read()
     try:
         decoded_content = contents.decode('utf-8')
@@ -69,73 +88,64 @@ async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -
         try:
             decoded_content = contents.decode('latin-1')
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"No se pudo decodificar el archivo. Asegúrese de que esté en formato UTF-8 o Latin-1. Error: {e}"
-            )
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"No se pudo decodificar el archivo: {e}")
 
     buffer = io.StringIO(decoded_content)
-    
     try:
         reader = csv.DictReader(buffer)
         rows = list(reader)
     except Exception as e:
-         raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Error al procesar la estructura del CSV: {e}"
-            )
+         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Error al procesar la estructura del CSV: {e}")
 
-    # --- Procesamiento de Filas ---
-    summary = {
-        "total_rows": 0, "products_created": 0, "products_updated": 0,
-        "products_deactivated": 0, "rows_with_errors": 0
-    }
+    # Etapa 2: Procesamiento de Filas y Gestión de Resultados
+    summary = {"total_rows": 0, "products_created": 0, "products_updated": 0, "products_deactivated": 0, "rows_with_errors": 0}
     errors = []
 
-    for idx, row in enumerate(rows):
-        # Ignora filas vacías que pueden generarse al final del archivo.
-        if not row:
+    for idx, original_row in enumerate(rows):
+        row_num = idx + 2
+        
+        sku_value = original_row.get("sku") if isinstance(original_row, dict) else None
+        if not sku_value or not sku_value.strip():
             continue
         
         summary["total_rows"] += 1
-        row_num = idx + 2
-        
-        operation = row.get("operation", "").lower().strip()
-        sku = row.get("sku", "").strip()
-
-        if not sku:
-            errors.append(f"Fila {row_num}: El campo 'sku' es obligatorio.")
-            summary["rows_with_errors"] += 1
-            continue
+        sku = sku_value.strip()
+        operation = original_row.get("operation", "").lower().strip()
 
         try:
-            # Deserializa los campos JSON de vuelta a objetos Python.
+            # Etapa 3: Procesamiento Inmutable de una Fila Individual
+            data_to_process = {
+                key: value for key, value in original_row.items()
+                if value is not None and value != '' and not key.endswith('_json')
+            }
+
             for json_field in ['specifications', 'oem_codes', 'cross_references', 'applications']:
-                if row.get(f"{json_field}_json"):
-                    row[json_field] = json.loads(row[f"{json_field}_json"])
+                json_value = original_row.get(f"{json_field}_json")
+                if json_value:
+                    data_to_process[json_field] = json.loads(json_value)
 
-            # Procesa la fila para limpiar valores vacíos y convertir tipos de datos.
-            processed_row = {key: value for key, value in row.items() if value is not None and value != ''}
+            if 'cost' in data_to_process: data_to_process['cost'] = float(data_to_process['cost'])
+            if 'price' in data_to_process: data_to_process['price'] = float(data_to_process['price'])
+            if 'stock_quantity' in data_to_process: data_to_process['stock_quantity'] = int(data_to_process['stock_quantity'])
+            if 'points_on_sale' in data_to_process: data_to_process['points_on_sale'] = float(data_to_process['points_on_sale'])
+            if 'weight_kg' in data_to_process: data_to_process['weight_kg'] = float(data_to_process['weight_kg'])
             
-            if 'cost' in processed_row: processed_row['cost'] = float(processed_row['cost'])
-            if 'price' in processed_row: processed_row['price'] = float(processed_row['price'])
-            if 'stock_quantity' in processed_row: processed_row['stock_quantity'] = int(processed_row['stock_quantity'])
-            if 'points_on_sale' in processed_row: processed_row['points_on_sale'] = float(processed_row['points_on_sale'])
-            if 'weight_kg' in processed_row: processed_row['weight_kg'] = float(processed_row['weight_kg'])
-
+            # Etapa 4: Ejecución de la Operación en la Base de Datos
             if operation == "upsert":
                 existing_product = await product_repo.find_by_sku(sku)
                 
-                if existing_product: # Lógica de Actualización (UPDATE)
-                    update_model = ProductUpdate(**processed_row)
+                if existing_product:
+                    update_model = ProductUpdate(**data_to_process)
                     update_data = update_model.model_dump(exclude_unset=True)
                     if update_data:
-                        await product_repo.update_one(sku, update_data)
-                        summary["products_updated"] += 1
-                else: # Lógica de Creación (INSERT)
-                    create_model = ProductCreate(**processed_row)
-                    product_doc = create_model.model_dump()
-                    await product_repo.insert_one(product_doc)
+                        matched_count = await product_repo.update_one(sku, update_data)
+                        if matched_count > 0:
+                            summary["products_updated"] += 1
+                else:
+                    create_model = ProductCreate(**data_to_process)
+                    new_product_in_db = ProductInDB(**create_model.model_dump())
+                    product_doc_to_insert = new_product_in_db.model_dump(by_alias=True)
+                    await product_repo.insert_one(product_doc_to_insert)
                     summary["products_created"] += 1
             
             elif operation == "delete":
@@ -157,5 +167,6 @@ async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -
         except Exception as e:
             errors.append(f"Fila {row_num} (SKU: {sku}): Error inesperado - {str(e)}")
             summary["rows_with_errors"] += 1
-
+            
+    # Etapa 5: Devolución del Resumen de la Operación
     return {"summary": summary, "errors": errors}

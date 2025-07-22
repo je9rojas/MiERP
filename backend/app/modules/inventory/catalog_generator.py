@@ -213,20 +213,31 @@ class CatalogPDFGenerator:
 
         specs_text = " | ".join(spec_parts)
         return Paragraph(specs_text, self.styles['SpecText'])
-
+    
+    
     def _get_codes_flowables(self, title: str, codes: List[Dict]) -> List:
-        """Crea una lista de Flowables para una sección de códigos."""
-        if not any(c.get('code') for c in codes):
+        """
+        Crea una lista de Flowables para una sección de códigos,
+        manejando de forma segura el caso en que la lista de códigos sea None.
+        """
+        # Se asegura de que `valid_codes` sea siempre una lista, incluso si `codes` es None.
+        valid_codes = [c for c in (codes or []) if c.get('code')]
+        if not valid_codes:
             return []
             
         elements = [Paragraph(title, self.styles['SectionTitle'])]
-        text = ", ".join([f"{c.get('brand')}: {c.get('code')}" for c in codes if c.get('code')])
+        text = ", ".join([f"{c.get('brand')}: {c.get('code')}" for c in valid_codes])
         elements.append(Paragraph(text, self.styles['CodeText']))
         elements.append(Spacer(1, 6))
         return elements
 
+
     def _get_applications_flowable(self, product: Dict) -> List:
-        """Crea una lista de Flowables para las aplicaciones del vehículo."""
+        """
+        Crea una lista de Flowables para las aplicaciones del vehículo,
+        manejando de forma segura el caso en que el campo 'applications' no exista.
+        """
+        # Obtiene 'applications' con un valor por defecto de lista vacía para evitar errores.
         apps = product.get('applications', [])
         if not apps:
             return []
@@ -236,7 +247,9 @@ class CatalogPDFGenerator:
             Paragraph("Aplicaciones:", self.styles['SectionTitle']),
             Paragraph(app_text, self.styles['CodeText'])
         ]
-        
+
+
+
     def _get_commercial_info_paragraph(self, product: Dict):
         """Formatea la información comercial sensible en un párrafo horizontal."""
         cost = product.get('cost', 0.0)
