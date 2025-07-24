@@ -1,51 +1,52 @@
 # /backend/app/core/config.py
-# CONFIGURACIÓN CENTRALIZADA DE LA APLICACIÓN USANDO PYDANTIC
 
-from pydantic_settings import BaseSettings
+"""
+Módulo de Configuración Central de la Aplicación.
+Utiliza Pydantic V2 con pydantic-settings para cargar, validar y gestionar
+las variables de entorno de forma segura y tipada.
+Este archivo define el "contrato" de todas las configuraciones que la aplicación espera.
+"""
+
 from typing import List, Optional
+from pydantic import AnyHttpUrl
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     """
-    Define todas las variables de configuración de la aplicación.
-    Pydantic cargará automáticamente estas variables desde el sistema de entorno
-    o desde un archivo .env, validando sus tipos.
+    Define todas las variables de entorno que la aplicación necesita para funcionar.
+    Pydantic las validará automáticamente. Si una variable existe en el archivo .env,
+    su valor anulará el valor por defecto definido aquí.
     """
-
-    # --- SECCIÓN 1: METADATOS DEL PROYECTO ---
+    
+    # --- Configuración del Entorno de la Aplicación ---
+    ENV: str = "development"
     PROJECT_NAME: str = "MiERP PRO"
     PROJECT_VERSION: str = "1.0.0"
-    
-    # --- SECCIÓN 2: CONFIGURACIÓN DE SEGURIDAD ---
-    SECRET_KEY: str = "una-clave-secreta-muy-larga-y-dificil-de-adivinar-que-debes-cambiar"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 # Se recomienda un tiempo de vida más corto para los tokens
 
-    # --- SECCIÓN 3: CONFIGURACIÓN DE LA BASE DE DATOS ---
+    # --- Configuración de la Base de Datos ---
     MONGODB_URI: str
-    MONGODB_DATABASE_NAME: Optional[str] = None # Hacerlo opcional por si viene en la URI
+    MONGODB_DATABASE_NAME: Optional[str] = None
 
-    # --- SECCIÓN 4: CONFIGURACIÓN DEL ENTORNO Y CORS ---
-    ENV: str = "development"
-    # Lista de orígenes permitidos para comunicarse con la API
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
-    
-    # --- SECCIÓN 5: CONFIGURACIONES ADICIONALES (OPCIONALES) ---
+    # --- Configuración de Seguridad y CORS ---
+    SECRET_KEY: str
+    ALLOWED_ORIGINS: List[AnyHttpUrl] = []
+
+    # --- Configuración de JWT (JSON Web Tokens) ---
+    # Se definen aquí los campos que el módulo de autenticación necesita.
+    # Se les asigna un valor por defecto seguro.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # El token expira en 30 minutos por defecto.
+    ALGORITHM: str = "HS256"
+
+    # --- Configuración de Funcionalidades Adicionales ---
     ENABLE_CREDENTIAL_ROTATION: bool = False
     CREDENTIAL_ROTATION_DAYS: int = 90
-    SECRETS_MANAGER: str = "file"
 
+    # Configuración del comportamiento de pydantic-settings
+    model_config = SettingsConfigDict(
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8"
+    )
 
-    class Config:
-        """
-        Configuración interna de Pydantic para indicarle cómo cargar las variables.
-        """
-        # Lee las variables de un archivo .env ubicado en el mismo directorio
-        # que el script que se ejecuta (normalmente, la raíz del backend).
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        # Ignora cualquier variable extra en el archivo .env que no esté definida en este modelo.
-        extra = "ignore" 
-
-# Creamos una instancia única de la configuración que se importará en toda la aplicación.
-# Este patrón asegura que las variables de entorno se lean y validen una sola vez.
+# Se crea una única instancia global de la configuración para ser importada en la aplicación.
 settings = Settings()

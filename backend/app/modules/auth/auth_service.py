@@ -1,5 +1,5 @@
 # /backend/app/modules/auth/auth_service.py
-# SERVICIO PARA LA LÓGICA DE NEGOCIO DE AUTENTICACIÓN
+# SERVICIO PARA LA LÓGICA DE NEGOCIO DE AUTENTICACIÓN (REFACTORIZADO)
 
 import os
 import secrets
@@ -10,17 +10,11 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import Dict, Any, Optional
 
 # --- SECCIÓN 1: IMPORTACIONES ---
-# Importaciones del núcleo de la aplicación y de otros módulos.
-
 from app.core.config import settings
 from app.core.security import get_password_hash, verify_password
-
-# Importamos los modelos necesarios desde el módulo de usuarios.
-# Esta es la forma correcta de comunicación entre módulos.
 from app.modules.users.user_models import UserRole, UserInDB
 
-
-# --- SECCIÓN 2: FUNCIONES DEL SERVICIO ---
+# --- SECCIÓN 2: FUNCIONES DEL SERVICIO (REFACTORIZADAS) ---
 
 async def create_secure_superadmin(db: AsyncIOMotorDatabase) -> Optional[str]:
     """
@@ -60,34 +54,30 @@ async def create_secure_superadmin(db: AsyncIOMotorDatabase) -> Optional[str]:
     print(f"✅ Superadmin seguro creado con ID: {result.inserted_id}")
     return str(result.inserted_id)
 
-
 async def authenticate_user(db: AsyncIOMotorDatabase, username: str, password: str) -> Optional[Dict[str, Any]]:
     """
-    Autentica un usuario por su nombre de usuario y contraseña.
-    - Verifica si el usuario existe y está activo.
-    - Compara la contraseña proporcionada con el hash almacenado.
-    - Actualiza los registros de login.
-    
+    Autentica un usuario y enriquece su documento con los permisos de su rol.
     Returns:
-        El documento del usuario como un diccionario si la autenticación es exitosa, sino None.
+        El documento del usuario (dict) enriquecido con permisos si es exitoso, sino None.
     """
     user_doc = await db.users.find_one({"username": username})
     
-    if not user_doc:
-        return None
+    if not user_doc or user_doc.get("status") != "active":
+        return None # No dar información sobre si el usuario existe o está inactivo
     
-    if user_doc.get("status") != "active":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="La cuenta está inactiva o suspendida."
-        )
-    
-    # Usa la función centralizada de 'security' para verificar la contraseña
     if not verify_password(password, user_doc["password_hash"]):
         await db.users.update_one({"_id": user_doc["_id"]}, {"$inc": {"failed_login_attempts": 1}})
         return None
     
-    # Si el login es exitoso, resetea los intentos fallidos y actualiza la fecha de último login
+    # --- LÓGICA DE ENRIQUECIMIENTO CON PERMISOS ---
+    # Busca el rol del usuario en la colección 'roles'
+    role_doc = await db.roles.find_one({"name": user_doc["role"]})
+    
+    # Asigna los permisos del rol. Si el rol no existe en la colección 'roles',
+    # o si es un superadmin (cuyos permisos son implícitos), se asigna una lista vacía
+    # (la lógica de `permission_checker` manejará el caso superadmin por separado).
+    user_doc["permissions"] = role_doc.get("permissions", []) if role_doc else []
+    
     await db.users.update_one(
         {"_id": user_doc["_id"]},
         {"$set": {"failed_login_attempts": 0, "last_login": datetime.now(timezone.utc)}}
@@ -95,27 +85,22 @@ async def authenticate_user(db: AsyncIOMotorDatabase, username: str, password: s
     
     return user_doc
 
-
 async def get_user_by_username(db: AsyncIOMotorDatabase, username: str) -> Optional[Dict[str, Any]]:
     """
-    Obtiene los datos públicos de un usuario por su nombre de usuario.
-    Excluye campos sensibles como el hash de la contraseña.
+    Obtiene un usuario y sus permisos. Usado para la dependencia `get_current_active_user`.
     """
-    projection = { "password_hash": 0, "audit_log": 0, "failed_login_attempts": 0 }
-    user_doc = await db.users.find_one({"username": username}, projection)
+    user_doc = await db.users.find_one({"username": username}, {"password_hash": 0})
     
     if user_doc:
-        # Asegura que el _id sea un string para una correcta serialización a JSON
+        role_doc = await db.roles.find_one({"name": user_doc["role"]})
+        user_doc["permissions"] = role_doc.get("permissions", []) if role_doc else []
         user_doc["_id"] = str(user_doc["_id"])
         
     return user_doc
 
-
 async def store_credentials_securely(username: str, password: str):
     """
-    Almacena credenciales en un archivo JSON local.
-    ADVERTENCIA: Este método es solo para la conveniencia en el desarrollo local.
-    NUNCA debe usarse en un entorno de producción.
+    Almacena credenciales en un archivo JSON local. SOLO PARA DESARROLLO.
     """
     secure_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'secure')
     if not os.path.exists(secure_dir):

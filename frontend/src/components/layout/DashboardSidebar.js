@@ -35,8 +35,8 @@ import {
 // Se importan los nuevos grupos de permisos basados en acciones y la función de ayuda.
 import {
   ROLES, ALL_ROLES, hasPermission,
-  CAN_ACCESS_SALES_MODULE, CAN_VIEW_SALES_DASHBOARD, CAN_MANAGE_CLIENTS, CAN_MANAGE_QUOTES, CAN_MANAGE_SALES_ORDERS, CAN_USE_POS, CAN_MANAGE_INVOICES, CAN_MANAGE_RETURNS,
-  CAN_ACCESS_PURCHASING_MODULE, CAN_MANAGE_SUPPLIERS, CAN_MANAGE_PURCHASE_ORDERS, CAN_RECEIVE_GOODS, CAN_MANAGE_PAYABLES,
+  CAN_ACCESS_SALES_MODULE, CAN_VIEW_SALES_DASHBOARD, CAN_MANAGE_CLIENTS, CAN_MANAGE_QUOTES, CAN_MANAGE_SALES_ORDERS, CAN_USE_POS, CAN_MANAGE_SALE_INVOICES, CAN_MANAGE_RETURNS,
+  CAN_ACCESS_PURCHASING_MODULE, CAN_MANAGE_SUPPLIERS, CAN_CRUD_PURCHASE_ORDERS, CAN_RECEIVE_GOODS, CAN_MANAGE_PAYABLES,
   CAN_ACCESS_INVENTORY_MODULE, CAN_MANAGE_PRODUCTS, CAN_MANAGE_WAREHOUSES, CAN_CONTROL_STOCK, CAN_MANAGE_TRANSFERS, CAN_ADJUST_INVENTORY, CAN_MANAGE_LOTS, CAN_VIEW_INVENTORY_VALUATION,
   CAN_ACCESS_FINANCE_MODULE, CAN_VIEW_FINANCE_DASHBOARD, CAN_MANAGE_RECEIVABLES,
   CAN_ACCESS_HR_MODULE, CAN_MANAGE_EMPLOYEES,
@@ -98,14 +98,14 @@ const menuItems = [
         { text: 'Cotizaciones', icon: <RequestQuoteIcon />, path: '/ventas/cotizaciones', roles: CAN_MANAGE_QUOTES },
         { text: 'Pedidos de Venta', icon: <ShoppingCartIcon />, path: '/ventas/pedidos', roles: CAN_MANAGE_SALES_ORDERS },
         { text: 'Punto de Venta (POS)', icon: <PointOfSaleIcon />, path: '/ventas/pos', roles: CAN_USE_POS },
-        { text: 'Facturación', icon: <ReceiptLongIcon />, path: '/ventas/facturacion', roles: CAN_MANAGE_INVOICES },
+        { text: 'Facturación', icon: <ReceiptLongIcon />, path: '/ventas/facturacion', roles: CAN_MANAGE_SALE_INVOICES },
         { text: 'Devoluciones (RMA)', icon: <AssignmentReturnIcon />, path: '/ventas/devoluciones', roles: CAN_MANAGE_RETURNS },
       ],
     },
     { text: 'Compras', icon: <ShoppingCartIcon />, roles: CAN_ACCESS_PURCHASING_MODULE,
       subItems: [
         { text: 'Proveedores', icon: <LocalShippingIcon />, path: '/compras/proveedores', roles: CAN_MANAGE_SUPPLIERS },
-        { text: 'Órdenes de Compra', icon: <ReceiptLongIcon />, path: '/compras/ordenes', roles: CAN_MANAGE_PURCHASE_ORDERS },
+        { text: 'Órdenes de Compra', icon: <ReceiptLongIcon />, path: '/compras/ordenes', roles: CAN_CRUD_PURCHASE_ORDERS },
         { text: 'Recepción de Mercancía', icon: <WarehouseIcon />, path: '/compras/recepciones', roles: CAN_RECEIVE_GOODS },
         { text: 'Cuentas por Pagar', icon: <PaymentIcon />, path: '/compras/cuentas-pagar', roles: CAN_MANAGE_PAYABLES },
       ],

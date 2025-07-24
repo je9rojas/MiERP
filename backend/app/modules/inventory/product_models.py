@@ -53,8 +53,8 @@ class CrossReference(BaseModel):
 class Application(BaseModel):
     """Representa un vehículo en el que se puede usar el producto."""
     brand: str
-    model: str
-    years: List[int] = Field(default_factory=list)
+    model: Optional[str] = None
+    years: Optional[List[int]] = Field(default_factory=list)
     engine: Optional[str] = None
 
 
@@ -156,5 +156,5 @@ class ProductOut(ProductInDB):
 class CatalogFilterPayload(BaseModel):
     """Define los filtros que el cliente envía para generar un catálogo."""
     search_term: Optional[str] = None
-    product_types: Optional[List[str]] = None
+    product_types: Optional[List[FilterType]] = None # Usa el Enum para validación automática
     view_type: str = 'client'

@@ -1,134 +1,250 @@
-// /frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
-// CÓDIGO ACTUALIZADO CON ESTADOS Y ACCIONES - LISTO PARA COPIAR Y PEGAR
+/**
+ * @file /frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
+ * @description Página principal para la visualización, filtrado y gestión de Órdenes de Compra.
+ * Utiliza MUI DataGrid para una presentación eficiente y react-query para la gestión de datos asíncrona.
+ */
 
-import React from 'react';
-import { Container, Typography, Paper, Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Chip, IconButton, Tooltip } from '@mui/material';
-import { Link } from 'react-router-dom';
-import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+// --- SECCIÓN 1: IMPORTACIONES ---
+import React, { useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Box, Container, Paper, Alert, IconButton, Tooltip, Typography, Chip } from '@mui/material';
+import { DataGrid } from '@mui/x-data-grid';
+import { esES } from '@mui/x-data-grid/locales';
+import { useQuery } from '@tanstack/react-query';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import CancelIcon from '@mui/icons-material/Cancel';
+import EditIcon from '@mui/icons-material/Edit';
+import SearchIcon from '@mui/icons-material/Search';
 
-// --- DATOS DE EJEMPLO (MOCK DATA) ---
-// Esto simula lo que recibirías de tu API.
-const mockOrders = [
-  { id: 'OC-2023-001', supplier: 'Proveedor A', date: '2023-10-27', total: 1500.00, status: 'PENDIENTE' },
-  { id: 'OC-2023-002', supplier: 'Proveedor B', date: '2023-10-26', total: 850.50, status: 'CONFIRMADA' },
-  { id: 'OC-2023-003', supplier: 'Proveedor C', date: '2023-10-25', total: 3200.75, status: 'RECIBIDA' },
-  { id: 'OC-2023-004', supplier: 'Proveedor A', date: '2023-10-24', total: 450.00, status: 'CANCELADA' },
+// --- ¡CORRECCIÓN! Se importan las herramientas de permisos necesarias ---
+import { useAuth } from '../../../app/contexts/AuthContext';
+import { CAN_CRUD_PURCHASE_ORDERS, hasPermission } from '../../../constants/rolesAndPermissions';
+
+import { getPurchaseOrdersAPI } from '../api/purchasingAPI';
+import { useDebounce } from '../../../hooks/useDebounce';
+import FilterBar from '../../../components/common/FilterBar';
+import PurchaseOrderGridToolbar from '../components/PurchaseOrderGridToolbar';
+
+
+// --- SECCIÓN 2: DEFINICIONES Y FUNCIONES AUXILIARES A NIVEL DE MÓDULO ---
+
+/**
+ * Define la configuración para la barra de filtros de la página.
+ * @constant {Array<object>}
+ */
+const purchaseOrderFilterDefinitions = [
+  { name: 'search', label: 'Buscar por N° Orden o Proveedor', type: 'search', gridSize: 6 },
+  {
+    name: 'status',
+    label: 'Filtrar por Estado',
+    type: 'select',
+    options: [
+      { value: 'pendiente', label: 'Pendiente' },
+      { value: 'aprobada', label: 'Aprobada' },
+      { value: 'rechazada', label: 'Rechazada' },
+      { value: 'completada', label: 'Completada' },
+    ],
+    gridSize: 4
+  },
 ];
 
+/**
+ * Devuelve un componente Chip de MUI estilizado según el estado de la orden.
+ * @param {string} status - El estado de la orden de compra (ej. 'pendiente').
+ * @returns {React.ReactElement} Un componente Chip.
+ */
 const getStatusChip = (status) => {
-  const statusStyles = {
-    PENDIENTE: { label: 'Pendiente', color: 'warning' },
-    CONFIRMADA: { label: 'Confirmada', color: 'info' },
-    RECIBIDA: { label: 'Recibida', color: 'success' },
-    CANCELADA: { label: 'Cancelada', color: 'error' },
-  };
-  const style = statusStyles[status] || { label: 'Desconocido', color: 'default' };
-  return <Chip label={style.label} color={style.color} size="small" />;
+    const statusMap = {
+      pendiente: { label: 'Pendiente', color: 'warning' },
+      aprobada: { label: 'Aprobada', color: 'info' },
+      recibida: { label: 'Recibida', color: 'success' },
+      completada: { label: 'Completada', color: 'primary' },
+      rechazada: { label: 'Rechazada', color: 'error' },
+      cancelada: { label: 'Cancelada', color: 'error' },
+    };
+    const style = statusMap[status] || { label: status, color: 'default' };
+    return <Chip label={style.label} color={style.color} size="small" />;
 };
 
+
+/**
+ * Componente que se muestra antes de la primera búsqueda, invitando al usuario a interactuar.
+ */
+const InitialSearchPrompt = () => (
+  <Box sx={{ textAlign: 'center', p: 8, color: 'text.secondary', border: '2px dashed #ccc', mt: 4, borderRadius: 2 }}>
+    <SearchIcon sx={{ fontSize: 60, mb: 2 }} />
+    <Typography variant="h6" component="h2" gutterBottom>
+      Encuentre una Orden de Compra
+    </Typography>
+    <Typography>
+      Utilice la barra de búsqueda o los filtros de arriba para comenzar.
+    </Typography>
+  </Box>
+);
+
+
+// --- SECCIÓN 3: COMPONENTE PRINCIPAL DE LA PÁGINA ---
+
 const PurchaseOrderListPage = () => {
-  // TODO: Reemplazar mockOrders con una llamada a la API usando useState y useEffect
 
-  const handleConfirm = (orderId) => {
-    // TODO: Lógica para llamar a la API y confirmar la orden.
-    // Aquí es donde pedirías el número de factura en un modal.
-    console.log(`Confirmar orden: ${orderId}`);
-    alert(`Aquí se abriría un diálogo para ingresar el N° de Factura y confirmar la orden ${orderId}.`);
-  };
+  // --- SECCIÓN 3.1: Hooks y Estado ---
+  const navigate = useNavigate();
+  // Se añade el hook useAuth para acceder a los datos del usuario.
+  const { user } = useAuth();
+  console.log('[PurchaseOrderListPage] 1. Usuario obtenido del AuthContext:', user);
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
+  const [filters, setFilters] = useState({ search: '', status: '' });
+  const debouncedFilters = useDebounce(filters, 400);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  const handleReceive = (orderId) => {
-    // TODO: Lógica para navegar a una página de recepción o abrir un modal
-    // para confirmar las cantidades recibidas. ESTO ACTUALIZA EL STOCK.
-    console.log(`Recibir mercancía de la orden: ${orderId}`);
-    alert(`Aquí se registraría la recepción de mercancía para la orden ${orderId}, afectando el inventario.`);
-  };
+
+// --- SECCIÓN 3.2: Lógica de Obtención de Datos ---
+  // Se añade 'isFetching' para un mejor feedback de carga en cada búsqueda.
+  const { data, isLoading, isFetching, error } = useQuery({
+    queryKey: ['purchaseOrders', paginationModel, debouncedFilters],
+    queryFn: async () => {
+      const params = {
+        page: paginationModel.page + 1,
+        pageSize: paginationModel.pageSize,
+        search: debouncedFilters.search.trim() || undefined,
+        status: debouncedFilters.status || undefined,
+      };
+      return getPurchaseOrdersAPI(params);
+    },
+    // ¡CAMBIO CLAVE! La consulta está deshabilitada por defecto y solo se ejecutará
+    // cuando 'hasSearched' se convierta en 'true', logrando la carga diferida.
+    enabled: hasSearched,
+    keepPreviousData: true,
+  });
+
+  // --- SECCIÓN 3.3: Manejadores de Eventos ---
+  // Se corrige el handler para que sea compatible con el componente FilterBar
+  const handleFilterChange = useCallback((newFilters) => {
+    setPaginationModel(previousModel => ({ ...previousModel, page: 0 }));
+    setFilters(newFilters);
+
+    if (!hasSearched) {
+      setHasSearched(true);
+    }
+  }, [hasSearched]);
+  
+  const handleNavigateToDetail = useCallback((orderId) => {
+    navigate(`/compras/ordenes/detalle/${orderId}`);
+  }, [navigate]);
+
+  const handleNavigateToEdit = useCallback((orderId) => {
+    navigate(`/compras/ordenes/editar/${orderId}`);
+  }, [navigate]);
+
+  // --- SECCIÓN 3.4: Definición de Columnas para DataGrid ---
+  // Se añade la lógica de permisos para el botón de editar.
+  const columns = useMemo(() => [
+    { field: 'order_number', headerName: 'N° de Orden', width: 180 },
+    { field: 'supplier_name', headerName: 'Proveedor', flex: 1, minWidth: 250 },
+    { field: 'order_date', headerName: 'Fecha Creación', width: 150, type: 'date', valueGetter: (value) => new Date(value) },
+    { field: 'total_amount', headerName: 'Monto Total', type: 'number', width: 150, align: 'right', headerAlign: 'right', valueFormatter: (value) => `S/ ${Number(value).toFixed(2)}` },
+    { field: 'status', headerName: 'Estado', width: 150, renderCell: (params) => getStatusChip(params.value) },
+    {
+      field: 'actions', 
+      headerName: 'Acciones', 
+      type: 'actions', 
+      width: 120, 
+      align: 'center', 
+      headerAlign: 'center',
+      getActions: (params) => {
+        const actions = [];
+        // Se utiliza la función 'hasPermission' para determinar si el botón de editar debe mostrarse.
+        const canEdit = user ? hasPermission(CAN_CRUD_PURCHASE_ORDERS, user.role) : false;
+
+        // El botón de editar solo aparece si la orden está en borrador Y el usuario tiene permiso.
+        if (params.row.status === 'draft' && canEdit) {
+          actions.push(
+            <Tooltip title="Editar Orden" key="edit">
+              <IconButton onClick={() => handleNavigateToEdit(params.row._id)} size="small" color="primary">
+                <EditIcon />
+              </IconButton>
+            </Tooltip>
+          );
+        }
+        
+        // El botón de ver detalles siempre está disponible para quienes pueden ver la página.
+        actions.push(
+          <Tooltip title="Ver Detalle / Aprobar" key="view">
+            <IconButton onClick={() => handleNavigateToDetail(params.row._id)} size="small">
+              <VisibilityIcon />
+            </IconButton>
+          </Tooltip>
+        );
+
+        return actions;
+      },
+    },
+  ], [handleNavigateToDetail, handleNavigateToEdit, user]); // Se añade 'user' a las dependencias del hook.
+
+  
+  // --- 3.5: Renderizado del Componente ---
+  console.log('[ListPage RENDER] Pasando este usuario como prop a la Toolbar:', user);
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: { xs: 2, md: 3 } }}>
-        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-          <Typography variant="h4" component="h1" fontWeight="bold">
-            Gestión de Órdenes de Compra
-          </Typography>
-          <Button variant="contained" color="primary" component={Link} to="/compras/nueva" startIcon={<AddIcon />}>
-            Nueva Orden de Compra
-          </Button>
-        </Box>
+    <Container maxWidth="xl">
+      <Paper 
+        sx={{ 
+          p: { xs: 2, md: 3 }, 
+          my: 4, 
+          borderRadius: 2, 
+          boxShadow: 3 
+        }}
+      >
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
+          Gestión de Órdenes de Compra
+        </Typography>
 
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>ID Orden</TableCell>
-                <TableCell>Proveedor</TableCell>
-                <TableCell>Fecha</TableCell>
-                <TableCell align="center">Estado</TableCell>
-                <TableCell align="right">Total</TableCell>
-                <TableCell align="center">Acciones</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {mockOrders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell>{order.id}</TableCell>
-                  <TableCell>{order.supplier}</TableCell>
-                  <TableCell>{order.date}</TableCell>
-                  <TableCell align="center">{getStatusChip(order.status)}</TableCell>
-                  <TableCell align="right">S/ {order.total.toFixed(2)}</TableCell>
-                  <TableCell align="center">
-                    <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
-                      {order.status === 'PENDIENTE' && (
-                        <>
-                          <Tooltip title="Confirmar Orden">
-                            <IconButton color="primary" size="small" onClick={() => handleConfirm(order.id)}>
-                              <CheckCircleIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Editar Orden">
-                            <IconButton color="default" size="small" component={Link} to={`/compras/editar/${order.id}`}>
-                              <EditIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Cancelar">
-                            <IconButton color="error" size="small">
-                              <CancelIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </>
-                      )}
-                      {order.status === 'CONFIRMADA' && (
-                        <>
-                          <Tooltip title="Recibir Mercancía">
-                            <IconButton color="success" size="small" onClick={() => handleReceive(order.id)}>
-                              <LocalShippingIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Ver Detalles">
-                            <IconButton color="default" size="small">
-                              <VisibilityIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </>
-                      )}
-                      {(order.status === 'RECIBIDA' || order.status === 'CANCELADA') && (
-                        <Tooltip title="Ver Detalles">
-                          <IconButton color="default" size="small">
-                            <VisibilityIcon />
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                    </Box>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <FilterBar
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          filterDefinitions={purchaseOrderFilterDefinitions}
+        />
+      
+        {/* Lógica de renderizado condicional para la carga diferida */}
+        {!hasSearched ? (
+          <InitialSearchPrompt />
+        ) : (
+          <Box 
+            // ¡CORRECCIÓN DE ALTURA!
+            // Se define una altura para el contenedor del DataGrid, solucionando el error.
+            sx={{ flexGrow: 1, width: '100%', mt: 2, height: 'calc(100vh - 350px)' }}
+          >
+            {error && <Alert severity="error" sx={{ my: 2 }}>{error.message || 'Error al cargar las órdenes de compra.'}</Alert>}
+            <DataGrid
+              rows={data?.items || []}
+              columns={columns}
+              getRowId={(row) => row._id}
+              rowCount={data?.total || 0}
+              // Se usa 'isFetching' para un mejor feedback de carga en cada búsqueda.
+              loading={isLoading || isFetching}
+              pageSizeOptions={[10, 25, 50]}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              paginationMode="server"
+              density="compact"
+              localeText={esES.components.MuiDataGrid.defaultProps.localeText}
+              disableRowSelectionOnClick
+              slots={{
+                  toolbar: () => (
+                    <PurchaseOrderGridToolbar 
+                      onAddClick={() => navigate('/compras/ordenes/nueva')} 
+                      user={user} 
+                    />
+                  ),
+              }}
+              // Se establece el estado de ordenación inicial por defecto.
+              initialState={{
+                sorting: {
+                  sortModel: [{ field: 'po_number', sort: 'desc' }], // Ordena por la más reciente
+                },
+              }}
+            />
+          </Box>
+        )}
       </Paper>
     </Container>
   );

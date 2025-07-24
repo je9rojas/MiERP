@@ -21,7 +21,7 @@ import {
 import CatalogFilterForm from '../components/CatalogFilterForm';
 import { generateCatalogAPI } from '../api/productsAPI';
 import { useAuth } from '../../../app/contexts/AuthContext';
-import { CAN_GENERATE_CATALOG } from '../../../constants/rolesAndPermissions';
+import { CAN_GENERATE_CATALOG, hasPermission } from '../../../constants/rolesAndPermissions';
 
 
 /**
@@ -40,7 +40,7 @@ const ProductCatalogPage = () => {
   const [viewType, setViewType] = useState('client');
 
   // Determina si el usuario actual tiene permisos para la vista de vendedor.
- const canGenerateSellerView = user && CAN_GENERATE_CATALOG.includes(user.role);
+ const canGenerateSellerView = hasPermission(CAN_GENERATE_CATALOG, user?.role);
 
   // Efecto para establecer la vista por defecto según los permisos del usuario al cargar la página.
   useEffect(() => {

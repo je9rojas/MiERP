@@ -65,7 +65,11 @@ async def get_products_with_filters_and_pagination(
         
     total_count = await repo.count_documents(query)
     skip = (page - 1) * page_size
-    product_docs = await repo.find_paginated(query, skip, page_size)
+    
+    # --- ¡CAMBIO CLAVE AQUÍ! ---
+    # Añadimos .sort("sku", 1) para establecer el orden por defecto.
+    product_docs_cursor = repo.collection.find(query).sort("sku", 1).skip(skip).limit(page_size)
+    product_docs = await product_docs_cursor.to_list(length=page_size)
     
     items = [ProductInDB(**doc) for doc in product_docs]
     return {"total": total_count, "items": items}
@@ -111,12 +115,19 @@ async def generate_catalog_pdf(db: AsyncIOMotorDatabase, filters: CatalogFilterP
             {"sku": {"$regex": filters.search_term, "$options": "i"}}
         ]
     if filters.product_types:
-        query["product_type"] = {"$in": filters.product_types}
+        # Convierte los enums a strings para la consulta en MongoDB
+        query["product_type"] = {"$in": [pt.value for pt in filters.product_types]}
 
     product_docs = await repo.find_all(query)
 
     if not product_docs:
         return None
+
+    # --- CAMBIO: Ordenar la lista de productos por SKU ---
+    # Se usa una función `lambda` para especificar que se ordene por el campo 'sku'.
+    # `key=lambda p: p.get('sku', '')` maneja de forma segura productos sin SKU.
+
+    product_docs.sort(key=lambda p: p.get('sku', ''))
 
     buffer = BytesIO()
     generator = CatalogPDFGenerator(product_docs, buffer, filters.view_type)

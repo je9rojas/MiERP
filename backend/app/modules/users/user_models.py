@@ -71,7 +71,12 @@ class UserInDB(UserBase):
         from_attributes = True
         populate_by_name = True
 
+# --- SECCIÓN MODIFICADA ---
 class UserOut(BaseModel):
+    """
+    Modelo de salida para datos de usuario. Es lo que se envía al frontend
+    y se utiliza internamente después de la autenticación.
+    """
     username: str
     name: str
     role: UserRole
@@ -79,6 +84,8 @@ class UserOut(BaseModel):
     phone: Optional[str]
     branch: Branch
     last_login: Optional[datetime] = None
+    # --- CAMBIO CRÍTICO: Añadir la lista de permisos ---
+    permissions: List[str] = Field(default_factory=list, description="Lista de permisos heredados del rol del usuario.")
 
     class Config:
         from_attributes = True
