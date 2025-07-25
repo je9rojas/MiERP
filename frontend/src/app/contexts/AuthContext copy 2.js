@@ -14,7 +14,7 @@ import { setAuthToken, getAuthToken, removeAuthToken } from '../../utils/auth/au
 
 // --- SECCIÓN 2: DEFINICIÓN DEL CONTEXTO Y REDUCER ---
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 const authReducer = (state, action) => {
   switch (action.type) {
@@ -47,11 +47,6 @@ const initialState = {
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
-  /**
-   * Efecto de inicialización: Se ejecuta una sola vez cuando la aplicación carga.
-   * Su propósito es verificar si existe un token válido en el almacenamiento local
-   * y restaurar la sesión del usuario sin que tenga que volver a iniciar sesión.
-   */
   useEffect(() => {
     const initializeAuth = async () => {
       console.log('[AuthContext] Iniciando inicialización de la sesión...');
@@ -64,7 +59,6 @@ export const AuthProvider = ({ children }) => {
         }
 
         console.log('[AuthContext] Token encontrado. Llamando a verifyToken para validar y obtener el usuario...');
-        // Lógica optimizada: una sola llamada a la API que verifica el token y devuelve el usuario.
         const user = await verifyToken();
         
         console.log('[AuthContext] Usuario obtenido de verifyToken. Finalizando como logueado.', user);
@@ -79,39 +73,44 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, []);
 
-  /**
-   * Función de Login: Maneja el proceso de inicio de sesión.
-   */
   const login = useCallback(async (credentials) => {
     console.log('[AuthContext] 1. Iniciando proceso de login...');
     dispatch({ type: 'LOGIN_REQUEST' });
     try {
       console.log('[AuthContext] 2. Llamando a loginAPI...');
-      const { token, user } = await loginAPI(credentials);
-      
-      console.log('[AuthContext] 6. loginAPI ha respondido exitosamente. Guardando token...');
-      setAuthToken(token);
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
-      console.log('[AuthContext] 7. Login completado.');
 
+      // Se desestructura 'access_token' y 'user' de la respuesta de la API.
+      const { access_token, user } = await loginAPI(credentials);
+      
+      // --- ¡CORRECCIÓN CLAVE AQUÍ! ---
+      // Se usan los nombres de variable correctos que acabamos de desestructurar.
+      console.log('[AuthContext] 3. DATOS RECIBIDOS DE loginAPI:', { access_token, user });
+      
+      // Se guarda el 'access_token' en el almacenamiento local.
+      setAuthToken(access_token);
+      
+      // Se guarda el objeto 'user' en el estado global.
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
+
+      console.log('[AuthContext] 4. Login completado exitosamente.');
     } catch (error) {
-      console.error('[AuthContext] 8. Se ha producido un error durante el login.', error);
+      console.error('[AuthContext] 5. Se ha producido un error durante el login.', error);
       const errorMessage = error.message || 'Credenciales incorrectas';
       dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
     }
   }, []);
 
-  /**
-   * Función de Logout: Limpia la sesión del usuario.
-   */
   const logout = useCallback(() => {
     console.log('[AuthContext] Ejecutando logout...');
     removeAuthToken();
     dispatch({ type: 'LOGOUT' });
   }, []);
 
-  // Se memoriza el valor del contexto para evitar re-renderizados innecesarios.
-  const value = useMemo(() => ({ ...state, login, logout }), [state, login, logout]);
+  const value = useMemo(() => ({
+    ...state,
+    login,
+    logout,
+  }), [state, login, logout]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -123,10 +122,6 @@ export const AuthProvider = ({ children }) => {
 
 // --- SECCIÓN 4: HOOK PERSONALIZADO ---
 
-/**
- * Hook `useAuth`: Simplifica el acceso al contexto de autenticación desde cualquier
- * componente hijo, asegurando que se utilice dentro de un `AuthProvider`.
- */
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

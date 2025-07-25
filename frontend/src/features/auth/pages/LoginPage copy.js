@@ -1,5 +1,7 @@
 // /frontend/src/features/auth/pages/LoginPage.js
-import React, { useState, useEffect } from 'react'; // Se añade useEffect
+// CÓDIGO COMPLETO Y CORREGIDO FINAL - LISTO PARA COPIAR Y PEGAR
+
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../app/contexts/AuthContext';
 import {
@@ -12,19 +14,8 @@ import PersonIcon from '@mui/icons-material/Person';
 const LoginPage = () => {
   const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [formErrors, setFormErrors] = useState({});
-  // Se desestructura 'isAuthenticated' para usarlo en el efecto
-  const { login, isLoading, error, isAuthenticated } = useAuth();
+  const { login, isLoading, error } = useAuth();
   const navigate = useNavigate();
-
-  // --- ¡MEJORA DE UX AÑADIDA! ---
-  // Este efecto se ejecutará cada vez que 'isAuthenticated' cambie.
-  // Si cambia a 'true' (después de un login exitoso), redirige al dashboard.
-  useEffect(() => {
-    if (isAuthenticated) {
-      console.log('[LoginPage] Usuario autenticado. Redirigiendo al dashboard...');
-      navigate('/dashboard', { replace: true });
-    }
-  }, [isAuthenticated, navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -42,7 +33,6 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
-    // La función login se mantiene igual, su trabajo es solo iniciar el proceso.
     await login(credentials);
   };
 
@@ -68,7 +58,6 @@ const LoginPage = () => {
           <TextField
             name="password" label="Contraseña" type="password" variant="outlined" fullWidth required margin="normal"
             value={credentials.password} onChange={handleInputChange} error={!!formErrors.password} helperText={formErrors.password} disabled={isLoading}
-            InputProps={{ startAdornment: ( <InputAdornment position="start"><LockIcon color="action" /></InputAdornment> ) }}
           />
           <Button type="submit" variant="contained" fullWidth size="large" sx={{ mt: 2, py: 1.5, fontWeight: 'bold' }} disabled={isLoading}>
             {isLoading ? <CircularProgress size={26} color="inherit" /> : 'Ingresar'}

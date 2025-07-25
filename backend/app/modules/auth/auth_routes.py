@@ -1,81 +1,43 @@
 # /backend/app/modules/auth/auth_routes.py
-# GESTOR DE RUTAS PARA AUTENTICACIÓN Y PERFILES DE USUARIO
+
+"""
+Define los endpoints de la API para la autenticación, gestión de perfiles y verificación de tokens.
+Este archivo se centra en la definición de las rutas y delega la lógica de negocio a la capa de servicio
+y la lógica de validación de usuarios a las dependencias.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
-from jose import JWTError, jwt
+from typing import Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
-from typing import Dict, Any
 
 # --- SECCIÓN 1: IMPORTACIONES ---
 
-# Lógica del núcleo de la aplicación
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import create_access_token
-
-# Lógica y modelos de otros módulos
 from app.modules.users.user_models import UserOut
 from . import auth_service
+from .dependencies import get_current_active_user
 
-# --- SECCIÓN 2: CONFIGURACIÓN DEL ROUTER Y SEGURIDAD ---
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+# --- SECCIÓN 2: CONFIGURACIÓN DEL ROUTER ---
 
-# Define el esquema de seguridad OAuth2.
-# `tokenUrl` es la ruta relativa al prefijo del router donde el frontend obtendrá el token.
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login") 
+router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
-# --- SECCIÓN 3: DEPENDENCIA DE AUTENTICACIÓN ---
 
-async def get_current_active_user(
-    token: str = Depends(oauth2_scheme), 
-    db: AsyncIOMotorDatabase = Depends(get_db)
-) -> UserOut:
-    """
-    Dependencia de FastAPI para validar un token JWT y obtener el usuario actual.
-    - Decodifica el token.
-    - Obtiene el usuario de la base de datos.
-    - Valida que el usuario exista y esté activo.
-    - Devuelve el usuario como un modelo Pydantic `UserOut`.
-    
-    Esta dependencia se puede reutilizar en cualquier endpoint que requiera un usuario autenticado.
-    """
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="No se pudieron validar las credenciales",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except JWTError:
-        raise credentials_exception
-    
-    user = await auth_service.get_user_by_username(db=db, username=username)
-    if user is None:
-        raise credentials_exception
-    
-    # Convertimos el diccionario devuelto por el servicio a un modelo Pydantic.
-    # Esto asegura que los datos siempre tengan la forma correcta.
-    user_out = UserOut(**user)
-    
-    if user_out.status != "active":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Usuario inactivo")
-        
-    return user_out
+# --- SECCIÓN 3: MODELOS DE RESPUESTA DE LA API ---
 
-# --- SECCIÓN 4: ENDPOINTS DE LA API ---
-
-# Definimos el modelo de respuesta para el login para mayor claridad y autodocumentación.
 class TokenResponse(BaseModel):
+    """Define la estructura de la respuesta para el endpoint de login."""
     access_token: str
     token_type: str
     user: UserOut
+
+
+# --- SECCIÓN 4: ENDPOINTS DE LA API ---
 
 @router.post("/login", response_model=TokenResponse)
 async def login_for_access_token(
@@ -84,7 +46,7 @@ async def login_for_access_token(
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
     """
-    Autentica a un usuario con 'username' y 'password' y devuelve un token de acceso.
+    Autentica a un usuario con 'username' y 'password' y devuelve un token de acceso y los datos del usuario.
     """
     client_ip = request.client.host
     print(f"--- [AUTH LOGIN] Intento de login para '{form_data.username}' desde IP: {client_ip} ---")
@@ -107,7 +69,6 @@ async def login_for_access_token(
         expires_delta=access_token_expires
     )
     
-    # Usamos el modelo UserOut para asegurar que solo devolvemos datos seguros.
     user_info = UserOut(**user_doc)
     
     return {
@@ -124,9 +85,9 @@ async def get_user_profile(current_user: UserOut = Depends(get_current_active_us
     return current_user
 
 @router.get("/verify-token", response_model=Dict[str, Any])
-async def verify_token(current_user: UserOut = Depends(get_current_active_user)):
+async def verify_token_route(current_user: UserOut = Depends(get_current_active_user)):
     """
-    Endpoint para que el frontend pueda verificar rápidamente si un token es válido.
-    Si la dependencia 'get_current_active_user' tiene éxito, el token es válido.
+    Endpoint para que el frontend pueda verificar rápidamente si un token almacenado es válido.
+    La validación ocurre implícitamente en la dependencia 'get_current_active_user'.
     """
     return {"status": "ok", "message": "Token is valid", "user": current_user}

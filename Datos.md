@@ -29,7 +29,7 @@ rm package-lock.json
 Muestrame la versión final y profesional del codigo absolutamente completo, corregido, seccionado y optimizado con las mejores prácticas sin ninguna abreviaturas ni comentarios que reemplacen el código y ordénalo en secciones lógicas para máxima claridad y mantenibilidad.
 
 
-Mi codigo está ordenado por secciones así que dame las respuestas por secciones, si una sección está mal muestrame toda la sección completa sin ninguna abreviaturas ni comentarios que reemplacen el código
+Mi codigo está ordenado por secciones así que dame las respuestas por secciones, listame las secciones que están mal y muestrame toda la sección completa sin ninguna abreviaturas ni comentarios que reemplacen el código
 
 
 La pantalla en blanco con el spinner "Cargando..." es la clave.

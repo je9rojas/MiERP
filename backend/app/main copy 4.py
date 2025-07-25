@@ -2,14 +2,31 @@
 
 """
 Punto de Entrada Principal y Orquestador de la Aplicación FastAPI.
+
+Este archivo es el corazón de la API del backend. Sus responsabilidades clave son:
+- Inicializar y configurar la instancia principal de la aplicación FastAPI.
+- Establecer middlewares esenciales, con un enfoque principal en la seguridad de
+  Cross-Origin Resource Sharing (CORS) para permitir la comunicación con el frontend.
+- Gestionar el ciclo de vida de la aplicación, ejecutando tareas críticas durante el
+  arranque (como la conexión a la base de datos y la inicialización de datos base)
+  y el apagado (cierre de conexiones).
+- Organizar y registrar todos los endpoints de la API de manera modular y escalable
+  bajo un prefijo de API unificado.
 """
 
 # --- SECCIÓN 1: IMPORTACIONES ---
 
+# Importaciones de la librería estándar de Python
+import json
 import logging
+from datetime import datetime
+
+# Importaciones de librerías de terceros
 from fastapi import FastAPI, APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from bson import ObjectId
 
 # Importaciones de módulos de la propia aplicación
 from app.core.config import settings
@@ -25,18 +42,53 @@ from app.modules.purchasing import purchasing_routes
 from app.modules.data_management import data_management_routes
 
 
-# --- SECCIÓN 2: CONFIGURACIÓN DE LOGGING Y APLICACIÓN ---
+# --- SECCIÓN 2: CONFIGURACIÓN AVANZADA Y SOLUCIÓN DE SERIALIZACIÓN ---
 
+# Configuración del sistema de logging para obtener un output claro y estructurado.
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:     %(message)s')
 logger = logging.getLogger(__name__)
 
-# Creación de la instancia de FastAPI (versión simple y estándar).
+
+class CustomJSONResponse(JSONResponse):
+    """
+    Clase de respuesta JSON personalizada para enseñarle a la aplicación cómo
+    serializar tipos de datos complejos que no son nativos de JSON, como ObjectId.
+    Este es el método canónico y recomendado por FastAPI para este propósito.
+    """
+    def render(self, content: any) -> bytes:
+        # La función 'default' se pasa al codificador JSON subyacente.
+        # Se ejecutará para cualquier tipo de objeto que el codificador no reconozca.
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=None,
+            separators=(",", ":"),
+            default=self.default_encoder,
+        ).encode("utf-8")
+
+    @staticmethod
+    def default_encoder(obj: any):
+        """Define cómo convertir tipos específicos a formatos serializables."""
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        # Levantar un TypeError es importante para que los errores de serialización
+        # no pasen desapercibidos si aparece un nuevo tipo de dato no manejado.
+        raise TypeError(f"El tipo {type(obj).__name__} no es serializable en JSON")
+
+
+# Creación de la instancia principal de la aplicación FastAPI.
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.PROJECT_VERSION,
     description="API Backend para el sistema de gestión empresarial MiERP PRO.",
     docs_url="/api/docs" if settings.ENV == "development" else None,
-    redoc_url="/api/redoc" if settings.ENV == "development" else None
+    redoc_url="/api/redoc" if settings.ENV == "development" else None,
+    # Se establece nuestra clase personalizada como la clase de respuesta por defecto
+    # para TODA la aplicación. Esto soluciona el 'PydanticSerializationError'.
+    default_response_class=CustomJSONResponse
 )
 
 
@@ -53,11 +105,10 @@ if settings.ALLOWED_ORIGINS:
     )
 
 
-# --- SECCIÓN 4: EVENTOS DEL CICLO DE VIDA DE LA APLICACIÓN ---
+# --- SECCIÓN 4: EVENTOS DEL CICLO DE VIDA DE LA APLICACIÓN (SIN CAMBIOS) ---
 
 @app.on_event("startup")
 async def startup_event_handler():
-    # ... (el código de esta sección no cambia) ...
     logger.info("--- Iniciando Proceso de Arranque de la Aplicación ---")
     try:
         logger.info("Paso 1/4: Conectando a la base de datos MongoDB...")
@@ -81,13 +132,12 @@ async def startup_event_handler():
 
 @app.on_event("shutdown")
 async def shutdown_event_handler():
-    # ... (el código de esta sección no cambia) ...
     logger.info("--- Cerrando la conexión a la base de datos... ---")
     await db.close()
     logger.info("--- Conexión a la base de datos cerrada exitosamente. ---")
 
 
-# --- SECCIÓN 5: ORGANIZACIÓN Y REGISTRO DE RUTAS DE LA API ---
+# --- SECCIÓN 5: ORGANIZACIÓN Y REGISTRO DE RUTAS DE LA API (SIN CAMBIOS) ---
 
 api_router = APIRouter()
 
@@ -104,7 +154,7 @@ app.include_router(api_router, prefix="/api")
 logger.info("Todos los routers de la API han sido registrados exitosamente bajo el prefijo '/api'. ✅")
 
 
-# --- SECCIÓN 6: ENDPOINTS GLOBALES ---
+# --- SECCIÓN 6: ENDPOINTS GLOBALES (RAÍZ Y VERIFICACIÓN DE SALUD) (SIN CAMBIOS) ---
 
 @app.get("/", tags=["Sistema"], include_in_schema=False)
 async def read_root():

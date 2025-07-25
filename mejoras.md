@@ -1,0 +1,8 @@
+Recomendaciones para Escalar a "Mega-Proyecto Multi-Empresa":
+Tu estructura actual ya es 90% del camino. Para el 10% restante, que es lo que diferencia un proyecto grande de un "megaproyecto", considera esto:
+Multi-Tenancy (Multi-Empresa): Esta es la consideración más importante. Deberás decidir cómo separar los datos de cada empresa.
+A nivel de Base de Datos: ¿Cada empresa tendrá su propia base de datos (más seguro, más costoso) o todos los datos estarán en la misma base de datos, separados por un company_id en cada documento/tabla (más común)?
+Impacto en el Código: Si usas un company_id, todos tus repositorios y servicios necesitarán recibir y usar ese company_id en cada consulta (find({ "company_id": ..., ... })) para asegurar que una empresa no pueda ver los datos de otra. Este company_id podría venir del token JWT del usuario.
+Gestión Avanzada de Permisos (RBAC): Tu sistema de roles (superadmin, admin) es un buen comienzo. Un sistema a gran escala podría necesitar un Control de Acceso Basado en Roles (RBAC) más granular, donde los roles están compuestos por permisos específicos (ej. product:read, product:create, purchase_order:approve).
+Pruebas (Testing): Para un proyecto de esta magnitud, las pruebas automatizadas no son opcionales. Deberías añadir directorios /tests tanto en el backend como en el frontend y empezar a escribir pruebas unitarias (para servicios y componentes) y de integración (para endpoints y flujos de usuario).
+Observabilidad (Logging y Monitoring): El print() en el backend es bueno para desarrollo, pero para producción necesitarás un sistema de logging estructurado (como el módulo logging de Python) y herramientas de monitoreo de errores (como Sentry o Datadog) para detectar problemas proactivamente.

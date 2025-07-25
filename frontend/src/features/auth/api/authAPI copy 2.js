@@ -16,8 +16,7 @@ import { ENDPOINTS } from '../../../constants/apiConfig';
 /**
  * Realiza la petición de login al backend.
  * @param {object} credentials - Un objeto con `username` y `password`.
- * @returns {Promise<object>} Una promesa que resuelve a la respuesta completa del backend
- * (ej. { access_token: string, token_type: string, user: object }).
+ * @returns {Promise<{token: string, user: object}>} Una promesa que resuelve a un objeto con el token de acceso y los datos del usuario.
  * @throws {Error} Si las credenciales son incorrectas o hay un error de conexión.
  */
 export const loginAPI = async (credentials) => {
@@ -39,19 +38,20 @@ export const loginAPI = async (credentials) => {
       throw new Error('La respuesta del servidor de autenticación fue inválida.');
     }
 
-    // --- ¡CORRECCIÓN CLAVE AQUÍ! ---
-    // Se devuelve la respuesta 'data' del servidor directamente, sin ninguna transformación.
-    // Esto asegura que el AuthContext reciba el objeto completo con la propiedad 'access_token'.
-    return response.data;
+    // Se devuelve un objeto limpio y predecible para que el AuthContext lo consuma.
+    return { token: response.data.access_token, user: response.data.user };
 
   } catch (error) {
     console.error('[authAPI] 4. Se ha producido un error en la llamada de login.', error);
     let errorMessage = 'Ocurrió un error inesperado durante el inicio de sesión.';
     if (error.response) {
+        // Error enviado por el servidor (ej. 401, 404)
         errorMessage = error.response.data.detail || 'Credenciales incorrectas.';
     } else if (error.request) {
+        // La petición se hizo pero no se recibió respuesta (ej. servidor caído)
         errorMessage = 'No se pudo conectar con el servidor. Por favor, intente más tarde.';
     } else {
+        // Error al configurar la petición
         errorMessage = error.message;
     }
     throw new Error(errorMessage);
@@ -61,7 +61,7 @@ export const loginAPI = async (credentials) => {
 
 /**
  * Verifica la validez del token JWT actual y, si es válido, devuelve los datos del usuario.
- * Esta función es crucial para la inicialización de la sesión al recargar la página.
+ * Esta función optimizada realiza la verificación y la obtención del perfil en una sola llamada.
  *
  * @returns {Promise<object>} Una promesa que resuelve al objeto de usuario si el token es válido.
  * @throws {Error} Si el token es inválido, ha expirado o hay un error de red.
@@ -74,7 +74,7 @@ export const verifyToken = async () => {
     
     if (response.status === 200 && response.data?.user) {
       console.log('[authAPI] Verificación de token exitosa. Usuario obtenido. ✅', response.data.user);
-      // Se devuelve solo el objeto de usuario, que es lo que AuthContext necesita para inicializar.
+      // Se devuelve solo el objeto de usuario, que es lo que AuthContext necesita para la inicialización.
       return response.data.user;
     } else {
       throw new Error('La respuesta de verificación del token no fue la esperada.');

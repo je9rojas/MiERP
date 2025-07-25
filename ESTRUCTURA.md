@@ -451,6 +451,8 @@ BACKEND
 /backend/app/modules/auth/__init__.py
 /backend/app/modules/auth/auth_routes.py
 /backend/app/modules/auth/auth_service.py
+/backend/app/modules/auth/dependencies.py
+/backend/app/modules/auth/auth_models.py
 
 # ---------------------- CRM: Clientes y Proveedores ----------------------
 /backend/app/modules/crm/__init__.py
@@ -488,6 +490,8 @@ BACKEND
 /backend/app/modules/roles/role_routes.py
 /backend/app/modules/roles/role_service.py
 /backend/app/modules/roles/repositories/role_repository.py
+
+
 
 # ---------------------- USUARIOS ----------------------
 /backend/app/modules/users/__init__.py
@@ -578,6 +582,7 @@ FRONTEND
 
 # ---------------------- HOOKS PERSONALIZADOS ----------------------
 /frontend/src/hooks/useDebounce.js
+/frontend/src/hooks/usePermissions.js
 
 # ---------------------- RUTAS ----------------------
 /frontend/src/routes/AppRoutes.js

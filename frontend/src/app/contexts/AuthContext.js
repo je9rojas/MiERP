@@ -14,7 +14,7 @@ import { setAuthToken, getAuthToken, removeAuthToken } from '../../utils/auth/au
 
 // --- SECCIÓN 2: DEFINICIÓN DEL CONTEXTO Y REDUCER ---
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
 
 const authReducer = (state, action) => {
   switch (action.type) {
@@ -78,14 +78,27 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGIN_REQUEST' });
     try {
       console.log('[AuthContext] 2. Llamando a loginAPI...');
-      const { token, user } = await loginAPI(credentials);
-      console.log('[AuthContext] 3. DATOS RECIBIDOS DE loginAPI:', { token, user });
+
+      // Se desestructura 'access_token' y 'user' de la respuesta de la API.
+      const { access_token, user } = await loginAPI(credentials);
       
-      setAuthToken(token);
+      console.log('[AuthContext] 3. DATOS RECIBIDOS DE loginAPI:', { access_token, user });
+      
+      // --- MEJORA DE ROBUSTEZ: Verificación de la respuesta ---
+      if (!access_token || !user) {
+        throw new Error("Datos de autenticación incompletos recibidos de la API.");
+      }
+
+      // Se guarda el 'access_token' en el almacenamiento local.
+      setAuthToken(access_token);
+      
+      // Se guarda el objeto 'user' en el estado global.
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
-      console.log('[AuthContext] 7. Login completado.');
+
+      console.log('[AuthContext] 4. Login completado exitosamente.');
     } catch (error) {
-      console.error('[AuthContext] 8. Se ha producido un error durante el login.', error);
+      console.error('[AuthContext] 5. Se ha producido un error durante el login.', error);
+      // El mensaje de error ahora proviene directamente del 'throw' en loginAPI o de la verificación local.
       const errorMessage = error.message || 'Credenciales incorrectas';
       dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
     }
@@ -97,10 +110,6 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGOUT' });
   }, []);
 
-  // --- ¡CORRECCIÓN CLAVE AQUÍ! ---
-  // Se reestructura el objeto 'value' para ser más explícito.
-  // Esto asegura que cada propiedad del estado (isAuthenticated, user, etc.)
-  // se propague correctamente a los componentes consumidores del contexto.
   const value = useMemo(() => ({
     ...state,
     login,

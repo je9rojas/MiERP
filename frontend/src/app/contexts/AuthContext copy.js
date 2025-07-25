@@ -1,9 +1,18 @@
 // /frontend/src/app/contexts/AuthContext.js
-// CÓDIGO COMPLETO - NO NECESITA CAMBIOS PERO SE INCLUYE POR CLARIDAD
 
+/**
+ * @file Proveedor de Contexto de Autenticación.
+ * Este archivo es el cerebro de la gestión de sesión del usuario. Expone el estado
+ * de autenticación (si el usuario está logueado, quién es, etc.) y las funciones
+ * para `login` y `logout` a toda la aplicación.
+ */
+
+// --- SECCIÓN 1: IMPORTACIONES ---
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
-import { loginAPI, getUserProfile, verifyToken } from '../../features/auth/api/authAPI';
+import { loginAPI, verifyToken } from '../../features/auth/api/authAPI';
 import { setAuthToken, getAuthToken, removeAuthToken } from '../../utils/auth/auth';
+
+// --- SECCIÓN 2: DEFINICIÓN DEL CONTEXTO Y REDUCER ---
 
 const AuthContext = createContext();
 
@@ -32,21 +41,31 @@ const initialState = {
   error: null
 };
 
+
+// --- SECCIÓN 3: COMPONENTE PROVEEDOR (PROVIDER) ---
+
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
   useEffect(() => {
     const initializeAuth = async () => {
+      console.log('[AuthContext] Iniciando inicialización de la sesión...');
       try {
         const token = getAuthToken();
         if (!token) {
+          console.log('[AuthContext] No se encontró token. Finalizando como deslogueado.');
           dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: false, user: null } });
           return;
         }
-        await verifyToken(); 
-        const user = await getUserProfile();
+
+        console.log('[AuthContext] Token encontrado. Llamando a verifyToken para validar y obtener el usuario...');
+        const user = await verifyToken();
+        
+        console.log('[AuthContext] Usuario obtenido de verifyToken. Finalizando como logueado.', user);
         dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: true, user } });
+
       } catch (error) {
+        console.warn('[AuthContext] La inicialización falló (token inválido o expirado). Limpiando y finalizando como deslogueado.');
         removeAuthToken();
         dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: false, user: null } });
       }
@@ -59,24 +78,35 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGIN_REQUEST' });
     try {
       console.log('[AuthContext] 2. Llamando a loginAPI...');
-      const { token, user } = await loginAPI(credentials);
-      console.log('[AuthContext] 6. loginAPI ha respondido exitosamente. Guardando token...');
+
+      const { access_token, user } = await loginAPI(credentials);
+      console.log('[AuthContext] 3. DATOS RECIBIDOS DE loginAPI:', { token, user });
+      
       setAuthToken(token);
       dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
       console.log('[AuthContext] 7. Login completado.');
     } catch (error) {
       console.error('[AuthContext] 8. Se ha producido un error durante el login.', error);
-      const errorMessage = error.response?.data?.detail || error.message || 'Credenciales incorrectas';
+      const errorMessage = error.message || 'Credenciales incorrectas';
       dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
     }
   }, []);
 
   const logout = useCallback(() => {
+    console.log('[AuthContext] Ejecutando logout...');
     removeAuthToken();
     dispatch({ type: 'LOGOUT' });
   }, []);
 
-  const value = useMemo(() => ({ ...state, login, logout }), [state, login, logout]);
+  // --- ¡CORRECCIÓN CLAVE AQUÍ! ---
+  // Se reestructura el objeto 'value' para ser más explícito.
+  // Esto asegura que cada propiedad del estado (isAuthenticated, user, etc.)
+  // se propague correctamente a los componentes consumidores del contexto.
+  const value = useMemo(() => ({
+    ...state,
+    login,
+    logout,
+  }), [state, login, logout]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -85,8 +115,13 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+
+// --- SECCIÓN 4: HOOK PERSONALIZADO ---
+
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) { throw new Error('useAuth debe usarse dentro de un AuthProvider'); }
+  if (!context) {
+    throw new Error('useAuth debe ser utilizado dentro de un AuthProvider');
+  }
   return context;
 };

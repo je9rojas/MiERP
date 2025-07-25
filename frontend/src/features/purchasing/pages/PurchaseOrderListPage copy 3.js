@@ -2,45 +2,49 @@
 
 /**
  * @file Página principal para la visualización, filtrado y gestión de Órdenes de Compra.
- * Utiliza un diseño profesional con carga de datos inicial y una barra de herramientas siempre visible,
- * empleando MUI DataGrid para la tabla y react-query para la gestión de datos.
+ * Utiliza MUI DataGrid para una presentación eficiente y react-query para la gestión de datos asíncrona.
  */
 
 // --- SECCIÓN 1: IMPORTACIONES ---
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Container, Paper, Alert, IconButton, Tooltip, Typography, Chip } from '@mui/material';
-
-// --- ¡CORRECCIÓN CLAVE AQUÍ! ---
-// Se importa el componente 'DataGrid' desde la raíz del paquete.
 import { DataGrid } from '@mui/x-data-grid';
-// Se importa el paquete de idioma 'esES' desde el subdirectorio específico 'locales'.
 import { esES } from '@mui/x-data-grid/locales';
-
 import { useQuery } from '@tanstack/react-query';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import EditIcon from '@mui/icons-material/Edit';
 import SearchIcon from '@mui/icons-material/Search';
 
+// --- ¡CAMBIO CLAVE! ---
+// Se importa el nuevo hook 'usePermissions' en lugar de 'useAuth'.
+// Ya no es necesario importar 'hasPermission' aquí.
 import { usePermissions } from '../../../hooks/usePermissions';
 import { CAN_CRUD_PURCHASE_ORDERS } from '../../../constants/rolesAndPermissions';
+
 import { getPurchaseOrdersAPI } from '../api/purchasingAPI';
 import { useDebounce } from '../../../hooks/useDebounce';
 import FilterBar from '../../../components/common/FilterBar';
 import PurchaseOrderGridToolbar from '../components/PurchaseOrderGridToolbar';
 
 
-// --- SECCIÓN 2: DEFINICIONES Y COMPONENTES AUXILIARES ---
+// --- SECCIÓN 2: DEFINICIONES Y FUNCIONES AUXILIARES A NIVEL DE MÓDULO ---
 
 const purchaseOrderFilterDefinitions = [
   { name: 'search', label: 'Buscar por N° Orden o Proveedor', type: 'search', gridSize: 6 },
-  { name: 'status', label: 'Filtrar por Estado', type: 'select', options: [
+  {
+    name: 'status',
+    label: 'Filtrar por Estado',
+    type: 'select',
+    options: [
       { value: 'draft', label: 'Borrador' },
       { value: 'pending_approval', label: 'Pendiente Aprobación' },
       { value: 'approved', label: 'Aprobada' },
       { value: 'rejected', label: 'Rechazada' },
       { value: 'completed', label: 'Completada' },
-    ], gridSize: 4 },
+    ],
+    gridSize: 4
+  },
 ];
 
 const getStatusChip = (status) => {
@@ -55,14 +59,14 @@ const getStatusChip = (status) => {
     return <Chip label={style.label} color={style.color} size="small" />;
 };
 
-const CustomNoRowsOverlay = () => (
-  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-    <SearchIcon sx={{ fontSize: 60, mb: 2, color: 'text.secondary' }} />
+const InitialSearchPrompt = () => (
+  <Box sx={{ textAlign: 'center', p: 8, color: 'text.secondary', border: '2px dashed #ccc', mt: 4, borderRadius: 2 }}>
+    <SearchIcon sx={{ fontSize: 60, mb: 2 }} />
     <Typography variant="h6" component="h2" gutterBottom>
-      No se encontraron resultados
+      Encuentre una Orden de Compra
     </Typography>
-    <Typography color="text.secondary">
-      Intente ajustar sus criterios de búsqueda o filtros.
+    <Typography>
+      Utilice la barra de búsqueda o los filtros de arriba para comenzar.
     </Typography>
   </Box>
 );
@@ -74,10 +78,11 @@ const PurchaseOrderListPage = () => {
 
   // --- 3.1: Hooks y Estado ---
   const navigate = useNavigate();
-  const { hasPermission } = usePermissions();
+  const { user, hasPermission } = usePermissions();
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
   const [filters, setFilters] = useState({ search: '', status: '' });
   const debouncedFilters = useDebounce(filters, 400);
+  const [hasSearched, setHasSearched] = useState(false);
 
   // --- 3.2: Lógica de Obtención de Datos ---
   const { data, isLoading, isFetching, error } = useQuery({
@@ -91,14 +96,18 @@ const PurchaseOrderListPage = () => {
       };
       return getPurchaseOrdersAPI(params);
     },
+    enabled: hasSearched,
     keepPreviousData: true,
   });
 
   // --- 3.3: Manejadores de Eventos ---
   const handleFilterChange = useCallback((newFilters) => {
-    setPaginationModel(prev => ({ ...prev, page: 0 }));
+    setPaginationModel(previousModel => ({ ...previousModel, page: 0 }));
     setFilters(newFilters);
-  }, []);
+    if (!hasSearched) {
+      setHasSearched(true);
+    }
+  }, [hasSearched]);
   
   const handleNavigateToDetail = useCallback((orderId) => {
     navigate(`/compras/ordenes/detalle/${orderId}`);
@@ -108,8 +117,10 @@ const PurchaseOrderListPage = () => {
     navigate(`/compras/ordenes/editar/${orderId}`);
   }, [navigate]);
 
-  // --- 3.4: Definición de Columnas para DataGrid ---
-  const columns = useMemo(() => [
+
+
+// --- SECCIÓN 3.4: Definición de Columnas para DataGrid ---
+const columns = useMemo(() => [
     { field: 'order_number', headerName: 'N° de Orden', width: 180 },
     { field: 'supplier_name', headerName: 'Proveedor', flex: 1, minWidth: 250 },
     { field: 'order_date', headerName: 'Fecha Creación', width: 150, type: 'date', valueGetter: (value) => new Date(value) },
@@ -124,26 +135,36 @@ const PurchaseOrderListPage = () => {
       headerAlign: 'center',
       getActions: (params) => {
         const actions = [];
-        if ((params.row.status === 'draft' || params.row.status === 'pending_approval') && hasPermission(CAN_CRUD_PURCHASE_ORDERS)) {
+        
+        if (
+            (params.row.status === 'draft' || params.row.status === 'pending_approval') && 
+            hasPermission(CAN_CRUD_PURCHASE_ORDERS)
+        ) {
           actions.push(
             <Tooltip title="Editar Orden" key="edit">
-              <IconButton onClick={() => handleNavigateToEdit(params.row._id)} size="small" color="primary"><EditIcon /></IconButton>
+              <IconButton onClick={() => handleNavigateToEdit(params.row._id)} size="small" color="primary">
+                <EditIcon />
+              </IconButton>
             </Tooltip>
           );
         }
+        
         actions.push(
           <Tooltip title="Ver Detalle / Aprobar" key="view">
-            <IconButton onClick={() => handleNavigateToDetail(params.row._id)} size="small"><VisibilityIcon /></IconButton>
+            <IconButton onClick={() => handleNavigateToDetail(params.row._id)} size="small">
+              <VisibilityIcon />
+            </IconButton>
           </Tooltip>
         );
+
         return actions;
       },
     },
-  ], [handleNavigateToDetail, handleNavigateToEdit, hasPermission]);
+], [handleNavigateToDetail, handleNavigateToEdit, hasPermission]);
 
 
-  // --- 3.5: Renderizado del Componente ---
-  return (
+// --- 3.5: Renderizado del Componente ---
+return (
     <Container maxWidth="xl">
       <Paper 
         sx={{ 
@@ -163,43 +184,46 @@ const PurchaseOrderListPage = () => {
           filterDefinitions={purchaseOrderFilterDefinitions}
         />
       
-        <Box 
-          sx={{ flexGrow: 1, width: '100%', mt: 2, height: 'calc(100vh - 350px)' }}
-        >
-          {error && <Alert severity="error" sx={{ my: 2 }}>{error.message || 'Error al cargar las órdenes de compra.'}</Alert>}
-          
-          <DataGrid
-            rows={data?.items || []}
-            columns={columns}
-            getRowId={(row) => row._id}
-            rowCount={data?.total || 0}
-            loading={isLoading || isFetching}
-            pageSizeOptions={[10, 25, 50]}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            paginationMode="server"
-            density="compact"
-            localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-            disableRowSelectionOnClick
-            slots={{
-              toolbar: PurchaseOrderGridToolbar,
-              noRowsOverlay: CustomNoRowsOverlay,
-            }}
-            slotProps={{
-              toolbar: {
-                onAddClick: () => navigate('/compras/ordenes/nueva'),
-              },
-            }}
-            initialState={{
-              sorting: {
-                sortModel: [{ field: 'order_number', sort: 'desc' }],
-              },
-            }}
-          />
-        </Box>
+        {!hasSearched ? (
+          <InitialSearchPrompt />
+        ) : (
+          <Box 
+            sx={{ flexGrow: 1, width: '100%', mt: 2, height: 'calc(100vh - 350px)' }}
+          >
+            {error && <Alert severity="error" sx={{ my: 2 }}>{error.message || 'Error al cargar las órdenes de compra.'}</Alert>}
+            <DataGrid
+              rows={data?.items || []}
+              columns={columns}
+              getRowId={(row) => row._id}
+              rowCount={data?.total || 0}
+              loading={isLoading || isFetching}
+              pageSizeOptions={[10, 25, 50]}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              paginationMode="server"
+              density="compact"
+              localeText={esES.components.MuiDataGrid.defaultProps.localeText}
+              disableRowSelectionOnClick
+              slots={{
+                  toolbar: () => (
+                    <PurchaseOrderGridToolbar 
+                      onAddClick={() => navigate('/compras/ordenes/nueva')} 
+                    />
+                  ),
+              }}
+              initialState={{
+                sorting: {
+                  sortModel: [{ field: 'order_number', sort: 'desc' }],
+                },
+              }}
+            />
+          </Box>
+        )}
       </Paper>
     </Container>
   );
 };
+
+
 
 export default PurchaseOrderListPage;
