@@ -44,6 +44,9 @@ const UserManagementPage = lazy(() => import('../features/admin/pages/UserManage
 const DataManagementPage = lazy(() => import('../features/admin/pages/DataManagementPage'));
 
 
+const NewSupplierPage = lazy(() => import('../features/crm/pages/NewSupplierPage'));
+const SupplierListPage = lazy(() => import('../features/crm/pages/SupplierListPage'));
+
 // --- SECCIÓN 2: COMPONENTES GUARDIANES DE RUTAS (Route Guards) ---
 
 const PrivateRoutesGuard = ({ allowedRoles }) => {
@@ -97,6 +100,11 @@ const AppRoutes = () => {
           <Route path="/" element={<DashboardLayout />}>
             {/* Rutas Generales (accesibles para cualquier rol logueado) */}
             <Route path="dashboard" element={<DashboardPage />} />
+
+            {/* --- RUTAS NUEVAS PARA CRM --- */}
+            <Route path="crm/proveedores/nuevo" element={<NewSupplierPage />} />
+            <Route path="crm/proveedores" element={<SupplierListPage />} />
+            {/* ----------------------------- */}
 
             {/* Rutas del Módulo de Inventario */}
             <Route path="inventario/productos" element={<ProductListPage />} />

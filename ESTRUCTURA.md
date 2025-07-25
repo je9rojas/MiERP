@@ -579,6 +579,8 @@ FRONTEND
 
 
 /frontend/src/features/crm/api/suppliersAPI.js
+/frontend/src/features/crm/components/SupplierForm.js
+/frontend/src/features/crm/pages/NewSupplierPage.js
 
 # ---------------------- HOOKS PERSONALIZADOS ----------------------
 /frontend/src/hooks/useDebounce.js
