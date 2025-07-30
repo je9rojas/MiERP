@@ -5,12 +5,9 @@ Capa de Servicio para el módulo de Inventario.
 
 Contiene la lógica de negocio para las operaciones con productos, actuando como
 intermediario entre las rutas de la API y el repositorio de la base de datos.
-Su responsabilidad es aplicar validaciones, orquestar operaciones y transformar
-los datos del formato de la base de datos al formato de salida de la API (DTO).
 """
 
-# --- SECCIÓN 1: IMPORTACIONES ---
-
+# --- SECCIÓN DE IMPORTACIONES ---
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
@@ -18,30 +15,40 @@ from io import BytesIO
 from fastapi import HTTPException, status
 
 # Importaciones de la propia aplicación
-from .product_models import ProductCreate, ProductInDB, ProductUpdate, ProductOut, CatalogFilterPayload
+from .product_models import ProductCreate, ProductInDB, ProductUpdate, CatalogFilterPayload
 from .repositories.product_repository import ProductRepository
 from .catalog_generator import CatalogPDFGenerator
 
 
-# --- SECCIÓN 2: FUNCIONES DEL SERVICIO DE PRODUCTOS ---
+# --- Funciones del Servicio de Productos ---
 
-async def create_product(db: AsyncIOMotorDatabase, product_data: ProductCreate) -> ProductOut:
+async def create_product(db: AsyncIOMotorDatabase, product_data: ProductCreate) -> ProductInDB:
     """
     Crea un nuevo producto, asegurando que el SKU no esté duplicado.
     """
     repo = ProductRepository(db)
     
-    if await repo.find_by_sku(product_data.sku):
+    existing_product = await repo.find_by_sku(product_data.sku)
+    if existing_product:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"El SKU '{product_data.sku}' ya está registrado."
         )
     
-    # Se utiliza el modelo ProductInDB para crear una instancia completa con los
-    # valores por defecto generados por el servidor (fechas, estado, etc.).
-    product_to_db = ProductInDB(**product_data.model_dump())
-    product_doc = product_to_db.model_dump(by_alias=True)
+    product_doc = product_data.model_dump()
     
+    now = datetime.now(timezone.utc)
+    product_doc["created_at"] = now
+    product_doc["updated_at"] = now
+    product_doc["is_active"] = True
+    
+    # Asegura la existencia de campos de lista para consistencia en la BD.
+    product_doc.setdefault("specifications", {})
+    product_doc.setdefault("oem_codes", [])
+    product_doc.setdefault("cross_references", [])
+    product_doc.setdefault("applications", [])
+    product_doc.setdefault("image_urls", [])
+
     inserted_id = await repo.insert_one(product_doc)
     created_product_doc = await repo.find_by_id(str(inserted_id))
     
@@ -51,8 +58,7 @@ async def create_product(db: AsyncIOMotorDatabase, product_data: ProductCreate) 
             detail="Error al recuperar el producto después de la creación."
         )
 
-    # Se devuelve explícitamente un modelo ProductOut, el DTO de salida seguro.
-    return ProductOut(**created_product_doc)
+    return ProductInDB(**created_product_doc)
 
 
 async def get_products_with_filters_and_pagination(
@@ -81,27 +87,28 @@ async def get_products_with_filters_and_pagination(
     product_docs_cursor = repo.collection.find(query).sort("sku", 1).skip(skip).limit(page_size)
     product_docs = await product_docs_cursor.to_list(length=page_size)
     
-    # Se convierte explícitamente cada documento al DTO de salida ProductOut.
-    items = [ProductOut(**doc) for doc in product_docs]
+    items = [ProductInDB(**doc) for doc in product_docs]
 
-    # La respuesta del servicio está alineada con el modelo de respuesta de la API.
+    # --- ¡LA CORRECCIÓN ESTÁ AQUÍ! ---
+    # Se cambia la clave de 'total' a 'total_count' para que coincida con lo que
+    # el frontend (ProductListPage.js) y el modelo de respuesta (PaginatedProductsResponse) esperan.
     return {"total_count": total_count, "items": items}
 
 
-async def get_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> Optional[ProductOut]:
+async def get_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> Optional[ProductInDB]:
     """
-    Obtiene un único producto por su SKU y lo devuelve en formato de salida.
+    Obtiene un único producto por su SKU.
     """
     repo = ProductRepository(db)
     product_doc = await repo.find_by_sku(sku)
     if product_doc:
-        return ProductOut(**product_doc)
+        return ProductInDB(**product_doc)
     return None
 
 
-async def update_product_by_sku(db: AsyncIOMotorDatabase, sku: str, product_update_data: ProductUpdate) -> Optional[ProductOut]:
+async def update_product_by_sku(db: AsyncIOMotorDatabase, sku: str, product_update_data: ProductUpdate) -> Optional[ProductInDB]:
     """
-    Actualiza un producto existente y devuelve la versión actualizada en formato de salida.
+    Actualiza un producto existente.
     """
     repo = ProductRepository(db)
     update_data = product_update_data.model_dump(exclude_unset=True)
@@ -120,7 +127,7 @@ async def update_product_by_sku(db: AsyncIOMotorDatabase, sku: str, product_upda
 
 async def deactivate_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> bool:
     """
-    Desactiva un producto (soft delete). Devuelve True si fue exitoso.
+    Desactiva un producto (soft delete).
     """
     repo = ProductRepository(db)
     update_data = {"is_active": False, "updated_at": datetime.now(timezone.utc)}
@@ -143,7 +150,6 @@ async def generate_catalog_pdf(db: AsyncIOMotorDatabase, filters: CatalogFilterP
     if filters.product_types:
         query["product_type"] = {"$in": [pt.value for pt in filters.product_types]}
 
-    # Asumiendo que el repositorio tiene un método `find_all` que devuelve una lista de diccionarios.
     product_docs = await repo.find_all(query)
     if not product_docs:
         return None

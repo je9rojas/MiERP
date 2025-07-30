@@ -432,6 +432,7 @@ BACKEND
 /backend/.venv/...                                        # Entorno virtual
 
 /backend/app/__init__.py
+/backend/app/api.py
 /backend/app/main.py                                      # EntryPoint principal FastAPI
 
 /backend/app/core/__init__.py
@@ -532,6 +533,8 @@ FRONTEND
 /frontend/src/components/common/ConfirmationDialog.js
 /frontend/src/components/common/FilterBar.js
 /frontend/src/components/common/PageHeader.js
+/frontend/src/components/common/DataGridToolbar.js
+
 
 /frontend/src/components/layout/AuthLayout.js
 /frontend/src/components/layout/DashboardLayout.js
@@ -556,6 +559,18 @@ FRONTEND
 /frontend/src/features/auth/
 
 
+# ---------------------- (estructura pendiente de detallar) 
+
+
+
+/frontend/src/features/crm/api/suppliersAPI.js
+/frontend/src/features/crm/components/SupplierForm.js
+/frontend/src/features/crm/pages/NewSupplierPage.js
+/frontend/src/features/crm/pages/SupplierListPage.js
+
+
+
+
 # ----------------------
 
 /frontend/src/features/inventory/api/productsAPI.js
@@ -574,13 +589,7 @@ FRONTEND
 /frontend/src/features/purchasing/pages/
 
 
-# ---------------------- (estructura pendiente de detallar) 
 
-
-
-/frontend/src/features/crm/api/suppliersAPI.js
-/frontend/src/features/crm/components/SupplierForm.js
-/frontend/src/features/crm/pages/NewSupplierPage.js
 
 # ---------------------- HOOKS PERSONALIZADOS ----------------------
 /frontend/src/hooks/useDebounce.js

@@ -2,82 +2,41 @@
 
 """
 Punto de Entrada Principal y Orquestador de la Aplicación FastAPI.
-
-Este archivo es el corazón de la API del backend. Sus responsabilidades clave son:
-- Inicializar y configurar la instancia principal de la aplicación FastAPI.
-- Establecer middlewares esenciales, con un enfoque principal en la seguridad de
-  Cross-Origin Resource Sharing (CORS) para permitir la comunicación con el frontend.
-- Gestionar el ciclo de vida de la aplicación, ejecutando tareas críticas durante el
-  arranque (como la conexión a la base de datos y la inicialización de datos base)
-  y el apagado (cierre de conexiones).
-- Registrar el router principal de la API con un prefijo versionado.
 """
 
 # --- SECCIÓN 1: IMPORTACIONES ---
 
-# Importaciones de la librería estándar de Python
-import json
 import logging
-from datetime import datetime
-
-# Importaciones de librerías de terceros
-from fastapi import FastAPI, Depends, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, APIRouter, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from bson import ObjectId
 
-# Importaciones de la aplicación (Core)
+# Importaciones de módulos de la propia aplicación
 from app.core.config import settings
 from app.core.database import db, get_db
 
-# Importaciones de la aplicación (Ensamblador de API)
-from app.api import api_router
+# Importación de servicios y routers de cada módulo de negocio
+from app.modules.auth import auth_routes, auth_service
+from app.modules.roles import role_routes, role_service
+from app.modules.users import user_routes
+from app.modules.inventory import product_routes
+from app.modules.crm import supplier_routes, customer_routes
+from app.modules.purchasing import purchasing_routes
+from app.modules.data_management import data_management_routes
 
-# Importaciones de servicios (Solo los necesarios para el ciclo de vida de la app)
-from app.modules.auth import auth_service
-from app.modules.roles import role_service
 
-
-# --- SECCIÓN 2: CONFIGURACIÓN AVANZADA Y SOLUCIÓN DE SERIALIZACIÓN ---
+# --- SECCIÓN 2: CONFIGURACIÓN DE LOGGING Y APLICACIÓN ---
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:     %(message)s')
 logger = logging.getLogger(__name__)
 
-
-class CustomJSONResponse(JSONResponse):
-    """
-    Clase de respuesta JSON personalizada para enseñarle a la aplicación cómo
-    serializar tipos de datos complejos que no son nativos de JSON, como ObjectId.
-    """
-    def render(self, content: any) -> bytes:
-        return json.dumps(
-            content,
-            ensure_ascii=False,
-            allow_nan=False,
-            indent=None,
-            separators=(",", ":"),
-            default=self.default_encoder,
-        ).encode("utf-8")
-
-    @staticmethod
-    def default_encoder(obj: any):
-        """Define cómo convertir tipos específicos a formatos serializables."""
-        if isinstance(obj, ObjectId):
-            return str(obj)
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        raise TypeError(f"El tipo {type(obj).__name__} no es serializable en JSON")
-
-
-# Creación de la instancia principal de la aplicación FastAPI.
+# Creación de la instancia de FastAPI (versión simple y estándar).
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.PROJECT_VERSION,
     description="API Backend para el sistema de gestión empresarial MiERP PRO.",
     docs_url="/api/docs" if settings.ENV == "development" else None,
-    redoc_url="/api/redoc" if settings.ENV == "development" else None,
-    default_response_class=CustomJSONResponse
+    redoc_url="/api/redoc" if settings.ENV == "development" else None
 )
 
 
@@ -98,6 +57,7 @@ if settings.ALLOWED_ORIGINS:
 
 @app.on_event("startup")
 async def startup_event_handler():
+    # ... (el código de esta sección no cambia) ...
     logger.info("--- Iniciando Proceso de Arranque de la Aplicación ---")
     try:
         logger.info("Paso 1/4: Conectando a la base de datos MongoDB...")
@@ -121,6 +81,7 @@ async def startup_event_handler():
 
 @app.on_event("shutdown")
 async def shutdown_event_handler():
+    # ... (el código de esta sección no cambia) ...
     logger.info("--- Cerrando la conexión a la base de datos... ---")
     await db.close()
     logger.info("--- Conexión a la base de datos cerrada exitosamente. ---")
@@ -128,13 +89,22 @@ async def shutdown_event_handler():
 
 # --- SECCIÓN 5: ORGANIZACIÓN Y REGISTRO DE RUTAS DE LA API ---
 
-# Se incluye el router principal de la API (importado desde app.api) en la aplicación,
-# asignando el prefijo global y versionado "/api/v1".
-app.include_router(api_router, prefix="/api/v1")
-logger.info("Todos los routers de la API v1 han sido registrados exitosamente bajo el prefijo '/api/v1'. ✅")
+api_router = APIRouter()
+
+api_router.include_router(auth_routes.router)
+api_router.include_router(user_routes.router)
+api_router.include_router(role_routes.router)
+api_router.include_router(product_routes.router)
+api_router.include_router(supplier_routes.router)
+api_router.include_router(customer_routes.router)
+api_router.include_router(purchasing_routes.router)
+api_router.include_router(data_management_routes.router)
+
+app.include_router(api_router, prefix="/api")
+logger.info("Todos los routers de la API han sido registrados exitosamente bajo el prefijo '/api'. ✅")
 
 
-# --- SECCIÓN 6: ENDPOINTS GLOBALES (RAÍZ Y VERIFICACIÓN DE SALUD) ---
+# --- SECCIÓN 6: ENDPOINTS GLOBALES ---
 
 @app.get("/", tags=["Sistema"], include_in_schema=False)
 async def read_root():
@@ -145,10 +115,11 @@ async def health_check(database: AsyncIOMotorDatabase = Depends(get_db)):
     try:
         await database.command("ping")
         database_status = "ok"
-    except Exception as error:
+    except Exception:
+        database_status = "error"
         raise HTTPException(
             status_code=503,
-            detail=f"Servicio no disponible: Error de base de datos - {str(error)}"
+            detail={"status": "unhealthy", "database_connection": database_status}
         )
     return {
         "status": "healthy",

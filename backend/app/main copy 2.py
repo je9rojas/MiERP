@@ -10,7 +10,8 @@ Este archivo es el corazón de la API del backend. Sus responsabilidades clave s
 - Gestionar el ciclo de vida de la aplicación, ejecutando tareas críticas durante el
   arranque (como la conexión a la base de datos y la inicialización de datos base)
   y el apagado (cierre de conexiones).
-- Registrar el router principal de la API con un prefijo versionado.
+- Organizar y registrar todos los endpoints de la API de manera modular y escalable
+  bajo un prefijo de API unificado.
 """
 
 # --- SECCIÓN 1: IMPORTACIONES ---
@@ -21,36 +22,43 @@ import logging
 from datetime import datetime
 
 # Importaciones de librerías de terceros
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from bson import ObjectId
+from bson import ObjectId  # <-- IMPORTACIÓN CRÍTICA PARA LA SOLUCIÓN
 
-# Importaciones de la aplicación (Core)
+# Importaciones de módulos de la propia aplicación
 from app.core.config import settings
 from app.core.database import db, get_db
 
-# Importaciones de la aplicación (Ensamblador de API)
-from app.api import api_router
-
-# Importaciones de servicios (Solo los necesarios para el ciclo de vida de la app)
-from app.modules.auth import auth_service
-from app.modules.roles import role_service
+# Importación de servicios y routers de cada módulo de negocio
+from app.modules.auth import auth_routes, auth_service
+from app.modules.roles import role_routes, role_service
+from app.modules.users import user_routes
+from app.modules.inventory import product_routes
+from app.modules.crm import supplier_routes, customer_routes
+from app.modules.purchasing import purchasing_routes
+from app.modules.data_management import data_management_routes
 
 
 # --- SECCIÓN 2: CONFIGURACIÓN AVANZADA Y SOLUCIÓN DE SERIALIZACIÓN ---
 
+# Configuración del sistema de logging para obtener un output claro y estructurado.
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:     %(message)s')
 logger = logging.getLogger(__name__)
 
 
+# --- ¡LA PIEZA CLAVE QUE FALTABA! ---
 class CustomJSONResponse(JSONResponse):
     """
     Clase de respuesta JSON personalizada para enseñarle a la aplicación cómo
     serializar tipos de datos complejos que no son nativos de JSON, como ObjectId.
+    Este es el método canónico y recomendado por FastAPI para este propósito.
     """
     def render(self, content: any) -> bytes:
+        # La función 'default' se pasa al codificador JSON subyacente.
+        # Se ejecutará para cualquier tipo de objeto que el codificador no reconozca.
         return json.dumps(
             content,
             ensure_ascii=False,
@@ -67,6 +75,8 @@ class CustomJSONResponse(JSONResponse):
             return str(obj)
         if isinstance(obj, datetime):
             return obj.isoformat()
+        # Levantar un TypeError es importante para que los errores de serialización
+        # no pasen desapercibidos si aparece un nuevo tipo de dato no manejado.
         raise TypeError(f"El tipo {type(obj).__name__} no es serializable en JSON")
 
 
@@ -77,6 +87,8 @@ app = FastAPI(
     description="API Backend para el sistema de gestión empresarial MiERP PRO.",
     docs_url="/api/docs" if settings.ENV == "development" else None,
     redoc_url="/api/redoc" if settings.ENV == "development" else None,
+    # Se establece nuestra clase personalizada como la clase de respuesta por defecto
+    # para TODA la aplicación. Esto soluciona el 'PydanticSerializationError'.
     default_response_class=CustomJSONResponse
 )
 
@@ -94,10 +106,11 @@ if settings.ALLOWED_ORIGINS:
     )
 
 
-# --- SECCIÓN 4: EVENTOS DEL CICLO DE VIDA DE LA APLICACIÓN ---
+# --- SECCIÓN 4: EVENTOS DEL CICLO DE VIDA DE LA APLICACIÓN (SIN CAMBIOS) ---
 
 @app.on_event("startup")
 async def startup_event_handler():
+    # ... (código idéntico al tuyo) ...
     logger.info("--- Iniciando Proceso de Arranque de la Aplicación ---")
     try:
         logger.info("Paso 1/4: Conectando a la base de datos MongoDB...")
@@ -126,32 +139,26 @@ async def shutdown_event_handler():
     logger.info("--- Conexión a la base de datos cerrada exitosamente. ---")
 
 
-# --- SECCIÓN 5: ORGANIZACIÓN Y REGISTRO DE RUTAS DE LA API ---
+# --- SECCIÓN 5: ORGANIZACIÓN Y REGISTRO DE RUTAS DE LA API (SIN CAMBIOS) ---
+api_router = APIRouter()
+api_router.include_router(auth_routes.router)
+# ... (resto de tus include_router) ...
+app.include_router(api_router, prefix="/api")
+logger.info("Todos los routers de la API han sido registrados exitosamente bajo el prefijo '/api'. ✅")
 
-# Se incluye el router principal de la API (importado desde app.api) en la aplicación,
-# asignando el prefijo global y versionado "/api/v1".
-app.include_router(api_router, prefix="/api/v1")
-logger.info("Todos los routers de la API v1 han sido registrados exitosamente bajo el prefijo '/api/v1'. ✅")
 
-
-# --- SECCIÓN 6: ENDPOINTS GLOBALES (RAÍZ Y VERIFICACIÓN DE SALUD) ---
-
+# --- SECCIÓN 6: ENDPOINTS GLOBALES (SIN CAMBIOS) ---
 @app.get("/", tags=["Sistema"], include_in_schema=False)
 async def read_root():
     return {"message": f"Bienvenido a la API de {settings.PROJECT_NAME}. El servicio está operativo."}
 
 @app.get("/health", tags=["Sistema"])
 async def health_check(database: AsyncIOMotorDatabase = Depends(get_db)):
+    # ... (código idéntico al tuyo) ...
     try:
         await database.command("ping")
         database_status = "ok"
-    except Exception as error:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Servicio no disponible: Error de base de datos - {str(error)}"
-        )
-    return {
-        "status": "healthy",
-        "environment": settings.ENV,
-        "database_connection": database_status
-    }
+    except Exception:
+        database_status = "error"
+        raise HTTPException(status_code=503, detail={"status": "unhealthy", "database_connection": database_status})
+    return {"status": "healthy", "environment": settings.ENV, "database_connection": database_status}

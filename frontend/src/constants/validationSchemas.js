@@ -60,7 +60,7 @@ export const productSchema = yup.object({
     .min(0, 'El precio no puede ser negativo.')
     .required('El precio es obligatorio.'),
 
-  weight_kg: yup
+  weight_g: yup
     .number()
     .typeError('El peso debe ser un número.')
     .min(0, 'El peso no puede ser negativo.')

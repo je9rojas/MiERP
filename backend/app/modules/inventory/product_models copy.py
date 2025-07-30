@@ -1,24 +1,14 @@
 # /backend/app/modules/inventory/product_models.py
+# MODELOS DE DATOS PARA LA ENTIDAD 'PRODUCTO' CON ARQUITECTURA PROFESIONAL
 
-"""
-Define los modelos de datos de Pydantic para la entidad 'Producto'.
-
-Sigue una arquitectura DTO (Data Transfer Object) robusta, separando las
-responsabilidades de los modelos para la creación (DTO de entrada), el
-almacenamiento en la base de datos (la fuente de la verdad) y la exposición a
-través de la API (DTO de salida), garantizando seguridad y consistencia.
-"""
-
-# --- SECCIÓN 1: IMPORTACIONES ---
-
-from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from enum import Enum
 from app.models.shared import PyObjectId
 
-
-# --- SECCIÓN 2: ENUMS PARA CATEGORIZACIÓN ESTANDARIZADA ---
+# --- SECCIÓN 1: ENUMS PARA CATEGORIZACIÓN ESTANDARIZADA ---
+# El uso de Enums previene errores de tipeo y asegura la consistencia de los datos.
 
 class ProductCategory(str, Enum):
     """Define la categoría principal del producto."""
@@ -47,7 +37,8 @@ class ProductShape(str, Enum):
     NOT_APPLICABLE = "n_a"
 
 
-# --- SECCIÓN 3: MODELOS DE SOPORTE PARA DATOS ANIDADOS ---
+# --- SECCIÓN 2: MODELOS DE SOPORTE PARA DATOS ANIDADOS ---
+# Definen la estructura de los datos complejos que pueden ir dentro de un producto.
 
 class OEMCode(BaseModel):
     """Representa un código de Equipo Original del fabricante del vehículo."""
@@ -67,10 +58,12 @@ class Application(BaseModel):
     engine: Optional[str] = None
 
 
-# --- SECCIÓN 4: ARQUITECTURA DE MODELOS PRINCIPALES ---
+# --- SECCIÓN 3: ARQUITECTURA DE MODELOS PRINCIPALES ---
+# Se definen modelos distintos para la creación, actualización, almacenamiento y visualización.
 
-class ProductBase(BaseModel):
-    """Modelo base con los campos comunes que comparten todos los modelos de producto."""
+# 3.1: Modelo para la CREACIÓN de un Producto (DTO de Entrada)
+class ProductCreate(BaseModel):
+    """Define los datos que el cliente DEBE enviar para crear un producto."""
     sku: str
     name: str
     brand: str
@@ -83,25 +76,15 @@ class ProductBase(BaseModel):
     stock_quantity: int = Field(0, ge=0)
     points_on_sale: float = Field(0.0, ge=0)
     weight_g: Optional[float] = Field(None, ge=0)
-    specifications: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    oem_codes: Optional[List[OEMCode]] = Field(default_factory=list)
-    cross_references: Optional[List[CrossReference]] = Field(default_factory=list)
-    applications: Optional[List[Application]] = Field(default_factory=list)
+    specifications: Optional[Dict[str, Any]] = None
+    oem_codes: Optional[List[OEMCode]] = None
+    cross_references: Optional[List[CrossReference]] = None
+    applications: Optional[List[Application]] = None
     main_image_url: Optional[str] = None
-    image_urls: List[str] = Field(default_factory=list)
 
-class ProductCreate(ProductBase):
-    """
-    DTO de Entrada para la creación de un nuevo producto.
-    Hereda todos los campos base, ya que todos son necesarios para la creación.
-    """
-    pass
-
+# 3.2: Modelo para la ACTUALIZACIÓN de un Producto (DTO de Entrada)
 class ProductUpdate(BaseModel):
-    """
-    DTO de Entrada para la actualización de un producto.
-    Todos los campos son opcionales para permitir actualizaciones parciales.
-    """
+    """Define los campos que se pueden actualizar. Todos son opcionales."""
     name: Optional[str] = None
     brand: Optional[str] = None
     description: Optional[str] = None
@@ -120,51 +103,58 @@ class ProductUpdate(BaseModel):
     main_image_url: Optional[str] = None
     is_active: Optional[bool] = None
 
-class ProductInDB(ProductBase):
+# 3.3: Modelo de Base de Datos (La "Fuente de la Verdad")
+class ProductInDB(BaseModel):
     """
-    Modelo que representa el documento completo como se almacena y lee de MongoDB.
-    Este es el modelo "interno" y no sabe cómo serializarse a JSON.
+    Representa el documento completo del producto como se almacena y se lee de MongoDB.
+    Este modelo es robusto para manejar datos que podrían estar incompletos en la base de datos.
     """
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    sku: str
+    name: str
+    brand: str
+    description: Optional[str] = None
+    category: ProductCategory
+    product_type: FilterType
+    shape: Optional[ProductShape] = None
+    cost: float
+    price: float
+    stock_quantity: int
+    points_on_sale: float
+    weight_g: Optional[float] = None
+    
+    # CORRECCIÓN: Se definen como opcionales para la lectura y con default_factory
+    # para la creación. Esto previene errores de validación si el campo no existe en un
+    # documento antiguo de la base de datos.
+    specifications: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    oem_codes: Optional[List[OEMCode]] = Field(default_factory=list)
+    cross_references: Optional[List[CrossReference]] = Field(default_factory=list)
+    applications: Optional[List[Application]] = Field(default_factory=list)
+    
+    image_urls: List[str] = Field(default_factory=list)
+    main_image_url: Optional[str] = None
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    # Se usa la ConfigDict moderna y se ELIMINA la `class Config` con `json_encoders`.
-    # Esta es la corrección de raíz para el problema de serialización.
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+        json_encoders = {PyObjectId: str}
 
-class ProductOut(ProductBase):
+# 3.4: Modelo para la VISUALIZACIÓN de un Producto (DTO de Salida)
+class ProductOut(ProductInDB):
     """
-    DTO de Salida que define la estructura pública y segura de un producto para la API.
-    Este modelo es el único que sabe cómo presentarse en formato JSON.
+    Define la estructura de datos que la API devuelve al cliente.
+    Hereda de ProductInDB para mantener la consistencia.
     """
-    id: PyObjectId = Field(alias="_id")
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-
-    @field_serializer('id')
-    def serialize_id(self, id_obj: PyObjectId, _info):
-        """
-        Convierte explícitamente el campo 'id' de ObjectId a string al serializar.
-        Esta lógica de presentación está aislada en el modelo de salida.
-        """
-        return str(id_obj)
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
+    pass
 
 
-# --- SECCIÓN 5: MODELOS PARA FUNCIONALIDADES ESPECÍFICAS ---
+# --- SECCIÓN 4: MODELOS PARA FUNCIONALIDADES ESPECÍFICAS ---
 
 class CatalogFilterPayload(BaseModel):
     """Define los filtros que el cliente envía para generar un catálogo."""
     search_term: Optional[str] = None
-    product_types: Optional[List[FilterType]] = None
+    product_types: Optional[List[FilterType]] = None # Usa el Enum para validación automática
     view_type: str = 'client'

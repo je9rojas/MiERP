@@ -28,7 +28,7 @@ async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
     fieldnames = [
         'operation', 'sku', 'name', 'brand', 'main_image_url', 'description', 
         'category', 'product_type', 'shape', 'cost', 'price', 'stock_quantity',
-        'points_on_sale', 'weight_kg', 'is_active',
+        'points_on_sale', 'weight_g', 'is_active',
         'specifications_json', 'oem_codes_json', 'cross_references_json', 'applications_json'
     ]
     writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
@@ -52,7 +52,7 @@ async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
             "price": product.get("price"),
             "stock_quantity": product.get("stock_quantity"),
             "points_on_sale": product.get("points_on_sale"),
-            "weight_kg": product.get("weight_kg"),
+            "weight_g": product.get("weight_g"),
             "is_active": product.get("is_active"),
             'specifications_json': json.dumps(product.get('specifications', {})),
             'oem_codes_json': json.dumps(product.get('oem_codes', [])),
@@ -128,7 +128,7 @@ async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -
             if 'price' in data_to_process: data_to_process['price'] = float(data_to_process['price'])
             if 'stock_quantity' in data_to_process: data_to_process['stock_quantity'] = int(data_to_process['stock_quantity'])
             if 'points_on_sale' in data_to_process: data_to_process['points_on_sale'] = float(data_to_process['points_on_sale'])
-            if 'weight_kg' in data_to_process: data_to_process['weight_kg'] = float(data_to_process['weight_kg'])
+            if 'weight_g' in data_to_process: data_to_process['weight_g'] = float(data_to_process['weight_g'])
             
             # Etapa 4: Ejecución de la Operación
             if operation == "upsert":

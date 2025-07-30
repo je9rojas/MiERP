@@ -1,4 +1,4 @@
-operation,sku,name,brand,main_image_url,description,category,product_type,shape,cost,price,stock_quantity,points_on_sale,weight_kg,is_active,specifications_json,oem_codes_json,cross_references_json,applications_json
+operation,sku,name,brand,main_image_url,description,category,product_type,shape,cost,price,stock_quantity,points_on_sale,weight_g,is_active,specifications_json,oem_codes_json,cross_references_json,applications_json
 upsert,WF8313131,Nombre del Producto,WIX,https://filtron.eu/website/images/filters/large/ap140.jpg,DEscripcion y notas,filter,air,panel,10.0,20.0,100,2.3,1.5,True,null,null,null,null
 upsert,WF8127777,Nombre del Producto,WIX,https://filtron.eu/website/images/filters/large/ap140.jpg,DEscripcion y notas,filter,air,panel,10.0,20.0,100,2.3,1.5,True,null,null,null,null
 upsert,WF8128888,Nombre del Producto,WIX,https://filtron.eu/website/images/filters/large/ap140.jpg,DEscripcion y notas,filter,air,panel,10.0,20.0,100,2.3,1.5,True,null,null,null,null

@@ -10,7 +10,8 @@ Este archivo es el corazón de la API del backend. Sus responsabilidades clave s
 - Gestionar el ciclo de vida de la aplicación, ejecutando tareas críticas durante el
   arranque (como la conexión a la base de datos y la inicialización de datos base)
   y el apagado (cierre de conexiones).
-- Registrar el router principal de la API con un prefijo versionado.
+- Organizar y registrar todos los endpoints de la API de manera modular y escalable
+  bajo un prefijo de API unificado.
 """
 
 # --- SECCIÓN 1: IMPORTACIONES ---
@@ -21,26 +22,29 @@ import logging
 from datetime import datetime
 
 # Importaciones de librerías de terceros
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
 
-# Importaciones de la aplicación (Core)
+# Importaciones de módulos de la propia aplicación
 from app.core.config import settings
 from app.core.database import db, get_db
 
-# Importaciones de la aplicación (Ensamblador de API)
-from app.api import api_router
-
-# Importaciones de servicios (Solo los necesarios para el ciclo de vida de la app)
-from app.modules.auth import auth_service
-from app.modules.roles import role_service
+# Importación de servicios y routers de cada módulo de negocio
+from app.modules.auth import auth_routes, auth_service
+from app.modules.roles import role_routes, role_service
+from app.modules.users import user_routes
+from app.modules.inventory import product_routes
+from app.modules.crm import supplier_routes, customer_routes
+from app.modules.purchasing import purchasing_routes
+from app.modules.data_management import data_management_routes
 
 
 # --- SECCIÓN 2: CONFIGURACIÓN AVANZADA Y SOLUCIÓN DE SERIALIZACIÓN ---
 
+# Configuración del sistema de logging para obtener un output claro y estructurado.
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:     %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -49,6 +53,7 @@ class CustomJSONResponse(JSONResponse):
     """
     Clase de respuesta JSON personalizada para enseñarle a la aplicación cómo
     serializar tipos de datos complejos que no son nativos de JSON, como ObjectId.
+    Este es el método canónico y recomendado por FastAPI para este propósito.
     """
     def render(self, content: any) -> bytes:
         return json.dumps(
@@ -128,10 +133,22 @@ async def shutdown_event_handler():
 
 # --- SECCIÓN 5: ORGANIZACIÓN Y REGISTRO DE RUTAS DE LA API ---
 
-# Se incluye el router principal de la API (importado desde app.api) en la aplicación,
-# asignando el prefijo global y versionado "/api/v1".
-app.include_router(api_router, prefix="/api/v1")
-logger.info("Todos los routers de la API v1 han sido registrados exitosamente bajo el prefijo '/api/v1'. ✅")
+api_router = APIRouter()
+
+# Se incluyen los routers de cada módulo de negocio DENTRO del router principal de la API.
+api_router.include_router(auth_routes.router)
+api_router.include_router(user_routes.router)
+api_router.include_router(role_routes.router)
+api_router.include_router(product_routes.router)  # <-- LÍNEA CORREGIDA/VERIFICADA
+api_router.include_router(supplier_routes.router)
+api_router.include_router(customer_routes.router)
+api_router.include_router(purchasing_routes.router)
+api_router.include_router(data_management_routes.router)
+
+# Finalmente, se incluye el router principal de la API en la aplicación,
+# asignando el prefijo global "/api" UNA SOLA VEZ.
+app.include_router(api_router, prefix="/api")
+logger.info("Todos los routers de la API han sido registrados exitosamente bajo el prefijo '/api'. ✅")
 
 
 # --- SECCIÓN 6: ENDPOINTS GLOBALES (RAÍZ Y VERIFICACIÓN DE SALUD) ---

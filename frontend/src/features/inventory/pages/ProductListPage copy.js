@@ -1,25 +1,9 @@
 // /frontend/src/features/inventory/pages/ProductListPage.js
 
-/**
- * @file Página principal para la gestión de productos del inventario.
- *
- * Este componente permite a los usuarios visualizar, buscar, filtrar y paginar
- * la lista de productos. Utiliza React Query para una gestión de datos eficiente
- * y una DataGrid de MUI para una presentación profesional de la información.
- */
-
-// --- SECCIÓN 1: IMPORTACIONES ---
-
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Box,
-  Container,
-  Paper,
-  Alert,
-  IconButton,
-  Tooltip,
-  Typography,
+  Box, Container, Paper, Alert, IconButton, Tooltip, Typography,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
@@ -29,16 +13,12 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import HistoryIcon from '@mui/icons-material/History';
 import { useSnackbar } from 'notistack';
 
-// Importaciones de la aplicación
 import { getProductsAPI, deactivateProductAPI } from '../api/productsAPI';
 import useDebounce from '../../../hooks/useDebounce';
 import { PRODUCT_CATEGORIES, FILTER_TYPES, PRODUCT_SHAPES } from '../../../constants/productConstants';
 import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
 import FilterBar from '../../../components/common/FilterBar';
 import ProductGridToolbar from '../components/ProductGridToolbar';
-
-
-// --- SECCIÓN 2: DEFINICIONES DE FILTROS ---
 
 const productFilterDefinitions = [
   { name: 'search', label: 'Buscar por SKU o Nombre', type: 'search', gridSize: 4 },
@@ -47,12 +27,7 @@ const productFilterDefinitions = [
   { name: 'shape', label: 'Forma', type: 'select', options: PRODUCT_SHAPES, gridSize: 2, disabled: (filters) => filters.category !== 'filter' },
 ];
 
-
-// --- SECCIÓN 3: COMPONENTE PRINCIPAL ---
-
 const ProductListPage = () => {
-
-  // --- 3.1: Hooks y Gestión de Estado ---
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
@@ -62,9 +37,6 @@ const ProductListPage = () => {
   const [productToDeactivate, setProductToDeactivate] = useState(null);
 
   const debouncedFilters = useDebounce(filters, 500);
-
-
-  // --- 3.2: Lógica de Obtención y Mutación de Datos ---
 
   const { data: queryData, isLoading, isFetching, error } = useQuery({
     queryKey: ['products', paginationModel, debouncedFilters],
@@ -77,36 +49,34 @@ const ProductListPage = () => {
         product_type: debouncedFilters.product_type,
         shape: debouncedFilters.shape,
       };
-      return await getProductsAPI(params);
+      // Usamos el nombre de propiedad 'total_count' para alinearnos con el backend.
+      const response = await getProductsAPI(params);
+      const flattenedProducts = response.items.map(p => ({ ...p, ...(p.specifications || {}) }));
+      return { items: flattenedProducts, total_count: response.total_count };
     },
-    // placeholderData muestra los datos antiguos mientras se cargan los nuevos.
-    // Es más estable que keepPreviousData para tablas complejas.
-    placeholderData: (previousData) => previousData,
+    keepPreviousData: true,
+    // Práctica de robustez: Proporciona datos iniciales para que la Grid nunca reciba 'undefined'.
+    initialData: { items: [], total_count: 0 },
   });
 
-  // Estabiliza el objeto de datos para la UI. Esto previene que 'data' sea
-  // 'undefined' entre cargas, dándole a la DataGrid una fuente de verdad consistente.
+  // Práctica de robustez: Estabiliza el objeto de datos para la UI.
   const data = useMemo(() => queryData || { items: [], total_count: 0 }, [queryData]);
 
   const { mutate: deactivateProduct, isPending: isDeactivating } = useMutation({
     mutationFn: deactivateProductAPI,
     onSuccess: (data, sku) => {
-      enqueueSnackbar(`Producto con SKU '${sku}' desactivado correctamente.`, { variant: 'success' });
+      enqueueSnackbar(`Producto con SKU '${sku}' desactivado.`, { variant: 'success' });
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },
     onError: (err) => {
-      enqueueSnackbar(err.response?.data?.detail || 'Error al desactivar el producto.', { variant: 'error' });
+      enqueueSnackbar(err.response?.data?.detail || 'Error al desactivar.', { variant: 'error' });
     }
   });
 
-
-  // --- 3.3: Manejadores de Eventos ---
-
   const handleFilterChange = useCallback((event) => {
     const { name, value } = event.target;
-    // Cuando un filtro cambia, SIEMPRE volvemos a la primera página.
-    setPaginationModel((prev) => ({ ...prev, page: 0 }));
-    setFilters((prevFilters) => {
+    setPaginationModel(prev => ({ ...prev, page: 0 }));
+    setFilters(prevFilters => {
       const newFilters = { ...prevFilters, [name]: value };
       if (name === 'category' && value !== 'filter') {
         newFilters.product_type = '';
@@ -124,9 +94,6 @@ const ProductListPage = () => {
     handleCloseDeleteDialog();
   }, [productToDeactivate, deactivateProduct, handleCloseDeleteDialog]);
 
-
-  // --- 3.4: Definición de Columnas y Toolbar (Memoizadas) ---
-
   const columns = useMemo(() => [
     { field: 'sku', headerName: 'Código/SKU', width: 140 },
     { field: 'name', headerName: 'Nombre', flex: 1, minWidth: 200 },
@@ -143,16 +110,18 @@ const ProductListPage = () => {
     },
   ], [navigate, handleOpenDeleteDialog]);
 
-  // Se usa useCallback para memoizar la función que crea el Toolbar, estabilizando la DataGrid.
+  // --- ¡SOLUCIÓN DEFINITIVA! ---
+  // Se usa useCallback para memoizar la función que crea el Toolbar.
+  // Esto asegura que la referencia al componente sea estable entre re-renderizados,
+  // evitando que la DataGrid reinicie su estado interno.
   const memoizedToolbar = useCallback(
     () => (
-      <ProductGridToolbar onAddClick={() => navigate('/inventario/productos/nuevo')} />
+      <ProductGridToolbar
+        onAddClick={() => navigate('/inventario/productos/nuevo')}
+      />
     ),
     [navigate]
   );
-
-
-  // --- 3.5: Renderizado del Componente ---
 
   return (
     <>
@@ -178,6 +147,7 @@ const ProductListPage = () => {
               onPaginationModelChange={setPaginationModel}
               paginationMode="server"
               pageSizeOptions={[10, 25, 50, 100]}
+              // Se pasa el componente memoizado a la prop 'slots'.
               slots={{ toolbar: memoizedToolbar }}
               density="compact"
               localeText={esES.components.MuiDataGrid.defaultProps.localeText}

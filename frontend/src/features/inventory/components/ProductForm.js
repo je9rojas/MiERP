@@ -78,7 +78,7 @@ const ProductForm = ({ onSubmit, initialData = {}, isSubmitting = false }) => {
         price: initialData.price || 0,
         stock_quantity: initialData.stock_quantity || 0,
         points_on_sale: initialData.points_on_sale || 0,
-        weight_kg: initialData.weight_kg || '',
+        weight_g: initialData.weight_g || '',
         specifications: initialData.specifications || {},
         oem_codes: initialData.oem_codes?.length ? initialData.oem_codes : [{ brand: '', code: '' }],
         cross_references: initialData.cross_references?.length ? initialData.cross_references : [{ brand: '', code: '' }],
@@ -100,7 +100,7 @@ const ProductForm = ({ onSubmit, initialData = {}, isSubmitting = false }) => {
           price: parseFloat(String(values.price)) || 0,
           stock_quantity: parseInt(String(values.stock_quantity), 10) || 0,
           points_on_sale: parseFloat(String(values.points_on_sale)) || 0.0,
-          weight_kg: values.weight_kg ? parseFloat(String(values.weight_kg)) : null,
+          weight_g: values.weight_g ? parseFloat(String(values.weight_g)) : null,
           oem_codes: values.oem_codes.filter(oem => oem.brand.trim() || oem.code.trim()),
           cross_references: values.cross_references.filter(ref => ref.brand.trim() || ref.code.trim()),
           applications: values.applications
@@ -148,7 +148,7 @@ const ProductForm = ({ onSubmit, initialData = {}, isSubmitting = false }) => {
             <Grid item xs={6} sm={3}><TextField fullWidth required type="number" label="Costo" name="cost" value={values.cost} onChange={handleChange} onBlur={handleBlur} error={touched.cost && Boolean(errors.cost)} helperText={touched.cost && errors.cost} /></Grid>
             <Grid item xs={6} sm={3}><TextField fullWidth required type="number" label="Precio" name="price" value={values.price} onChange={handleChange} onBlur={handleBlur} error={touched.price && Boolean(errors.price)} helperText={touched.price && errors.price} /></Grid>
             <Grid item xs={6} sm={3}><TextField fullWidth type="number" label="Stock" name="stock_quantity" value={values.stock_quantity} onChange={handleChange} /></Grid>
-            <Grid item xs={6} sm={3}><TextField fullWidth type="number" label="Peso (Kg)" name="weight_kg" value={values.weight_kg} onChange={handleChange} onBlur={handleBlur} error={touched.weight_kg && Boolean(errors.weight_kg)} helperText={touched.weight_kg && errors.weight_kg} InputProps={{ endAdornment: <Typography variant="caption" sx={{ mr: 1 }}>Kg</Typography>, }}/></Grid>
+            <Grid item xs={6} sm={3}><TextField fullWidth type="number" label="Peso (g)" name="weight_g" value={values.weight_g} onChange={handleChange} onBlur={handleBlur} error={touched.weight_g && Boolean(errors.weight_g)} helperText={touched.weight_g && errors.weight_g} InputProps={{ endAdornment: <Typography variant="caption" sx={{ mr: 1 }}>g</Typography>, }}/></Grid>
             <Grid item xs={12} sm={3}><TextField fullWidth type="number" label="Puntos por Venta" name="points_on_sale" value={values.points_on_sale} onChange={handleChange} /></Grid>
           </Grid>
           <Divider />

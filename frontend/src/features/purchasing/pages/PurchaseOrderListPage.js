@@ -25,7 +25,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { CAN_CRUD_PURCHASE_ORDERS } from '../../../constants/rolesAndPermissions';
 import { getPurchaseOrdersAPI } from '../api/purchasingAPI';
-import { useDebounce } from '../../../hooks/useDebounce';
+import useDebounce from '../../../hooks/useDebounce';
 import FilterBar from '../../../components/common/FilterBar';
 import PurchaseOrderGridToolbar from '../components/PurchaseOrderGridToolbar';
 
