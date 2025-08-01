@@ -24,7 +24,6 @@ from . import product_service
 from .product_models import (
     ProductCreate,
     ProductOut,
-    ProductOutDetail, # <--- Se importa el modelo detallado
     ProductUpdate,
     CatalogFilterPayload,
     ProductCategory,
@@ -44,7 +43,7 @@ router = APIRouter(
 class PaginatedProductsResponse(BaseModel):
     """
     Modelo de respuesta para una lista paginada de productos.
-    Utiliza el DTO 'ProductOut' optimizado para vistas de tabla.
+    Alineado con la respuesta del servicio y las expectativas del frontend.
     """
     total_count: int
     items: List[ProductOut]
@@ -55,10 +54,10 @@ class PaginatedProductsResponse(BaseModel):
 
 @router.post(
     "/",
-    response_model=ProductOutDetail, # <--- CORREGIDO: Devuelve el DTO detallado
+    response_model=ProductOut,
     status_code=status.HTTP_201_CREATED,
     summary="Crear un nuevo producto",
-    description="Registra un nuevo producto y devuelve su información detallada."
+    description="Registra un nuevo producto en la base de datos."
 )
 async def create_new_product(
     product: ProductCreate,
@@ -70,7 +69,7 @@ async def create_new_product(
 
 @router.get(
     "/",
-    response_model=PaginatedProductsResponse, # <-- CORRECTO: Usa el DTO ligero para la lista
+    response_model=PaginatedProductsResponse,
     summary="Obtener lista de productos",
     description="Recupera una lista paginada de productos activos, con opción de búsqueda y filtrado."
 )
@@ -85,16 +84,29 @@ async def get_products_paginated(
     page: int = Query(1, ge=1, description="Número de página."),
     page_size: int = Query(25, ge=1, le=100, alias="pageSize", description="Tamaño de la página.")
 ):
-    """Endpoint para obtener una lista paginada y filtrada de productos."""
+    """
+    Endpoint para obtener una lista paginada y filtrada de productos.
+    Utiliza Enums para una validación de parámetros de filtro más estricta.
+    """
+    # --- INICIO DE LA CORRECCIÓN ---
+    # Se pasan TODOS los parámetros de filtro recibidos a la capa de servicio.
     result = await product_service.get_products_with_filters_and_pagination(
-        db=db, search=search, brand=brand, category=product_category,
-        product_type=product_type, shape=shape, page=page, page_size=page_size
+        db=db,
+        search=search,
+        brand=brand,
+        category=product_category,
+        product_type=product_type,
+        shape=shape,
+        page=page,
+        page_size=page_size
     )
+    # --- FIN DE LA CORRECCIÓN ---
     return result
+
 
 @router.get(
     "/{sku}",
-    response_model=ProductOutDetail, # <--- CORREGIDO: Devuelve el DTO detallado
+    response_model=ProductOut,
     summary="Obtener un producto por SKU"
 )
 async def get_product_by_sku_route(
@@ -111,9 +123,10 @@ async def get_product_by_sku_route(
         )
     return product
 
+
 @router.put(
     "/{sku}",
-    response_model=ProductOutDetail, # <--- CORREGIDO: Devuelve el DTO detallado
+    response_model=ProductOut,
     summary="Actualizar un producto"
 )
 async def update_product_route(
@@ -122,7 +135,7 @@ async def update_product_route(
     db: AsyncIOMotorDatabase = Depends(get_db),
     _user: dict = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER]))
 ):
-    """Actualiza la información de un producto y devuelve el objeto completo actualizado."""
+    """Actualiza la información de un producto existente por su SKU."""
     updated_product = await product_service.update_product_by_sku(db, sku, product_data)
     if not updated_product:
         raise HTTPException(
@@ -130,6 +143,7 @@ async def update_product_route(
             detail=f"Producto con SKU '{sku}' no encontrado para actualizar."
         )
     return updated_product
+
 
 @router.delete(
     "/{sku}",
@@ -150,10 +164,12 @@ async def deactivate_product_route(
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
 @router.post(
     "/catalog",
     summary="Generar Catálogo de Productos en PDF",
     response_class=Response,
+    # Opcional: define las respuestas de error para la documentación.
     responses={
         200: {"description": "Catálogo PDF generado exitosamente."},
         404: {"description": "No se encontraron productos para los filtros seleccionados."}
@@ -162,7 +178,7 @@ async def deactivate_product_route(
 async def generate_product_catalog(
     filters: CatalogFilterPayload,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: dict = Depends(role_checker(UserRole.all_roles()))
+    _user: dict = Depends(role_checkera(UserRole.all_roles()))
 ):
     """Genera un catálogo de productos en formato PDF basado en los filtros proporcionados."""
     pdf_bytes = await product_service.generate_catalog_pdf(db, filters)
