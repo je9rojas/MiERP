@@ -430,6 +430,7 @@ BACKEND
 
 
 /backend/.venv/...                                        # Entorno virtual
+/backend/.env.example
 
 /backend/app/__init__.py
 /backend/app/api.py

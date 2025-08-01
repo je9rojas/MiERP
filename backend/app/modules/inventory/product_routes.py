@@ -8,22 +8,32 @@ para los productos, delega la lógica de negocio a la capa de servicio
 y aplica la protección de rutas basada en roles de usuario.
 """
 
-# --- SECCIÓN 1: IMPORTACIONES ---
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES
+# ==============================================================================
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
 from typing import List, Optional
 from pydantic import BaseModel
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-# Importaciones de la aplicación
 from app.core.database import get_db
 from app.dependencies.roles import role_checker
 from app.modules.users.user_models import UserRole
 from . import product_service
-from .product_models import ProductCreate, ProductOut, ProductUpdate, CatalogFilterPayload
+from .product_models import (
+    ProductCreate,
+    ProductOut,
+    ProductUpdate,
+    CatalogFilterPayload,
+    ProductCategory,
+    FilterType,
+    ProductShape
+)
 
-
-# --- SECCIÓN 2: DEFINICIÓN DEL ROUTER Y MODELOS DE RESPUESTA ---
+# ==============================================================================
+# SECCIÓN 2: DEFINICIÓN DEL ROUTER Y MODELOS DE RESPUESTA
+# ==============================================================================
 
 router = APIRouter(
     prefix="/products",
@@ -35,12 +45,12 @@ class PaginatedProductsResponse(BaseModel):
     Modelo de respuesta para una lista paginada de productos.
     Alineado con la respuesta del servicio y las expectativas del frontend.
     """
-    # Se define 'total_count' para mantener la consistencia en toda la aplicación.
     total_count: int
     items: List[ProductOut]
 
-
-# --- SECCIÓN 3: ENDPOINTS DE LA API ---
+# ==============================================================================
+# SECCIÓN 3: ENDPOINTS DE LA API
+# ==============================================================================
 
 @router.post(
     "/",
@@ -54,15 +64,8 @@ async def create_new_product(
     db: AsyncIOMotorDatabase = Depends(get_db),
     _user: dict = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER]))
 ):
-    """
-    Endpoint para crear un nuevo producto.
-
-    La lógica de negocio, como la verificación de SKUs duplicados, se maneja
-    en la capa de servicio. Si el servicio levanta un HTTPException, FastAPI
-    lo procesará y devolverá la respuesta de error HTTP adecuada.
-    """
+    """Endpoint para crear un nuevo producto."""
     return await product_service.create_product(db, product)
-
 
 @router.get(
     "/",
@@ -73,31 +76,31 @@ async def create_new_product(
 async def get_products_paginated(
     db: AsyncIOMotorDatabase = Depends(get_db),
     _user: dict = Depends(role_checker(UserRole.all_roles())),
-    search: Optional[str] = None,
-    brand: Optional[str] = None,
-    product_category: Optional[str] = None, # Se añade para que coincida con la llamada del frontend
-    product_type: Optional[str] = None,
-    shape: Optional[str] = None, # Se añade para que coincida con la llamada del frontend
-    page: int = Query(1, ge=1, description="Número de página"),
-    page_size: int = Query(10, ge=1, le=100, alias="pageSize", description="Tamaño de la página")
+    search: Optional[str] = Query(None, description="Término de búsqueda por SKU o nombre."),
+    brand: Optional[str] = Query(None, description="Filtrar por marca."),
+    product_category: Optional[ProductCategory] = Query(None, description="Filtrar por categoría de producto."),
+    product_type: Optional[FilterType] = Query(None, description="Filtrar por tipo de filtro."),
+    shape: Optional[ProductShape] = Query(None, description="Filtrar por forma de filtro."),
+    page: int = Query(1, ge=1, description="Número de página."),
+    page_size: int = Query(25, ge=1, le=100, alias="pageSize", description="Tamaño de la página.")
 ):
     """
     Endpoint para obtener una lista paginada y filtrada de productos.
-    Utiliza `Query` para una mejor validación y documentación de los parámetros.
+    Utiliza Enums para una validación de parámetros de filtro más estricta.
     """
-    print(f"--- [PRODUCTS] Solicitud de lista de productos. Página: {page}, Tamaño: {page_size}, Búsqueda: '{search}' ---")
-    
+    # --- INICIO DE LA CORRECCIÓN ---
+    # Se pasan TODOS los parámetros de filtro recibidos a la capa de servicio.
     result = await product_service.get_products_with_filters_and_pagination(
-        db=db, search=search, brand=brand, product_type=product_type, page=page, page_size=page_size
+        db=db,
+        search=search,
+        brand=brand,
+        category=product_category,
+        product_type=product_type,
+        shape=shape,
+        page=page,
+        page_size=page_size
     )
-
-    # Se usa .get() como una capa extra de seguridad para los logs.
-    total = result.get("total_count", 0)
-    items_count = len(result.get("items", []))
-    print(f"✅ Devolviendo {items_count} productos de un total de {total}.")
-
-    # El 'return result' funciona porque el servicio ya devuelve un diccionario
-    # con las claves 'total_count' y 'items', que coinciden con nuestro response_model.
+    # --- FIN DE LA CORRECCIÓN ---
     return result
 
 
@@ -111,9 +114,7 @@ async def get_product_by_sku_route(
     db: AsyncIOMotorDatabase = Depends(get_db),
     _user: dict = Depends(role_checker(UserRole.all_roles()))
 ):
-    """
-    Obtiene un producto específico. El servicio maneja el caso de no encontrarlo.
-    """
+    """Obtiene los detalles completos de un producto específico por su SKU."""
     product = await product_service.get_product_by_sku(db, sku)
     if not product:
         raise HTTPException(
@@ -134,9 +135,7 @@ async def update_product_route(
     db: AsyncIOMotorDatabase = Depends(get_db),
     _user: dict = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER]))
 ):
-    """
-    Actualiza un producto. El servicio maneja el caso de no encontrarlo.
-    """
+    """Actualiza la información de un producto existente por su SKU."""
     updated_product = await product_service.update_product_by_sku(db, sku, product_data)
     if not updated_product:
         raise HTTPException(
@@ -156,9 +155,7 @@ async def deactivate_product_route(
     db: AsyncIOMotorDatabase = Depends(get_db),
     _user: dict = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN]))
 ):
-    """
-    Desactiva un producto. El servicio maneja el caso de no encontrarlo.
-    """
+    """Realiza un borrado lógico de un producto, marcándolo como inactivo."""
     success = await product_service.deactivate_product_by_sku(db, sku)
     if not success:
         raise HTTPException(
@@ -171,20 +168,27 @@ async def deactivate_product_route(
 @router.post(
     "/catalog",
     summary="Generar Catálogo de Productos en PDF",
-    response_class=Response
+    response_class=Response,
+    # Opcional: define las respuestas de error para la documentación.
+    responses={
+        200: {"description": "Catálogo PDF generado exitosamente."},
+        404: {"description": "No se encontraron productos para los filtros seleccionados."}
+    }
 )
 async def generate_product_catalog(
     filters: CatalogFilterPayload,
     db: AsyncIOMotorDatabase = Depends(get_db),
     _user: dict = Depends(role_checker(UserRole.all_roles()))
 ):
-    """
-    Genera un catálogo en PDF basado en filtros.
-    """
+    """Genera un catálogo de productos en formato PDF basado en los filtros proporcionados."""
     pdf_bytes = await product_service.generate_catalog_pdf(db, filters)
     if not pdf_bytes:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No se encontraron productos para los filtros seleccionados."
         )
-    return Response(content=pdf_bytes, media_type="application/pdf")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=catalogo_productos.pdf"}
+    )

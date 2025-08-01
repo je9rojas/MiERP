@@ -23,16 +23,25 @@ import { PRODUCT_CATEGORIES, FILTER_TYPES, PRODUCT_SHAPES } from '../../../const
 import { productSchema } from '../../../constants/validationSchemas';
 
 // ==============================================================================
-// SECCIÓN 2: CONSTANTES Y SUB-COMPONENTES AUXILIARES
+// SECCIÓN 2: CONSTANTES Y SUB-COMPONENTES
 // ==============================================================================
 
+/**
+ * @constant {object} initialDimensionsState
+ * Define el estado inicial y vacío para el objeto de dimensiones.
+ * Se usa para inicializar y resetear el formulario, asegurando que todos los campos
+ * de dimensión sean controlados por Formik desde el principio.
+ */
 const initialDimensionsState = { a: '', b: '', c: '', g: '', h: '', f: '' };
 
 /**
  * @component DimensionFields
- * Renderiza dinámicamente los campos de entrada para las dimensiones de un filtro.
- * Se define fuera del componente principal para optimizar el rendimiento, evitando
- * que se recree en cada renderizado de ProductForm.
+ * Renderiza dinámicamente los campos de entrada para las dimensiones de un filtro
+ * basándose en la 'forma' seleccionada.
+ * @param {object} props - Propiedades del componente.
+ * @param {string} props.shape - La forma del filtro seleccionada (ej. 'spin_on', 'panel').
+ * @param {object} props.formik - El objeto de propiedades de Formik, que contiene `values` y `handleChange`.
+ * @returns {JSX.Element} Un fragmento de UI con los campos de dimensión apropiados.
  */
 const DimensionFields = ({ shape, formik }) => {
     const { values, handleChange } = formik;
@@ -54,18 +63,21 @@ const DimensionFields = ({ shape, formik }) => {
 
     return (
         <Grid container spacing={2}>
-            {fieldsToRender.map(field => (
-                <Grid item xs={12} sm={6} md={3} key={field.name}>
-                    <TextField
-                        fullWidth
-                        label={field.label}
-                        name={`dimensions.${field.name}`}
-                        value={values.dimensions[field.name] || ''}
-                        onChange={handleChange}
-                        type={field.type}
-                    />
-                </Grid>
-            ))}
+            {fieldsToRender.map(field => {
+                const fieldName = `dimensions.${field.name}`;
+                return (
+                    <Grid item xs={12} sm={6} md={3} key={field.name}>
+                        <TextField
+                            fullWidth
+                            label={field.label}
+                            name={fieldName}
+                            value={values.dimensions[field.name] || ''}
+                            onChange={handleChange}
+                            type={field.type}
+                        />
+                    </Grid>
+                );
+            })}
         </Grid>
     );
 };
@@ -74,6 +86,15 @@ const DimensionFields = ({ shape, formik }) => {
 // SECCIÓN 3: COMPONENTE PRINCIPAL DEL FORMULARIO
 // ==============================================================================
 
+/**
+ * @component ProductForm
+ * El formulario principal para crear y editar productos.
+ * @param {object} props - Propiedades del componente.
+ * @param {function} props.onSubmit - La función a ejecutar cuando el formulario es enviado y válido.
+ * @param {object} [props.initialData={}] - Los datos iniciales del producto para modo de edición.
+ * @param {boolean} [props.isSubmitting=false] - Estado que indica si el envío está en progreso.
+ * @returns {JSX.Element} Un formulario completo gestionado por Formik.
+ */
 const ProductForm = ({ onSubmit, initialData = {}, isSubmitting = false }) => {
   return (
     <Formik

@@ -1,0 +1,7 @@
+#/MiERP/.gitignore
+# Ignorar node_modules en backend y frontend
+/frontend/node_modules/
+
+# Ignorar archivos .env en la raíz
+.env
+.venv

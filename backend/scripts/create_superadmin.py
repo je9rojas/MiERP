@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#/backend/scripts/create_superadmin.py
 """
 Script para creación manual de superadmin
 Uso solo en casos especiales o recuperación de emergencia

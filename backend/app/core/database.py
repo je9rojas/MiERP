@@ -1,97 +1,111 @@
 # /backend/app/core/database.py
-# CÓDIGO FLEXIBLE Y DEFINITIVO - LISTO PARA COPIAR Y PEGAR
 
-import os
+"""
+Módulo de Gestión de la Base de Datos.
+
+Este archivo es el único responsable de manejar el ciclo de vida de la conexión
+a la base de datos MongoDB. Expone una instancia global 'db' para ser usada
+en el arranque de la aplicación y una dependencia 'get_db' para inyectar
+la sesión de la base de datos en las rutas de la API.
+"""
+
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES
+# ==============================================================================
+
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo.errors import ConnectionFailure
-from pymongo.uri_parser import parse_uri
-from dotenv import load_dotenv
+import logging
 
-# Carga las variables de entorno desde el archivo .env en la raíz del backend
-load_dotenv()
+# Importa el objeto de configuración centralizado, que es la única fuente de verdad.
+from app.core.config import settings
 
+# Obtiene una instancia del logger configurado en main.py
+logger = logging.getLogger(__name__)
 
-# --- LECTURA Y LÓGICA DE CONFIGURACIÓN DE BASE DE DATOS ---
+# ==============================================================================
+# SECCIÓN 2: CLASE DE GESTIÓN DE LA CONEXIÓN
+# ==============================================================================
 
-MONGO_URI = os.getenv("MONGODB_URI")
-# Lee la variable de anulación del nombre de la base de datos.
-# Puede ser None si no está definida en .env
-DB_NAME_OVERRIDE = os.getenv("MONGODB_DATABASE_NAME")
-
-def get_db_name(uri: str, override: str = None) -> str:
+class DatabaseManager:
     """
-    Determina el nombre de la base de datos a usar con una lógica de prioridad:
-    1. Usa el nombre de la variable de anulación (override) si está presente.
-    2. Si no, extrae el nombre de la base de datos de la URI de conexión.
-    3. Si ninguno está disponible, retorna None.
+    Gestiona el cliente y la conexión a la base de datos MongoDB.
+    Sigue el patrón Singleton al ser instanciada una sola vez globalmente.
     """
-    if override:
-        print(f"ℹ️ Usando nombre de base de datos de MONGODB_DATABASE_NAME: '{override}'")
-        return override
-    
-    if not uri:
-        return None
-        
-    try:
-        parsed_uri = parse_uri(uri)
-        db_name_from_uri = parsed_uri.get('database')
-        if db_name_from_uri:
-            print(f"ℹ️ Usando nombre de base de datos extraído de la URI: '{db_name_from_uri}'")
-        return db_name_from_uri
-    except Exception:
-        return None
-
-# Determina el nombre final de la base de datos a usar
-DB_NAME = get_db_name(MONGO_URI, DB_NAME_OVERRIDE)
-
-
-# --- CLASE DE GESTIÓN DE LA BASE DE DATOS ---
-
-class Database:
     _client: AsyncIOMotorClient = None
-    _db: AsyncIOMotorDatabase = None
+    _database: AsyncIOMotorDatabase = None
 
-    async def connect(self):
+    async def connect_to_database(self):
         """
-        Establece la conexión con la base de datos MongoDB.
-        Se llama una sola vez al iniciar la aplicación.
+        Establece la conexión con MongoDB. Se llama una sola vez al iniciar la aplicación.
+        Utiliza la DATABASE_URL del objeto de configuración 'settings'.
         """
-        print("Iniciando conexión a MongoDB...")
-        if not MONGO_URI:
-            raise ValueError("La variable de entorno MONGODB_URI no está configurada o el archivo .env no se encontró.")
+        logger.info("Iniciando conexión con la base de datos MongoDB...")
         
-        if not DB_NAME:
-            raise ValueError(f"No se pudo determinar el nombre de la base de datos. Asegúrate de que MONGODB_DATABASE_NAME esté en tu .env o que la MONGODB_URI incluya el nombre de la base de datos.")
-
-        # `appName` es útil para el monitoreo en MongoDB Atlas
-        self._client = AsyncIOMotorClient(MONGO_URI, appName="MiERP-PRO-Backend")
+        self._client = AsyncIOMotorClient(
+            settings.DATABASE_URL,
+            appName="MiERP-PRO-Backend",
+            serverSelectionTimeoutMS=5000
+        )
         
         try:
+            self._database = self._client.get_default_database()
+            
+            # --- INICIO DE LA CORRECCIÓN ---
+            # Comparamos explícitamente con 'is None' como pide PyMongo.
+            if self._database is None:
+            # --- FIN DE LA CORRECCIÓN ---
+                raise ValueError(
+                    "No se pudo determinar el nombre de la base de datos desde la URI. "
+                    "Asegúrate de que la DATABASE_URL incluye el nombre de la base de datos "
+                    "(ej: ...mongodb.net/mi_base_de_datos?...)."
+                )
+            
             await self._client.admin.command('ping')
-            self._db = self._client[DB_NAME]
-            print(f"✅ Conexión exitosa a MongoDB Atlas. Usando base de datos: '{DB_NAME}'")
+            logger.info(f"Conexión exitosa a MongoDB. Base de datos en uso: '{self._database.name}'")
+        
         except ConnectionFailure as e:
-            print(f"❌ Error de conexión a MongoDB: {e}")
-            await self.close()
+            logger.critical(f"Error de conexión a MongoDB: {e}")
+            await self.close_database_connection()
+            raise
+        except ValueError as e:
+            logger.critical(f"Error de configuración de la base de datos: {e}")
+            await self.close_database_connection()
             raise
 
-    async def close(self):
-        """Cierra la conexión a la base de datos. Se llama al apagar la aplicación."""
+    async def close_database_connection(self):
+        """
+        Cierra la conexión a la base de datos. Se llama al apagar la aplicación.
+        """
         if self._client:
             self._client.close()
-            print("🔌 Conexión a MongoDB cerrada.")
+            logger.info("Conexión a la base de datos MongoDB cerrada.")
 
-    def get_database(self) -> AsyncIOMotorDatabase:
-        """Retorna la instancia de la base de datos conectada."""
-        if self._db is None:
-            raise RuntimeError("La base de datos no está conectada. Asegúrate de llamar a 'db.connect()' al iniciar la aplicación.")
-        return self._db
+    def get_database_session(self) -> AsyncIOMotorDatabase:
+        """
+        Retorna la instancia de la base de datos conectada.
+        """
+        if self._database is None:
+            raise RuntimeError(
+                "La base de datos no está conectada. "
+                "Asegúrate de que el evento de startup se ha completado."
+            )
+        return self._database
 
+# ==============================================================================
+# SECCIÓN 3: INSTANCIA GLOBAL Y DEPENDENCIA DE FASTAPI
+# ==============================================================================
 
-# --- INSTANCIA Y DEPENDENCIA DE FASTAPI ---
+db_manager = DatabaseManager()
 
-db = Database()
+db_manager.connect = db_manager.connect_to_database
+db_manager.close = db_manager.close_database_connection
+db_manager.get_database = db_manager.get_database_session
+
+db = db_manager
 
 async def get_db() -> AsyncIOMotorDatabase:
-    """Dependencia de FastAPI para obtener la instancia de la base de datos en las rutas."""
+    """
+    Dependencia de FastAPI para inyectar la sesión de la base de datos en las rutas.
+    """
     return db.get_database()

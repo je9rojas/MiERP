@@ -1,6 +1,61 @@
-# Ignorar node_modules en backend y frontend
+# ==============================================================================
+# .gitignore para un Proyecto Full-Stack (Python FastAPI + React)
+# ==============================================================================
+
+# -----------------
+# Archivos de Entorno y Secretos
+# ¡NUNCA subas archivos con claves de API, contraseñas o secretos!
+# -----------------
+# Ignora todos los archivos .env en cualquier subdirectorio.
+**/.env
+**/.env.*
+# Excepción: permite archivos .env.example para que sirvan como plantilla.
+!**/.env.example
+
+# -----------------
+# Dependencias y Entornos Virtuales
+# -----------------
+# Entorno virtual de Python
+/backend/.venv/
+/backend/venv/
+
+# Dependencias de Node.js
 /frontend/node_modules/
 
-# Ignorar archivos .env en la raíz
-.env
-.venv
+# -----------------
+# Archivos de Build y Caché
+# -----------------
+# Caché de Python
+**/__pycache__/
+*.pyc
+
+# Directorio de build/dist del frontend
+/frontend/build/
+/frontend/dist/
+
+# -----------------
+# Logs y Reportes
+# -----------------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Reportes de cobertura de tests
+.coverage
+htmlcov/
+
+# -----------------
+# Archivos de Configuración de IDEs y Editores
+# -----------------
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# -----------------
+# Archivos del Sistema Operativo
+# -----------------
+.DS_Store
+Thumbs.db
+._*

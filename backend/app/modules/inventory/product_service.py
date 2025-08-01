@@ -9,25 +9,39 @@ Su responsabilidad es aplicar validaciones, orquestar operaciones y transformar
 los datos del formato de la base de datos al formato de salida de la API (DTO).
 """
 
-# --- SECCIÓN 1: IMPORTACIONES ---
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES
+# ==============================================================================
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from io import BytesIO
 from fastapi import HTTPException, status
+import pprint # Módulo para imprimir diccionarios de forma legible
 
-# Importaciones de la propia aplicación
-from .product_models import ProductCreate, ProductInDB, ProductUpdate, ProductOut, CatalogFilterPayload
+from .product_models import (
+    ProductCreate,
+    ProductInDB,
+    ProductUpdate,
+    ProductOut,
+    ProductOutDetail,
+    CatalogFilterPayload,
+    ProductCategory,
+    FilterType,
+    ProductShape
+)
 from .repositories.product_repository import ProductRepository
 from .catalog_generator import CatalogPDFGenerator
 
+# ==============================================================================
+# SECCIÓN 2: FUNCIONES DEL SERVICIO DE PRODUCTOS
+# ==============================================================================
 
-# --- SECCIÓN 2: FUNCIONES DEL SERVICIO DE PRODUCTOS ---
-
-async def create_product(db: AsyncIOMotorDatabase, product_data: ProductCreate) -> ProductOut:
+async def create_product(db: AsyncIOMotorDatabase, product_data: ProductCreate) -> ProductOutDetail:
     """
     Crea un nuevo producto, asegurando que el SKU no esté duplicado.
+    Devuelve el producto completo y detallado.
     """
     repo = ProductRepository(db)
     
@@ -37,8 +51,6 @@ async def create_product(db: AsyncIOMotorDatabase, product_data: ProductCreate) 
             detail=f"El SKU '{product_data.sku}' ya está registrado."
         )
     
-    # Se utiliza el modelo ProductInDB para crear una instancia completa con los
-    # valores por defecto generados por el servidor (fechas, estado, etc.).
     product_to_db = ProductInDB(**product_data.model_dump())
     product_doc = product_to_db.model_dump(by_alias=True)
     
@@ -51,13 +63,18 @@ async def create_product(db: AsyncIOMotorDatabase, product_data: ProductCreate) 
             detail="Error al recuperar el producto después de la creación."
         )
 
-    # Se devuelve explícitamente un modelo ProductOut, el DTO de salida seguro.
-    return ProductOut(**created_product_doc)
+    return ProductOutDetail.model_validate(created_product_doc)
 
 
 async def get_products_with_filters_and_pagination(
     db: AsyncIOMotorDatabase,
-    search: Optional[str], brand: Optional[str], product_type: Optional[str], page: int, page_size: int,
+    page: int,
+    page_size: int,
+    search: Optional[str],
+    brand: Optional[str],
+    category: Optional[ProductCategory],
+    product_type: Optional[FilterType],
+    shape: Optional[ProductShape],
 ) -> Dict[str, Any]:
     """
     Obtiene una lista paginada y filtrada de productos activos.
@@ -65,48 +82,63 @@ async def get_products_with_filters_and_pagination(
     repo = ProductRepository(db)
     
     query: Dict[str, Any] = {"is_active": True}
+    
     if search:
-        query["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"sku": {"$regex": search, "$options": "i"}}
-        ]
+        search_regex = {"$regex": search, "$options": "i"}
+        query["$or"] = [{"sku": search_regex}, {"name": search_regex}]
     if brand:
         query["brand"] = brand
+    if category:
+        query["category"] = category.value
     if product_type:
-        query["product_type"] = product_type
+        query["product_type"] = product_type.value
+    if shape:
+        query["shape"] = shape.value
         
-    total_count = await repo.count_documents(query)
     skip = (page - 1) * page_size
     
-    product_docs_cursor = repo.collection.find(query).sort("sku", 1).skip(skip).limit(page_size)
-    product_docs = await product_docs_cursor.to_list(length=page_size)
-    
-    # Se convierte explícitamente cada documento al DTO de salida ProductOut.
-    items = [ProductOut(**doc) for doc in product_docs]
+    product_docs = await repo.find_paginated(query, skip, page_size)
+    total_count = await repo.count_documents(query)
 
-    # La respuesta del servicio está alineada con el modelo de respuesta de la API.
+    # --- DETECTIVE #1: INSPECCIONAR DATOS CRUDOS DE MONGODB ---
+    if product_docs:
+        print("\n✅ --- [DETECTIVE #1] DATOS CRUDOS DEL PRIMER PRODUCTO (DESDE MONGO) --- ✅")
+        pprint.pprint(product_docs[0])
+        print("----------------------------------------------------------------------\n")
+    
+    # Esta es la línea donde ocurre la transformación
+    items = [ProductOut.model_validate(doc) for doc in product_docs]
+
+    # --- DETECTIVE #2: INSPECCIONAR DATOS TRANSFORMADOS POR PYDANTIC ---
+    if items:
+        print("\n✅ --- [DETECTIVE #2] DATOS TRANSFORMADOS DEL PRIMER PRODUCTO (PARA ENVIAR) --- ✅")
+        # .model_dump() convierte el objeto Pydantic de nuevo a un diccionario para imprimirlo
+        pprint.pprint(items[0].model_dump())
+        print("--------------------------------------------------------------------------\n")
+
     return {"total_count": total_count, "items": items}
 
 
-async def get_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> Optional[ProductOut]:
+async def get_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> Optional[ProductOutDetail]:
     """
-    Obtiene un único producto por su SKU y lo devuelve en formato de salida.
+    Obtiene un único producto por su SKU y lo devuelve en formato de salida detallado.
     """
     repo = ProductRepository(db)
     product_doc = await repo.find_by_sku(sku)
     if product_doc:
-        return ProductOut(**product_doc)
+        return ProductOutDetail.model_validate(product_doc)
     return None
 
 
-async def update_product_by_sku(db: AsyncIOMotorDatabase, sku: str, product_update_data: ProductUpdate) -> Optional[ProductOut]:
+async def update_product_by_sku(
+    db: AsyncIOMotorDatabase, sku: str, product_update_data: ProductUpdate
+) -> Optional[ProductOutDetail]:
     """
-    Actualiza un producto existente y devuelve la versión actualizada en formato de salida.
+    Actualiza un producto existente y devuelve la versión completa y actualizada.
     """
     repo = ProductRepository(db)
     update_data = product_update_data.model_dump(exclude_unset=True)
     
-    # Si no hay datos para actualizar, no hacemos nada y devolvemos el producto actual.
     if not update_data:
         return await get_product_by_sku(db, sku)
 
@@ -115,7 +147,7 @@ async def update_product_by_sku(db: AsyncIOMotorDatabase, sku: str, product_upda
 
     if matched_count > 0:
         return await get_product_by_sku(db, sku)
-    return None # Ocurre si el SKU no se encontró para actualizar.
+    return None
 
 
 async def deactivate_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> bool:
@@ -136,14 +168,11 @@ async def generate_catalog_pdf(db: AsyncIOMotorDatabase, filters: CatalogFilterP
     
     query: Dict[str, Any] = {"is_active": True}
     if filters.search_term:
-        query["$or"] = [
-            {"name": {"$regex": filters.search_term, "$options": "i"}},
-            {"sku": {"$regex": filters.search_term, "$options": "i"}}
-        ]
+        search_regex = {"$regex": filters.search_term, "$options": "i"}
+        query["$or"] = [{"name": search_regex}, {"sku": search_regex}]
     if filters.product_types:
         query["product_type"] = {"$in": [pt.value for pt in filters.product_types]}
 
-    # Asumiendo que el repositorio tiene un método `find_all` que devuelve una lista de diccionarios.
     product_docs = await repo.find_all(query)
     if not product_docs:
         return None

@@ -8,148 +8,143 @@ Este archivo es el corazón de la API del backend. Sus responsabilidades clave s
 - Establecer middlewares esenciales, con un enfoque principal en la seguridad de
   Cross-Origin Resource Sharing (CORS) para permitir la comunicación con el frontend.
 - Gestionar el ciclo de vida de la aplicación, ejecutando tareas críticas durante el
-  arranque (como la conexión a la base de datos y la inicialización de datos base)
-  y el apagado (cierre de conexiones).
+  arranque (conexión a la base de datos, inicialización de datos) y el apagado.
 - Registrar el router principal de la API con un prefijo versionado.
 """
 
-# --- SECCIÓN 1: IMPORTACIONES ---
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES
+# ==============================================================================
 
-# Importaciones de la librería estándar de Python
-import json
 import logging
-from datetime import datetime
-
-# Importaciones de librerías de terceros
 from fastapi import FastAPI, Depends, HTTPException
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from bson import ObjectId
 
-# Importaciones de la aplicación (Core)
+# Importaciones del núcleo de la aplicación
 from app.core.config import settings
 from app.core.database import db, get_db
-
-# Importaciones de la aplicación (Ensamblador de API)
 from app.api import api_router
 
-# Importaciones de servicios (Solo los necesarios para el ciclo de vida de la app)
+# Importaciones de servicios para el ciclo de vida de la aplicación
 from app.modules.auth import auth_service
 from app.modules.roles import role_service
 
+# ==============================================================================
+# SECCIÓN 2: CONFIGURACIÓN DE LOGGING Y DE LA APLICACIÓN
+# ==============================================================================
 
-# --- SECCIÓN 2: CONFIGURACIÓN AVANZADA Y SOLUCIÓN DE SERIALIZACIÓN ---
-
+# Configura el logging para que muestre información útil en la consola.
 logging.basicConfig(level=logging.INFO, format='%(levelname)s:     %(message)s')
 logger = logging.getLogger(__name__)
 
-
-class CustomJSONResponse(JSONResponse):
-    """
-    Clase de respuesta JSON personalizada para enseñarle a la aplicación cómo
-    serializar tipos de datos complejos que no son nativos de JSON, como ObjectId.
-    """
-    def render(self, content: any) -> bytes:
-        return json.dumps(
-            content,
-            ensure_ascii=False,
-            allow_nan=False,
-            indent=None,
-            separators=(",", ":"),
-            default=self.default_encoder,
-        ).encode("utf-8")
-
-    @staticmethod
-    def default_encoder(obj: any):
-        """Define cómo convertir tipos específicos a formatos serializables."""
-        if isinstance(obj, ObjectId):
-            return str(obj)
-        if isinstance(obj, datetime):
-            return obj.isoformat()
-        raise TypeError(f"El tipo {type(obj).__name__} no es serializable en JSON")
-
-
-# Creación de la instancia principal de la aplicación FastAPI.
+# Crea la instancia principal de la aplicación FastAPI.
+# La configuración (título, versión, etc.) se carga desde el módulo de configuración.
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.PROJECT_VERSION,
     description="API Backend para el sistema de gestión empresarial MiERP PRO.",
+    # Oculta la documentación de la API (Swagger UI, ReDoc) en el entorno de producción.
     docs_url="/api/docs" if settings.ENV == "development" else None,
-    redoc_url="/api/redoc" if settings.ENV == "development" else None,
-    default_response_class=CustomJSONResponse
+    redoc_url="/api/redoc" if settings.ENV == "development" else None
 )
 
 
-# --- SECCIÓN 3: CONFIGURACIÓN DEL MIDDLEWARE DE CORS ---
+# ==============================================================================
+# SECCIÓN 3: MIDDLEWARE DE CORS
+# ==============================================================================
 
+# Configura el middleware de CORS si se han definido orígenes permitidos.
+# Esto es crucial para permitir que el frontend se comunique con esta API.
 if settings.ALLOWED_ORIGINS:
-    logger.info(f"Configurando CORS para los siguientes orígenes: {settings.ALLOWED_ORIGINS}")
+    logger.info(f"Entorno: '{settings.ENV}'. Configurando CORS para los orígenes: {settings.ALLOWED_ORIGINS}")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(origin).strip("/") for origin in settings.ALLOWED_ORIGINS],
+        allow_origins=settings.ALLOWED_ORIGINS,  # Orígenes permitidos leídos desde la configuración
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["*"],  # Permite todos los métodos HTTP (GET, POST, etc.)
+        allow_headers=["*"],  # Permite todas las cabeceras HTTP
     )
 
-
-# --- SECCIÓN 4: EVENTOS DEL CICLO DE VIDA DE LA APLICACIÓN ---
+# ==============================================================================
+# SECCIÓN 4: EVENTOS DEL CICLO DE VIDA DE LA APLICACIÓN
+# ==============================================================================
 
 @app.on_event("startup")
 async def startup_event_handler():
+    """
+    Ejecuta tareas críticas cuando la aplicación se inicia.
+    Esto incluye la conexión a la base de datos y la inicialización de datos base.
+    """
     logger.info("--- Iniciando Proceso de Arranque de la Aplicación ---")
     try:
-        logger.info("Paso 1/4: Conectando a la base de datos MongoDB...")
+        logger.info("Paso 1/3: Conectando a la base de datos MongoDB...")
         await db.connect()
         db_connection = db.get_database()
-        logger.info("Paso 1/4: Conexión al cliente de MongoDB establecida.")
-        logger.info("Paso 2/4: Verificando la conexión con el servidor de la base de datos (ping)...")
+        
+        logger.info("Paso 2/3: Verificando la conexión con el servidor de la base de datos (ping)...")
         await db_connection.command("ping")
-        logger.info("Paso 2/4: Conexión a la base de datos verificada exitosamente. ✅")
-        logger.info("Paso 3/4: Inicializando roles base del sistema...")
+        logger.info("Paso 2/3: Conexión a la base de datos verificada exitosamente. ✅")
+
+        logger.info("Paso 3/3: Inicializando datos base (Roles y Superadmin)...")
         await role_service.initialize_roles(db_connection)
-        logger.info("Paso 3/4: Roles inicializados y/o verificados. ✅")
-        logger.info("Paso 4/4: Verificando/creando usuario superadministrador...")
         await auth_service.create_secure_superadmin(db_connection)
-        logger.info("Paso 4/4: Usuario superadministrador verificado/creado. ✅")
-        logger.info("--- Proceso de Arranque Completado Exitosamente. La Aplicación está Lista. ---")
+        logger.info("Paso 3/3: Datos base inicializados y/o verificados. ✅")
+        
+        logger.info("--- Proceso de Arranque Completado. La Aplicación está Lista. ---")
     except Exception as error:
-        logger.critical(f"❌ ERROR CRÍTICO DURANTE EL ARRANQUE: No se pudo iniciar la aplicación.")
+        logger.critical(f"❌ ERROR CRÍTICO DURANTE EL ARRANQUE: La aplicación no pudo iniciarse.")
         logger.critical(f"Detalle del error: {str(error)}")
+        # Levanta la excepción para que el proceso de la aplicación se detenga.
         raise
 
 @app.on_event("shutdown")
 async def shutdown_event_handler():
-    logger.info("--- Cerrando la conexión a la base de datos... ---")
+    """
+    Ejecuta tareas de limpieza cuando la aplicación se apaga.
+    Principalmente, cierra la conexión con la base de datos.
+    """
+    logger.info("--- Iniciando Proceso de Apagado de la Aplicación ---")
     await db.close()
     logger.info("--- Conexión a la base de datos cerrada exitosamente. ---")
 
 
-# --- SECCIÓN 5: ORGANIZACIÓN Y REGISTRO DE RUTAS DE LA API ---
+# ==============================================================================
+# SECCIÓN 5: REGISTRO DE RUTAS DE LA API
+# ==============================================================================
 
-# Se incluye el router principal de la API (importado desde app.api) en la aplicación,
+# Incluye todas las rutas definidas en el router principal de la API,
 # asignando el prefijo global y versionado "/api/v1".
 app.include_router(api_router, prefix="/api/v1")
-logger.info("Todos los routers de la API v1 han sido registrados exitosamente bajo el prefijo '/api/v1'. ✅")
+logger.info("Routers de la API v1 registrados exitosamente bajo el prefijo '/api/v1'.")
 
 
-# --- SECCIÓN 6: ENDPOINTS GLOBALES (RAÍZ Y VERIFICACIÓN DE SALUD) ---
+# ==============================================================================
+# SECCIÓN 6: ENDPOINTS GLOBALES (RAÍZ Y VERIFICACIÓN DE SALUD)
+# ==============================================================================
 
 @app.get("/", tags=["Sistema"], include_in_schema=False)
 async def read_root():
+    """Endpoint raíz para una verificación básica de que el servicio está en línea."""
     return {"message": f"Bienvenido a la API de {settings.PROJECT_NAME}. El servicio está operativo."}
 
-@app.get("/health", tags=["Sistema"])
+@app.get("/health", tags=["Sistema"], summary="Verifica la salud del servicio")
 async def health_check(database: AsyncIOMotorDatabase = Depends(get_db)):
+    """
+    Endpoint de verificación de salud ('health check').
+    Comprueba el estado de la aplicación y la conexión a la base de datos.
+    Esencial para sistemas de monitoreo y balanceadores de carga.
+    """
     try:
         await database.command("ping")
         database_status = "ok"
-    except Exception as error:
+    except Exception as e:
+        logger.error(f"Error en el Health Check de la base de datos: {e}")
         raise HTTPException(
             status_code=503,
-            detail=f"Servicio no disponible: Error de base de datos - {str(error)}"
+            detail=f"Servicio no disponible: No se pudo conectar a la base de datos."
         )
+    
     return {
         "status": "healthy",
         "environment": settings.ENV,
