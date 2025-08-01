@@ -66,7 +66,7 @@ const ProductListPage = () => {
   const debouncedFilters = useDebounce(filters, 500);
 
   // --- 3.2: Lógica de Obtención y Mutación de Datos ---
-  const { data, isLoading, isFetching, error } = useQuery({
+  const { data: queryData, isLoading, isFetching, error } = useQuery({
     queryKey: ['products', paginationModel, debouncedFilters],
     queryFn: async () => {
       const rawParams = {
@@ -78,10 +78,12 @@ const ProductListPage = () => {
         shape: debouncedFilters.shape,
       };
       const cleanParams = Object.fromEntries(Object.entries(rawParams).filter(([, value]) => value));
-      return getProductsAPI(cleanParams);
+      return await getProductsAPI(cleanParams);
     },
-    keepPreviousData: true, // Recomendado para una mejor experiencia en tablas paginadas
+    placeholderData: (previousData) => previousData,
   });
+
+  const data = useMemo(() => queryData || { items: [], total_count: 0 }, [queryData]);
 
   const { mutate: deactivateProduct, isPending: isDeactivating } = useMutation({
     mutationFn: deactivateProductAPI,
@@ -125,12 +127,14 @@ const ProductListPage = () => {
     { field: 'cost', headerName: 'Costo', type: 'number', width: 100, align: 'right', headerAlign: 'right', valueFormatter: (value) => value != null ? `S/ ${Number(value).toFixed(2)}` : '' },
     { field: 'price', headerName: 'Precio', type: 'number', width: 100, align: 'right', headerAlign: 'right', valueFormatter: (value) => value != null ? `S/ ${Number(value).toFixed(2)}` : '' },
     { field: 'stock_quantity', headerName: 'Stock', type: 'number', width: 90, align: 'center', headerAlign: 'center' },
+    
     { field: 'dimA', headerName: 'A', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.a || '' },
     { field: 'dimB', headerName: 'B', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.b || '' },
     { field: 'dimC', headerName: 'C', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.c || '' },
     { field: 'dimF', headerName: 'F', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.f || '' },
     { field: 'dimG', headerName: 'G', width: 120, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.g || '' },
     { field: 'dimH', headerName: 'H', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.h || '' },
+    
     {
       field: 'actions',
       headerName: 'Acciones',
@@ -163,11 +167,11 @@ const ProductListPage = () => {
           <Box sx={{ flexGrow: 1, width: '100%', mt: 3, height: 'calc(100vh - 380px)' }}>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error.message}</Alert>}
             <DataGrid
-              rows={data?.items || []}
+              rows={data.items}
               columns={columns}
               getRowId={(row) => row._id}
               loading={isLoading || isFetching}
-              rowCount={data?.total_count || 0}
+              rowCount={data.total_count}
               paginationModel={paginationModel}
               onPaginationModelChange={setPaginationModel}
               paginationMode="server"
