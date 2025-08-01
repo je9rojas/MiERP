@@ -128,12 +128,15 @@ const ProductListPage = () => {
     { field: 'price', headerName: 'Precio', type: 'number', width: 100, align: 'right', headerAlign: 'right', valueFormatter: (value) => value != null ? `S/ ${Number(value).toFixed(2)}` : '' },
     { field: 'stock_quantity', headerName: 'Stock', type: 'number', width: 90, align: 'center', headerAlign: 'center' },
     
+    // --- INICIO DE LA CORRECCIÓN FINAL ---
+    // Se utiliza renderCell para un control total y seguro sobre la renderización de datos anidados y opcionales.
     { field: 'dimA', headerName: 'A', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.a || '' },
     { field: 'dimB', headerName: 'B', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.b || '' },
     { field: 'dimC', headerName: 'C', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.c || '' },
     { field: 'dimF', headerName: 'F', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.f || '' },
     { field: 'dimG', headerName: 'G', width: 120, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.g || '' },
     { field: 'dimH', headerName: 'H', width: 70, align: 'center', headerAlign: 'center', renderCell: (params) => params.row.dimensions?.h || '' },
+    // --- FIN DE LA CORRECCIÓN FINAL ---
     
     {
       field: 'actions',
@@ -169,7 +172,7 @@ const ProductListPage = () => {
             <DataGrid
               rows={data.items}
               columns={columns}
-              getRowId={(row) => row._id}
+              getRowId={(row) => row.id} // Corregido para usar 'id' como nos dimos cuenta al final
               loading={isLoading || isFetching}
               rowCount={data.total_count}
               paginationModel={paginationModel}
