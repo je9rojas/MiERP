@@ -33,20 +33,7 @@ export const loginValidationSchema = yup.object({
  * Expresión regular para validar formatos de rosca comunes.
  * Permite formatos como "M20x1.5" o "UNC 1/2-13".
  */
-
-
-const THREAD_FORMAT_REGEX = new RegExp(
-    // El patrón debe coincidir con la cadena completa, de principio (^) a fin ($).
-    '^(' +
-    // Parte 1: Formato Métrico (ej: M20x1.5, m20 x 1.5)
-    '[Mm]\\d+(\\.\\d+)?\\s*x\\s*\\d+(\\.\\d+)?' +
-    '|' + // O
-    // Parte 2: Formato Imperial/UNF (ej: 3/4-16 UNF, 1/2-20UNF)
-    '\\d+(\\/\\d+)?\\s*-\\s*\\d+\\s*[a-zA-Z]+' +
-    ')$'
-);
-
-
+const THREAD_FORMAT_REGEX = /^[a-z0-9\s/.-]+x[0-9.]+/i;
 
 /**
  * Transforma un valor de entrada en un número o `null`.
@@ -56,7 +43,7 @@ const THREAD_FORMAT_REGEX = new RegExp(
  * @returns {number|null}
  */
 const transformToNumberOrNull = (value, originalValue) => {
-  if (originalValue === null || String(originalValue).trim() === '') {
+  if (originalValue === null || originalValue === '') {
     return null;
   }
   return value;
@@ -136,13 +123,13 @@ export const productFormValidationSchema = yup.object({
     h: yup.number().transform(transformToNumberOrNull).typeError('Debe ser un número.').nullable().min(0, 'No puede ser negativo.'),
     f: yup.number().transform(transformToNumberOrNull).typeError('Debe ser un número.').nullable().min(0, 'No puede ser negativo.'),
     g: yup
-      .mixed()
+      .mixed() // Permite múltiples tipos (string o number).
       .nullable()
       .test(
         'is-valid-thread-format',
         'Debe ser un número o un formato de rosca válido (ej. M20x1.5)',
         (value) => {
-          if (value == null || String(value).trim() === '') return true;
+          if (value == null || String(value).trim() === '') return true; // Permite campos vacíos.
           const isNumeric = !isNaN(Number(value));
           const isThreadFormat = THREAD_FORMAT_REGEX.test(value);
           return isNumeric || isThreadFormat;
@@ -150,40 +137,32 @@ export const productFormValidationSchema = yup.object({
       ),
   }).nullable(),
 
-  // --- Sub-Esquema para Códigos OEM (CORREGIDO) ---
+  // --- Sub-Esquema para Códigos OEM ---
   oem_codes: yup.array().of(
     yup.object().shape({
-        brand: yup.string().trim(),
-        code: yup.string().trim()
-    }).test(
-        'brand-and-code-are-required-together',
-        'La marca y el código son obligatorios si se completa uno de ellos.',
-        (value) => {
-            const { brand, code } = value;
-            const brandExists = brand && brand.length > 0;
-            const codeExists = code && code.length > 0;
-            // La validación es exitosa si (ambos están vacíos) O (ambos existen).
-            return (!brandExists && !codeExists) || (brandExists && codeExists);
-        }
-    )
+      brand: yup.string().when('code', {
+        is: (code) => Boolean(code && code.trim()),
+        then: (schema) => schema.required('La marca es obligatoria si se ingresa un código.'),
+      }),
+      code: yup.string().when('brand', {
+        is: (brand) => Boolean(brand && brand.trim()),
+        then: (schema) => schema.required('El código es obligatorio si se ingresa una marca.'),
+      }),
+    })
   ),
 
-  // --- Sub-Esquema para Referencias Cruzadas (CORREGIDO) ---
+  // --- Sub-Esquema para Referencias Cruzadas ---
   cross_references: yup.array().of(
     yup.object().shape({
-        brand: yup.string().trim(),
-        code: yup.string().trim()
-    }).test(
-        'brand-and-code-are-required-together',
-        'La marca y el código son obligatorios si se completa uno de ellos.',
-        (value) => {
-            const { brand, code } = value;
-            const brandExists = brand && brand.length > 0;
-            const codeExists = code && code.length > 0;
-            // La validación es exitosa si (ambos están vacíos) O (ambos existen).
-            return (!brandExists && !codeExists) || (brandExists && codeExists);
-        }
-    )
+      brand: yup.string().when('code', {
+        is: (code) => Boolean(code && code.trim()),
+        then: (schema) => schema.required('La marca es obligatoria si se ingresa un código.'),
+      }),
+      code: yup.string().when('brand', {
+        is: (brand) => Boolean(brand && brand.trim()),
+        then: (schema) => schema.required('El código es obligatorio si se ingresa una marca.'),
+      }),
+    })
   ),
 
   // --- Sub-Esquema para Aplicaciones de Vehículos ---
@@ -195,9 +174,13 @@ export const productFormValidationSchema = yup.object({
       }),
       model: yup.string(),
       engine: yup.string(),
+      // 'years' será manejado directamente en el componente del formulario,
+      // ya que la validación de un rango es más compleja que el esquema simple.
+      // Si se requiriera, se añadiría una validación personalizada aquí.
     })
   ),
 });
+
 
 // ==============================================================================
 // SECCIÓN 3: ESQUEMAS DEL MÓDULO DE CRM (Ejemplos)

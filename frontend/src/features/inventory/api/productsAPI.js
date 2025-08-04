@@ -8,6 +8,9 @@ import api from '../../../app/axiosConfig';
  * @returns {Promise<object>} - La respuesta de la API con el producto creado.
  */
 export const createProductAPI = async (productData) => {
+  // --- INICIO DEL DETECTIVE #3 ---
+  console.log("🕵️ DETECTIVE #3 [productsAPI]: Datos a punto de ser enviados por Axios:", productData);
+  // --- FIN DEL DETECTIVE #3 ---
   const response = await api.post('/products/', productData);
   return response.data;
 };
