@@ -600,6 +600,8 @@ FRONTEND
 /frontend/src/routes/AppRoutes.js
 
 # ---------------------- UTILIDADES ----------------------
+
+/frontend/src/utils/errorUtils.js
 /frontend/src/utils/auth/auth.js
 /frontend/src/utils/auth/roles.js
 

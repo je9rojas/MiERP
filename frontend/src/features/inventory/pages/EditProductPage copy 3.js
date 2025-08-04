@@ -23,8 +23,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import ProductForm from '../components/ProductForm';
 import { getProductBySkuAPI, updateProductAPI } from '../api/productsAPI';
-
-// --- CORRECCIÓN DEFINITIVA: Se usa la ruta relativa correcta para encontrar el archivo ---
 import { formatApiError } from '../../../utils/errorUtils';
 
 // ==============================================================================
@@ -65,6 +63,8 @@ const transformDataForApi = (formValues) => {
             }),
     };
 
+    // Eliminamos campos que no deben enviarse en el payload de actualización,
+    // ya que no forman parte del modelo `ProductUpdate` del backend o son inmutables.
     delete payload.sku;
     delete payload.id;
     delete payload.created_at;

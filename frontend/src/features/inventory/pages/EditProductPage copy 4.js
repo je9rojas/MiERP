@@ -24,8 +24,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ProductForm from '../components/ProductForm';
 import { getProductBySkuAPI, updateProductAPI } from '../api/productsAPI';
 
-// --- CORRECCIÓN DEFINITIVA: Se usa la ruta relativa correcta para encontrar el archivo ---
-import { formatApiError } from '../../../utils/errorUtils';
+// --- CAMBIO CLAVE: Importación con ruta absoluta desde 'src' ---
+import { formatApiError } from 'utils/errorUtils';
 
 // ==============================================================================
 // SECCIÓN 2: LÓGICA DE TRANSFORMACIÓN DE DATOS

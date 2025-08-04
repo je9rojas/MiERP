@@ -1,199 +1,240 @@
-// /frontend/src/features/inventory/components/ProductForm.js
-
 /**
- * @file Componente de formulario compartido, robusto y reutilizable para la creación y edición de productos.
- * Utiliza Formik para la gestión del estado, Yup para la validación de datos en tiempo real,
- * y Material-UI para la interfaz de usuario. Está diseñado para manejar la complejidad
- * de los datos de un producto, incluyendo sub-documentos anidados como el objeto 'dimensions'.
+ * @file Componente de formulario compartido y reutilizable para la creación y edición de productos.
+ *
+ * Arquitectura:
+ * - **Formik:** Gestiona el estado del formulario, el manejo de eventos y el ciclo de vida del envío.
+ * - **Yup:** Proporciona validación de datos en tiempo real a través de un esquema centralizado.
+ * - **Material-UI:** Construye una interfaz de usuario limpia y responsiva.
+ * - **Hook Personalizado (`useProductForm`):** Aísla la lógica de inicialización de valores.
+ * - **Sub-componentes Memoizados:** Descompone la UI en piezas más pequeñas y optimizadas para
+ *   mejorar la legibilidad y el rendimiento.
  */
 
 // ==============================================================================
 // SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Formik, Form, FieldArray } from 'formik';
-import {
-  Box, TextField, Button, Grid, MenuItem, Typography, Divider, IconButton
-} from '@mui/material';
+import { Box, TextField, Button, Grid, MenuItem, Typography, Divider, IconButton } from '@mui/material';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import RemoveCircleOutlineIcon from '@mui/icons-material/RemoveCircleOutline';
 
 import { PRODUCT_CATEGORIES, FILTER_TYPES, PRODUCT_SHAPES } from '../../../constants/productConstants';
-import { productSchema } from '../../../constants/validationSchemas';
+import { productFormValidationSchema } from '../../../constants/validationSchemas';
 
 // ==============================================================================
-// SECCIÓN 2: CONSTANTES Y SUB-COMPONENTES AUXILIARES
+// SECCIÓN 2: DEFINICIONES DE DATOS Y ESTADOS INICIALES
 // ==============================================================================
 
-const initialDimensionsState = { a: '', b: '', c: '', g: '', h: '', f: '' };
+const INITIAL_DIMENSIONS_STATE = { a: '', b: '', c: '', g: '', h: '', f: '' };
+const INITIAL_REFERENCE_STATE = { brand: '', code: '' };
+const INITIAL_APPLICATION_STATE = { brand: '', model: '', year_from: '', year_to: '', engine: '' };
 
-const DimensionFields = ({ shape, formik }) => {
-    const { values, handleChange } = formik;
+const DIMENSION_FIELD_DEFINITIONS = {
+    panel: [ { name: 'a', label: 'Largo (A) mm' }, { name: 'b', label: 'Ancho (B) mm' }, { name: 'h', label: 'Alto (H) mm' } ],
+    round: [ { name: 'a', label: 'Diámetro Ext. (A) mm' }, { name: 'b', label: 'Diámetro Int. (B) mm' }, { name: 'h', label: 'Altura (H) mm' } ],
+    oval: [ { name: 'a', label: 'Largo Ext. (A) mm' }, { name: 'b', label: 'Ancho Ext. (B) mm' }, { name: 'h', label: 'Altura (H) mm' } ],
+    cartridge: [ { name: 'a', label: 'Diámetro Ext. (A) mm' }, { name: 'b', label: 'Diámetro Int. Sup. (B) mm' }, { name: 'c', label: 'Diámetro Int. Inf. (C) mm' }, { name: 'h', label: 'Altura (H) mm' } ],
+    spin_on: [ { name: 'h', label: 'Altura Total (H) mm' }, { name: 'g', label: 'Rosca (G)', type: 'text' }, { name: 'a', label: 'Ø Cuerpo (A) mm' }, { name: 'b', label: 'Ø Ext. Junta (B) mm' }, { name: 'c', label: 'Ø Int. Junta (C) mm' } ],
+    in_line_diesel: [ { name: 'a', label: 'Largo Total (A) mm' }, { name: 'f', label: 'Tubo Entrada (F) mm' }, { name: 'g', label: 'Tubo Salida (G) mm' }, { name: 'h', label: 'Diámetro Cuerpo (H) mm' } ],
+    in_line_gasoline: [ { name: 'a', label: 'Largo Total (A) mm' }, { name: 'f', label: 'Tubo Entrada (F) mm' }, { name: 'g', label: 'Tubo Salida (G) mm' }, { name: 'h', 'label': 'Diámetro Cuerpo (H) mm' } ],
+};
 
-    const fieldDefinitions = {
-        panel: [ { name: 'a', label: 'Largo (A) mm', type: 'number' }, { name: 'b', label: 'Ancho (B) mm', type: 'number' }, { name: 'h', label: 'Alto (H) mm', type: 'number' } ],
-        round: [ { name: 'a', label: 'Diámetro Ext. (A) mm', type: 'number' }, { name: 'b', label: 'Diámetro Int. (B) mm', type: 'number' }, { name: 'h', label: 'Altura (H) mm', type: 'number' } ],
-        oval: [ { name: 'a', label: 'Largo Ext. (A) mm', type: 'number' }, { name: 'b', label: 'Ancho Ext. (B) mm', type: 'number' }, { name: 'h', label: 'Altura (H) mm', type: 'number' } ],
-        cartridge: [ { name: 'a', label: 'Diámetro Ext. (A) mm', type: 'number' }, { name: 'b', label: 'Diámetro Int. Sup. (B) mm', type: 'number' }, { name: 'c', label: 'Diámetro Int. Inf. (C) mm', type: 'number' }, { name: 'h', label: 'Altura (H) mm', type: 'number' } ],
-        spin_on: [ { name: 'h', label: 'Altura Total (H) mm', type: 'number' }, { name: 'g', label: 'Rosca (G)', type: 'text' }, { name: 'a', label: 'Ø Cuerpo (A) mm', type: 'number' }, { name: 'b', label: 'Ø Ext. Junta (B) mm', type: 'number' }, { name: 'c', label: 'Ø Int. Junta (C) mm', type: 'number' } ],
-        in_line_diesel: [ { name: 'a', label: 'Largo Total (A) mm', type: 'number' }, { name: 'f', label: 'Tubo Entrada (F) mm', type: 'number' }, { name: 'g', label: 'Tubo Salida (G) mm', type: 'number' }, { name: 'h', label: 'Diámetro Cuerpo (H) mm', type: 'number' } ],
-        in_line_gasoline: [ { name: 'a', label: 'Largo Total (A) mm', type: 'number' }, { name: 'f', label: 'Tubo Entrada (F) mm', type: 'number' }, { name: 'g', label: 'Tubo Salida (G) mm', type: 'number' }, { name: 'h', label: 'Diámetro Cuerpo (H) mm', type: 'number' } ],
-    };
+// ==============================================================================
+// SECCIÓN 3: SUB-COMPONENTES DE UI REUTILIZABLES Y MEMOIZADOS
+// ==============================================================================
 
-    const fieldsToRender = fieldDefinitions[shape];
-    if (!fieldsToRender) {
+const DimensionFields = React.memo(({ shape, formikProps }) => {
+    const fieldsToRender = DIMENSION_FIELD_DEFINITIONS[shape];
+
+    const sortedFields = useMemo(() => {
+        if (!fieldsToRender) return [];
+        return [...fieldsToRender].sort((fieldA, fieldB) => fieldA.name.localeCompare(fieldB.name));
+    }, [fieldsToRender]);
+
+    if (!sortedFields || sortedFields.length === 0) {
         return <Typography color="text.secondary" sx={{ fontStyle: 'italic' }}>Seleccione una forma para especificar sus medidas.</Typography>;
     }
 
     return (
         <Grid container spacing={2}>
-            {fieldsToRender.map(field => (
-                <Grid item xs={12} sm={6} md={3} key={field.name}>
-                    <TextField
-                        fullWidth
-                        label={field.label}
-                        name={`dimensions.${field.name}`}
-                        value={values.dimensions[field.name] || ''}
-                        onChange={handleChange}
-                        type={field.type}
-                    />
+            {sortedFields.map(field => (
+                <Grid item xs={12} sm={6} md={4} lg={3} key={field.name}>
+                    <TextField fullWidth name={`dimensions.${field.name}`} label={field.label} type={field.type || 'text'} value={formikProps.values.dimensions[field.name] || ''} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur} error={formikProps.touched.dimensions?.[field.name] && Boolean(formikProps.errors.dimensions?.[field.name])} helperText={formikProps.touched.dimensions?.[field.name] && formikProps.errors.dimensions?.[field.name]} />
                 </Grid>
             ))}
         </Grid>
     );
+});
+
+const ReferenceArraySection = React.memo(({ name, title, fieldLabels, formikProps }) => (
+    <FieldArray name={name}>
+        {({ push, remove }) => (
+            <Box sx={{ mb: 3 }}>
+                <Typography variant="h6" gutterBottom>{title}</Typography>
+                {formikProps.values[name].map((item, index) => (
+                    <Grid container spacing={2} key={index} sx={{ mb: 2, alignItems: 'center' }}>
+                        <Grid item xs={10} sm={5}><TextField fullWidth label={fieldLabels.brand} name={`${name}.${index}.brand`} value={item.brand} onChange={formikProps.handleChange} /></Grid>
+                        <Grid item xs={10} sm={5}><TextField fullWidth label={fieldLabels.code} name={`${name}.${index}.code`} value={item.code} onChange={formikProps.handleChange} /></Grid>
+                        <Grid item xs={2}><IconButton disabled={formikProps.values[name].length <= 1} onClick={() => remove(index)} color="error"><RemoveCircleOutlineIcon /></IconButton></Grid>
+                    </Grid>
+                ))}
+                <Button startIcon={<AddCircleOutlineIcon />} onClick={() => push(INITIAL_REFERENCE_STATE)}>Añadir Fila</Button>
+            </Box>
+        )}
+    </FieldArray>
+));
+
+// ==============================================================================
+// SECCIÓN 4: HOOK PERSONALIZADO PARA LA LÓGICA DEL FORMULARIO
+// ==============================================================================
+
+const useProductForm = ({ initialData, onSubmit }) => {
+    const initialValues = useMemo(() => {
+        const applications = initialData.applications?.length ? initialData.applications.map(app => ({
+            ...app,
+            year_from: app.years?.length ? Math.min(...app.years) : '',
+            year_to: app.years?.length ? Math.max(...app.years) : ''
+          }))
+        : [INITIAL_APPLICATION_STATE];
+
+        return {
+            sku: initialData.sku || '',
+            name: initialData.name || '',
+            brand: initialData.brand || '',
+            category: initialData.category || '',
+            product_type: initialData.product_type || '',
+            shape: initialData.shape || '',
+            description: initialData.description || '',
+            main_image_url: initialData.main_image_url || '',
+            cost: initialData.cost ?? '',
+            price: initialData.price ?? '',
+            stock_quantity: initialData.stock_quantity ?? '',
+            weight_g: initialData.weight_g ?? '',
+            dimensions: initialData.dimensions ? { ...INITIAL_DIMENSIONS_STATE, ...initialData.dimensions } : INITIAL_DIMENSIONS_STATE,
+            oem_codes: initialData.oem_codes?.length ? initialData.oem_codes : [INITIAL_REFERENCE_STATE],
+            cross_references: initialData.cross_references?.length ? initialData.cross_references : [INITIAL_REFERENCE_STATE],
+            applications,
+        };
+    }, [initialData]);
+
+    // La función de envío ahora es simple: delega la lógica al componente padre.
+    const handleFormSubmit = useCallback((formValues) => {
+        onSubmit(formValues);
+    }, [onSubmit]);
+
+    return {
+        initialValues,
+        validationSchema: productFormValidationSchema,
+        handleFormSubmit,
+    };
 };
 
 // ==============================================================================
-// SECCIÓN 3: COMPONENTE PRINCIPAL DEL FORMULARIO
+// SECCIÓN 5: COMPONENTE PRINCIPAL DEL FORMULARIO
 // ==============================================================================
 
 const ProductForm = ({ onSubmit, initialData = {}, isSubmitting = false }) => {
-  return (
-    <Formik
-      initialValues={{
-        sku: initialData.sku || '',
-        name: initialData.name || '',
-        brand: initialData.brand || '',
-        category: initialData.category || '',
-        product_type: initialData.product_type || '',
-        shape: initialData.shape || '',
-        description: initialData.description || '',
-        main_image_url: initialData.main_image_url || '',
-        cost: initialData.cost ?? 0,
-        price: initialData.price ?? 0,
-        stock_quantity: initialData.stock_quantity ?? 0,
-        points_on_sale: initialData.points_on_sale ?? 0,
-        weight_g: initialData.weight_g ?? '',
-        dimensions: initialData.dimensions ? { ...initialDimensionsState, ...initialData.dimensions } : initialDimensionsState,
-        oem_codes: initialData.oem_codes?.length ? initialData.oem_codes : [{ brand: '', code: '' }],
-        cross_references: initialData.cross_references?.length ? initialData.cross_references : [{ brand: '', code: '' }],
-        applications: initialData.applications?.length
-          ? initialData.applications.map(app => ({
-              brand: app.brand || '',
-              model: app.model || '',
-              year_from: app.years?.length ? Math.min(...app.years) : '',
-              year_to: app.years?.length ? Math.max(...app.years) : '',
-              engine: app.engine || ''
-            }))
-          : [{ brand: '', model: '', year_from: '', year_to: '', engine: '' }],
-      }}
-      validationSchema={productSchema}
-      enableReinitialize
-      onSubmit={(values) => {
-        const cleanedDimensions = Object.fromEntries(
-            Object.entries(values.dimensions).filter(([, value]) => value !== null && String(value).trim() !== '')
-        );
+    const { initialValues, validationSchema, handleFormSubmit } = useProductForm({ initialData, onSubmit });
 
-        const dataToSend = {
-          ...values,
-          cost: parseFloat(String(values.cost)) || 0,
-          price: parseFloat(String(values.price)) || 0,
-          stock_quantity: parseInt(String(values.stock_quantity), 10) || 0,
-          points_on_sale: String(values.points_on_sale).trim() === '' ? 0.0 : parseFloat(String(values.points_on_sale)),
-          weight_g: String(values.weight_g).trim() === '' ? null : parseFloat(String(values.weight_g)),
-          dimensions: Object.keys(cleanedDimensions).length > 0 ? cleanedDimensions : null,
-          oem_codes: values.oem_codes.filter(oem => oem.brand.trim() || oem.code.trim()),
-          cross_references: values.cross_references.filter(ref => ref.brand.trim() || ref.code.trim()),
-          applications: values.applications
-            .filter(app => app.brand && app.brand.trim() !== '')
-            .map(app => {
-              const startYear = parseInt(app.year_from, 10);
-              const endYear = parseInt(app.year_to, 10);
-              const years = [];
-              if (!isNaN(startYear) && !isNaN(endYear) && startYear <= endYear) {
-                for (let year = startYear; year <= endYear; year++) {
-                  years.push(year);
-                }
-              } else if (!isNaN(startYear)) {
-                years.push(startYear);
-              }
-              return {
-                brand: app.brand.trim(),
-                model: app.model?.trim() || null,
-                years: years,
-                engine: app.engine?.trim() || null
-              };
-            }),
-        };
+    return (
+        <Formik
+            initialValues={initialValues}
+            validationSchema={validationSchema}
+            onSubmit={handleFormSubmit}
+            enableReinitialize
+        >
+            {(formikProps) => (
+                <Form noValidate>
+                    <Typography variant="h6" gutterBottom>Información Principal</Typography>
+                    <Grid container spacing={2} sx={{ mb: 3 }}>
+                        <Grid item xs={12} sm={4}><TextField fullWidth required name="sku" label="SKU / Código" value={formikProps.values.sku} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur} error={formikProps.touched.sku && Boolean(formikProps.errors.sku)} helperText={formikProps.touched.sku && formikProps.errors.sku} disabled={!!initialData.sku} /></Grid>
+                        <Grid item xs={12} sm={8}><TextField fullWidth required name="name" label="Nombre del Producto" value={formikProps.values.name} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur} error={formikProps.touched.name && Boolean(formikProps.errors.name)} helperText={formikProps.touched.name && formikProps.errors.name} /></Grid>
+                        <Grid item xs={12}><TextField fullWidth required name="brand" label="Marca" value={formikProps.values.brand} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur} error={formikProps.touched.brand && Boolean(formikProps.errors.brand)} helperText={formikProps.touched.brand && formikProps.errors.brand} /></Grid>
+                        <Grid item xs={12}><TextField fullWidth name="main_image_url" label="URL de la Imagen Principal" value={formikProps.values.main_image_url} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur} error={formikProps.touched.main_image_url && Boolean(formikProps.errors.main_image_url)} helperText={formikProps.touched.main_image_url && formikProps.errors.main_image_url} placeholder="https://ejemplo.com/imagen.jpg" /></Grid>
+                        <Grid item xs={12}>
+                            <Grid container spacing={2}>
+                                <Grid item xs={12} sm={4}>
+                                    <TextField select required fullWidth label="Categoría" name="category" value={formikProps.values.category} onChange={(e) => { const isFilter = e.target.value === 'filter'; formikProps.setFieldValue('category', e.target.value); if (!isFilter) { formikProps.setFieldValue('product_type', 'n_a'); formikProps.setFieldValue('shape', 'n_a'); formikProps.setFieldValue('dimensions', INITIAL_DIMENSIONS_STATE); } }} onBlur={formikProps.handleBlur} error={formikProps.touched.category && Boolean(formikProps.errors.category)} helperText={formikProps.touched.category && formikProps.errors.category}>
+                                        {PRODUCT_CATEGORIES.map(opt => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
+                                    </TextField>
+                                </Grid>
+                                {formikProps.values.category === 'filter' && (
+                                    <>
+                                        <Grid item xs={12} sm={4}>
+                                            <TextField select required fullWidth label="Tipo de Filtro" name="product_type" value={formikProps.values.product_type} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur} error={formikProps.touched.product_type && Boolean(formikProps.errors.product_type)} helperText={formikProps.touched.product_type && formikProps.errors.product_type}>
+                                                {FILTER_TYPES.map(opt => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
+                                            </TextField>
+                                        </Grid>
+                                        <Grid item xs={12} sm={4}>
+                                            <TextField select fullWidth label="Forma" name="shape" value={formikProps.values.shape} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur}>
+                                                {PRODUCT_SHAPES.map(opt => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}
+                                            </TextField>
+                                        </Grid>
+                                    </>
+                                )}
+                            </Grid>
+                        </Grid>
+                        <Grid item xs={12}><TextField fullWidth multiline rows={2} label="Descripción y Notas" name="description" value={formikProps.values.description} onChange={formikProps.handleChange} /></Grid>
+                    </Grid>
+                    <Divider sx={{ mb: 3 }} />
 
-        // --- INICIO DEL DETECTIVE #1 ---
-        console.log("🕵️ DETECTIVE #1 [ProductForm]: Datos listos para ser enviados:", dataToSend);
-        // --- FIN DEL DETECTIVE #1 ---
-        
-        onSubmit(dataToSend);
-      }}
-    >
-      {({ values, errors, touched, handleChange, handleBlur, setFieldValue, isValid, dirty }) => (
-        <Form noValidate>
-          <Typography variant="h6" gutterBottom>Información Principal</Typography>
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={4}><TextField fullWidth required name="sku" label="SKU / Código" value={values.sku} onChange={handleChange} onBlur={handleBlur} error={touched.sku && Boolean(errors.sku)} helperText={touched.sku && errors.sku} disabled={!!initialData.sku} /></Grid>
-            <Grid item xs={12} sm={8}><TextField fullWidth required name="name" label="Nombre del Producto" value={values.name} onChange={handleChange} onBlur={handleBlur} error={touched.name && Boolean(errors.name)} helperText={touched.name && errors.name} /></Grid>
-            <Grid item xs={12}><TextField fullWidth required name="brand" label="Marca" value={values.brand} onChange={handleChange} onBlur={handleBlur} error={touched.brand && Boolean(errors.brand)} helperText={touched.brand && errors.brand} /></Grid>
-            <Grid item xs={12}><TextField fullWidth name="main_image_url" label="URL de la Imagen Principal" value={values.main_image_url} onChange={handleChange} onBlur={handleBlur} error={touched.main_image_url && Boolean(errors.main_image_url)} helperText={touched.main_image_url && errors.main_image_url} placeholder="https://ejemplo.com/imagen.jpg" /></Grid>
-            <Grid item xs={12}><Grid container spacing={2}><Grid item xs={12} sm={4}><TextField select required fullWidth label="Categoría" name="category" value={values.category} onChange={(e) => { setFieldValue('category', e.target.value); const isFilter = e.target.value === 'filter'; setFieldValue('product_type', isFilter ? '' : 'n_a'); setFieldValue('shape', isFilter ? '' : 'n_a'); setFieldValue('dimensions', initialDimensionsState); }} onBlur={handleBlur} error={touched.category && Boolean(errors.category)} helperText={touched.category && errors.category}>{PRODUCT_CATEGORIES.map(opt => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}</TextField></Grid>{values.category === 'filter' && (<><Grid item xs={12} sm={4}><TextField select required fullWidth label="Tipo de Filtro" name="product_type" value={values.product_type} onChange={(e) => { setFieldValue('shape', ''); setFieldValue('dimensions', initialDimensionsState); handleChange(e); }} onBlur={handleBlur} error={touched.product_type && Boolean(errors.product_type)} helperText={touched.product_type && errors.product_type}>{FILTER_TYPES.map(opt => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}</TextField></Grid><Grid item xs={12} sm={4}><TextField select fullWidth label="Forma" name="shape" value={values.shape} onChange={handleChange} onBlur={handleBlur}>{PRODUCT_SHAPES.map(opt => <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>)}</TextField></Grid></>)}</Grid></Grid>
-            <Grid item xs={12}><TextField fullWidth multiline rows={2} label="Descripción y Notas" name="description" value={values.description} onChange={handleChange} /></Grid>
-          </Grid>
-          <Divider sx={{ mb: 3 }} />
+                    <Typography variant="h6" sx={{ mb: 2 }}>Datos Comerciales y Logísticos</Typography>
+                    <Grid container spacing={2} sx={{ mb: 3 }}>
+                        <Grid item xs={6} sm={3}><TextField fullWidth required type="text" label="Costo" name="cost" value={formikProps.values.cost} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur} error={formikProps.touched.cost && Boolean(formikProps.errors.cost)} helperText={formikProps.touched.cost && formikProps.errors.cost} /></Grid>
+                        <Grid item xs={6} sm={3}><TextField fullWidth required type="text" label="Precio" name="price" value={formikProps.values.price} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur} error={formikProps.touched.price && Boolean(formikProps.errors.price)} helperText={formikProps.touched.price && formikProps.errors.price} /></Grid>
+                        <Grid item xs={6} sm={3}><TextField fullWidth type="number" label="Stock" name="stock_quantity" value={formikProps.values.stock_quantity} onChange={formikProps.handleChange} /></Grid>
+                        <Grid item xs={6} sm={3}><TextField fullWidth type="text" label="Peso (g)" name="weight_g" value={formikProps.values.weight_g} onChange={formikProps.handleChange} onBlur={formikProps.handleBlur} error={formikProps.touched.weight_g && Boolean(formikProps.errors.weight_g)} helperText={formikProps.touched.weight_g && formikProps.errors.weight_g} /></Grid>
+                    </Grid>
+                    <Divider sx={{ mb: 3 }} />
 
-          <Typography variant="h6" sx={{ mb: 2 }}>Datos Comerciales y Logísticos</Typography>
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            <Grid item xs={6} sm={3}><TextField fullWidth required type="number" label="Costo" name="cost" value={values.cost} onChange={handleChange} onBlur={handleBlur} error={touched.cost && Boolean(errors.cost)} helperText={touched.cost && errors.cost} /></Grid>
-            <Grid item xs={6} sm={3}><TextField fullWidth required type="number" label="Precio" name="price" value={values.price} onChange={handleChange} onBlur={handleBlur} error={touched.price && Boolean(errors.price)} helperText={touched.price && errors.price} /></Grid>
-            <Grid item xs={6} sm={3}><TextField fullWidth type="number" label="Stock" name="stock_quantity" value={values.stock_quantity} onChange={handleChange} /></Grid>
-            <Grid item xs={6} sm={3}><TextField fullWidth type="number" label="Peso (g)" name="weight_g" value={values.weight_g} onChange={handleChange} onBlur={handleBlur} error={touched.weight_g && Boolean(errors.weight_g)} helperText={touched.weight_g && errors.weight_g} /></Grid>
-            <Grid item xs={12} sm={3}><TextField fullWidth type="number" label="Puntos por Venta" name="points_on_sale" value={values.points_on_sale} onChange={handleChange} /></Grid>
-          </Grid>
-          <Divider sx={{ mb: 3 }} />
+                    {formikProps.values.category === 'filter' && (
+                        <>
+                            <Box sx={{ mb: 3 }}>
+                                <Typography variant="h6" gutterBottom>Especificaciones y Medidas</Typography>
+                                <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                                    <DimensionFields shape={formikProps.values.shape} formikProps={formikProps} />
+                                </Box>
+                            </Box>
+                            <Divider sx={{ mb: 3 }} />
+                        </>
+                    )}
 
-          {values.category === 'filter' && (
-            <>
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="h6" gutterBottom>Especificaciones y Medidas</Typography>
-                <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-                  <DimensionFields shape={values.shape} formik={{ values, handleChange }} />
-                </Box>
-              </Box>
-              <Divider sx={{ mb: 3 }} />
-            </>
-          )}
+                    <ReferenceArraySection name="oem_codes" title="Códigos de Equipo Original (OEM)" fieldLabels={{ brand: "Marca Vehículo", code: "Código Original" }} formikProps={formikProps} />
+                    <Divider sx={{ mb: 3 }} />
 
-          <FieldArray name="oem_codes">{({ push, remove }) => (<Box sx={{ mb: 3 }}><Typography variant="h6" gutterBottom>Códigos de Equipo Original (OEM)</Typography>{values.oem_codes.map((oem, index) => (<Grid container spacing={2} key={index} sx={{ mb: 2, alignItems: 'center' }}><Grid item xs={10} sm={5}><TextField fullWidth label="Marca Vehículo" name={`oem_codes.${index}.brand`} value={oem.brand} onChange={handleChange} /></Grid><Grid item xs={10} sm={5}><TextField fullWidth label="Código Original" name={`oem_codes.${index}.code`} value={oem.code} onChange={handleChange} /></Grid><Grid item xs={2}><IconButton disabled={values.oem_codes.length <= 1} onClick={() => remove(index)} color="error"><RemoveCircleOutlineIcon /></IconButton></Grid></Grid>))}<Button startIcon={<AddCircleOutlineIcon />} onClick={() => push({ brand: '', code: '' })}>Añadir Código OEM</Button></Box>)}</FieldArray>
-          <Divider sx={{ mb: 3 }} />
+                    <ReferenceArraySection name="cross_references" title="Referencias Cruzadas (Aftermarket)" fieldLabels={{ brand: "Marca Referencia", code: "Código Referencia" }} formikProps={formikProps} />
+                    <Divider sx={{ mb: 3 }} />
+                    
+                    <Box sx={{ mb: 3 }}>
+                        <Typography variant="h6" gutterBottom>Aplicaciones de Vehículos</Typography>
+                        <FieldArray name="applications">
+                        {({ push, remove }) => (
+                            <>
+                                {formikProps.values.applications.map((app, index) => (
+                                    <Grid container spacing={2} key={index} sx={{ mb: 2, alignItems: 'center' }}>
+                                        <Grid item xs={12} sm={3}><TextField fullWidth label="Marca Vehículo" name={`applications.${index}.brand`} value={app.brand} onChange={formikProps.handleChange} /></Grid>
+                                        <Grid item xs={12} sm={3}><TextField fullWidth label="Modelo" name={`applications.${index}.model`} value={app.model} onChange={formikProps.handleChange} /></Grid>
+                                        <Grid item xs={12} sm={3}><TextField fullWidth label="Motor" name={`applications.${index}.engine`} value={app.engine} onChange={formikProps.handleChange} /></Grid>
+                                        <Grid item xs={5} sm={1}><TextField fullWidth type="number" label="Desde" name={`applications.${index}.year_from`} value={app.year_from} onChange={formikProps.handleChange} /></Grid>
+                                        <Grid item xs={5} sm={1}><TextField fullWidth type="number" label="Hasta" name={`applications.${index}.year_to`} value={app.year_to} onChange={formikProps.handleChange} /></Grid>
+                                        <Grid item xs={2}><IconButton disabled={formikProps.values.applications.length <= 1} onClick={() => remove(index)} color="error"><RemoveCircleOutlineIcon /></IconButton></Grid>
+                                    </Grid>
+                                ))}
+                                <Button startIcon={<AddCircleOutlineIcon />} onClick={() => push(INITIAL_APPLICATION_STATE)}>Añadir Aplicación</Button>
+                            </>
+                        )}
+                        </FieldArray>
+                    </Box>
 
-          <FieldArray name="cross_references">{({ push, remove }) => (<Box sx={{ mb: 3 }}><Typography variant="h6" gutterBottom>Referencias Cruzadas (Aftermarket)</Typography>{values.cross_references.map((ref, index) => (<Grid container spacing={2} key={index} sx={{ mb: 2, alignItems: 'center' }}><Grid item xs={10} sm={5}><TextField fullWidth label="Marca Referencia" name={`cross_references.${index}.brand`} value={ref.brand} onChange={handleChange} /></Grid><Grid item xs={10} sm={5}><TextField fullWidth label="Código Referencia" name={`cross_references.${index}.code`} value={ref.code} onChange={handleChange} /></Grid><Grid item xs={2}><IconButton disabled={values.cross_references.length <= 1} onClick={() => remove(index)} color="error"><RemoveCircleOutlineIcon /></IconButton></Grid></Grid>))}<Button startIcon={<AddCircleOutlineIcon />} onClick={() => push({ brand: '', code: '' })}>Añadir Referencia</Button></Box>)}</FieldArray>
-          <Divider sx={{ mb: 3 }} />
-
-          <FieldArray name="applications">{({ push, remove }) => (<Box sx={{ mb: 3 }}><Typography variant="h6" gutterBottom>Aplicaciones de Vehículos</Typography>{values.applications.map((app, index) => (<Grid container spacing={2} key={index} sx={{ mb: 2, alignItems: 'center' }}><Grid item xs={12} sm={3}><TextField fullWidth label="Marca Vehículo" name={`applications[${index}].brand`} value={app.brand} onChange={handleChange} /></Grid><Grid item xs={12} sm={3}><TextField fullWidth label="Modelo" name={`applications[${index}].model`} value={app.model} onChange={handleChange} /></Grid><Grid item xs={12} sm={3}><TextField fullWidth label="Motor" name={`applications[${index}].engine`} value={app.engine} onChange={handleChange} /></Grid><Grid item xs={4} sm={1}><TextField fullWidth type="number" label="Desde" name={`applications[${index}].year_from`} value={app.year_from} onChange={handleChange} /></Grid><Grid item xs={4} sm={1}><TextField fullWidth type="number" label="Hasta" name={`applications[${index}].year_to`} value={app.year_to} onChange={handleChange} /></Grid><Grid item xs={2}><IconButton disabled={values.applications.length <= 1} onClick={() => remove(index)} color="error"><RemoveCircleOutlineIcon /></IconButton></Grid></Grid>))}<Button startIcon={<AddCircleOutlineIcon />} onClick={() => push({ brand: '', model: '', year_from: '', year_to: '', engine: '' })}>Añadir Aplicación</Button></Box>)}</FieldArray>
-
-          <Button type="submit" fullWidth variant="contained" size="large" sx={{ mt: 3 }} disabled={isSubmitting || !isValid || !dirty}>
-            {isSubmitting ? 'Guardando...' : (initialData.sku ? 'Actualizar Producto' : 'Guardar Producto')}
-          </Button>
-        </Form>
-      )}
-    </Formik>
-  );
+                    <Button type="submit" fullWidth variant="contained" size="large" sx={{ mt: 3 }} disabled={isSubmitting || !formikProps.isValid || !formikProps.dirty}>
+                        {isSubmitting ? 'Guardando...' : (initialData.sku ? 'Actualizar Producto' : 'Guardar Nuevo Producto')}
+                    </Button>
+                </Form>
+            )}
+        </Formik>
+    );
 };
 
 export default ProductForm;
