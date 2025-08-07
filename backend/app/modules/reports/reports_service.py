@@ -10,7 +10,7 @@ servicios generadores específicos (como `CatalogPDFGenerator`) para producir
 los archivos finales (ej. PDF, Excel).
 """
 
-# =-============================================================================
+# ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
@@ -30,37 +30,40 @@ async def generate_product_catalog_pdf(db: AsyncIOMotorDatabase, filters: Catalo
     """
     Orquesta la generación de un catálogo de productos en formato PDF.
 
-    Esta función es flexible y maneja dos casos de uso principales:
-    1.  **Catálogo Personalizado:** Si se proporciona una lista de SKUs, se genera
-        un catálogo exclusivamente con esos productos, ignorando otros filtros.
-    2.  **Catálogo Completo:** Si no se proporcionan SKUs, se genera un catálogo
-        con todos los productos, aplicando opcionalmente los filtros de búsqueda.
+    Implementa una lógica de filtrado jerárquica para soportar múltiples
+    modos de generación:
+    1. Por SKUs específicos.
+    2. Por Tipos de Producto (con búsqueda opcional).
+    3. Completo (con búsqueda opcional).
     """
     product_repo = ProductRepository(db)
-    product_docs: List[Dict[str, Any]]
+    product_docs: List[Dict[str, Any]] = []
 
-    # --- Lógica de Selección de Datos ---
+    # --- Lógica de Selección de Datos con Prioridad ---
+
     if filters.product_skus:
-        # --- CASO 1: Catálogo Personalizado por lista de SKUs ---
-        # Se buscan los productos que coinciden con la lista de SKUs proporcionada.
+        # Prioridad 1: Catálogo Personalizado por lista de SKUs.
         found_docs = await product_repo.find_by_skus(filters.product_skus)
-        
-        # Se preserva el orden original de la lista de SKUs, ya que es el orden
-        # en que el usuario los seleccionó en la interfaz.
         sku_map = {doc['sku']: doc for doc in found_docs}
+        # Se preserva el orden original de la lista de SKUs.
         product_docs = [sku_map[sku] for sku in filters.product_skus if sku in sku_map]
 
     else:
-        # --- CASO 2: Catálogo Completo (con filtros opcionales) ---
+        # Prioridad 2 y 3: Catálogo por Tipo o Completo.
         query: Dict[str, Any] = {"is_active": True}
-        if filters.search_term:
-            search_regex = {"$regex": filters.search_term, "$options": "i"}
-            query["$or"] = [{"name": search_regex}, {"sku": search_regex}]
+
         if filters.product_types:
+            # Filtra por uno o más tipos de producto.
             query["product_type"] = {"$in": [pt.value for pt in filters.product_types]}
         
+        if filters.search_term:
+            # El término de búsqueda se puede combinar con el filtro de tipo,
+            # o se aplica a todo el catálogo si no hay tipos seleccionados.
+            search_regex = {"$regex": filters.search_term, "$options": "i"}
+            query["$or"] = [{"name": search_regex}, {"sku": search_regex}]
+        
         product_docs = await product_repo.find_all(query)
-        # Para el catálogo completo, se ordena alfabéticamente por SKU.
+        # Para catálogos no personalizados, se ordena alfabéticamente por SKU.
         product_docs.sort(key=lambda p: p.get('sku', ''))
 
     if not product_docs:

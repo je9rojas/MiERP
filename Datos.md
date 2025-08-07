@@ -28,6 +28,7 @@ rm package-lock.json
 
 Muestrame la versión final y profesional del codigo absolutamente completo, corregido, seccionado y optimizado con las mejores prácticas sin ninguna abreviaturas ni comentarios que reemplacen el código y ordénalo en secciones lógicas para máxima claridad y mantenibilidad y que sigan el princio Separation of Concerns
 
+toma como referencia mi archivo actual:
 
 Mi codigo está ordenado por secciones así que dame las respuestas por secciones, listame las secciones que están mal y muestrame toda la sección completa sin ninguna abreviaturas ni comentarios que reemplacen el código
 
