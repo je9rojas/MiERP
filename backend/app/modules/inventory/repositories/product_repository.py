@@ -53,19 +53,23 @@ class ProductRepository:
     async def find_all(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Encuentra todos los documentos que coinciden con una consulta, sin paginación.
+        """
+        cursor = self.collection.find(query)
+        return await cursor.to_list(length=None)
 
-        Este método es útil para operaciones que requieren el conjunto de datos completo,
-        como la generación de reportes.
+    async def find_by_skus(self, skus: List[str]) -> List[Dict[str, Any]]:
+        """
+        Encuentra eficientemente todos los productos que coinciden con una lista de SKUs.
 
         Args:
-            query: El diccionario de filtro de MongoDB.
+            skus: Una lista de strings con los SKUs a buscar.
 
         Returns:
-            Una lista de todos los documentos que coinciden con la consulta.
+            Una lista de todos los documentos de productos que coinciden.
         """
-        # CORRECCIÓN: Se reintroduce el método `find_all`.
+        # Se utiliza el operador '$in' de MongoDB para una búsqueda optimizada.
+        query = {"sku": {"$in": skus}}
         cursor = self.collection.find(query)
-        # El argumento length=None asegura que se recuperen todos los documentos del cursor.
         return await cursor.to_list(length=None)
 
     async def find_paginated(self, query: Dict[str, Any], skip: int, page_size: int) -> List[Dict[str, Any]]:

@@ -18,13 +18,13 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import Optional, Dict, Any
 from io import BytesIO
 
-# Modelos
-from app.modules.inventory.product_models import CatalogFilterPayload
+# Modelos específicos para los filtros de este módulo
+from .reports_models import CatalogFilterPayload
 
-# Repositorios
+# Repositorios de otros módulos necesarios para obtener los datos
 from app.modules.inventory.repositories.product_repository import ProductRepository
 
-# Servicios Generadores
+# Servicios Generadores de este módulo
 from .services.catalog_service import CatalogPDFGenerator
 
 # ==============================================================================
