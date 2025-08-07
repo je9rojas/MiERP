@@ -563,11 +563,13 @@ FRONTEND
 
 /frontend/src/app/contexts/AuthContext.js                    # Contexto de autenticación
 
+# ---------------------- Componentes ------------
+
 /frontend/src/components/common/ConfirmationDialog.js
 /frontend/src/components/common/FilterBar.js
 /frontend/src/components/common/PageHeader.js
 /frontend/src/components/common/DataGridToolbar.js
-
+frontend/src/components/common/Logo.js
 
 /frontend/src/components/layout/AuthLayout.js
 /frontend/src/components/layout/DashboardLayout.js

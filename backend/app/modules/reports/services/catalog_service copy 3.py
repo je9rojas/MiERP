@@ -19,7 +19,6 @@ from io import BytesIO
 from typing import List, Dict, Any
 from datetime import datetime
 
-# Importaciones de ReportLab para la estructura del PDF
 from reportlab.platypus import (
     BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle,
     Image, NextPageTemplate, PageBreak
@@ -27,24 +26,19 @@ from reportlab.platypus import (
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
-from reportlab.lib.colors import HexColor, white, black
+from reportlab.lib.colors import HexColor, white, Color
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
-
-# Importaciones para renderizar SVG en ReportLab
-from svglib.svglib import svg2rlg
-from reportlab.graphics import renderPDF
 
 # ==============================================================================
 # SECCIÓN 2: CONSTANTES DE DISEÑO Y PALETA DE COLORES
 # ==============================================================================
 
-PRIMARY_GREEN = HexColor("#1E8449")
-ACCENT_GREEN = HexColor("#2ECC71")
-DARK_TEXT = HexColor("#000000")
-MEDIUM_GRAY = HexColor("#D5D8DC")
-LIGHT_GRAY_BG = HexColor("#F4F6F7")
-
+PRIMARY_COLOR = HexColor("#1A237E")
+DARK_TEXT = HexColor("#212121")
+MEDIUM_GRAY = HexColor("#BDBDBD")
+LIGHT_GRAY_BG = HexColor("#F5F5F5")
+WATERMARK_COLOR = Color(0.8, 0.8, 0.8, alpha=0.3) # Gris claro con 30% de opacidad
 
 # ==============================================================================
 # SECCIÓN 3: CLASE PRINCIPAL DEL GENERADOR DE PDF
@@ -74,9 +68,9 @@ class CatalogPDFGenerator:
         """Define y registra los estilos de párrafo personalizados para el catálogo."""
         self.styles.add(ParagraphStyle(name='SKU', fontName='Helvetica-Bold', fontSize=16, textColor=DARK_TEXT, alignment=TA_LEFT, leading=18))
         self.styles.add(ParagraphStyle(name='SectionTitle', fontName='Helvetica-Bold', fontSize=7, textColor=DARK_TEXT, alignment=TA_LEFT, spaceAfter=2, leading=9))
-        self.styles.add(ParagraphStyle(name='CodeText', fontName='Helvetica', fontSize=7, textColor=HexColor("#34495E"), alignment=TA_LEFT, leading=9))
+        self.styles.add(ParagraphStyle(name='CodeText', fontName='Helvetica', fontSize=7, textColor=HexColor("#424242"), alignment=TA_LEFT, leading=9))
         self.styles.add(ParagraphStyle(name='SpecText', fontName='Helvetica', fontSize=8, textColor=DARK_TEXT, alignment=TA_CENTER, leading=10))
-        self.styles.add(ParagraphStyle(name='CommercialText', fontName='Helvetica-Bold', fontSize=8, textColor=PRIMARY_GREEN, alignment=TA_CENTER, leading=10))
+        self.styles.add(ParagraphStyle(name='CommercialText', fontName='Helvetica-Bold', fontSize=8, textColor=PRIMARY_COLOR, alignment=TA_CENTER, leading=10))
         self.styles.add(ParagraphStyle(name='PlaceholderText', fontName='Helvetica-Oblique', fontSize=10, textColor=MEDIUM_GRAY, alignment=TA_CENTER))
 
     def _setup_page_templates(self):
@@ -96,64 +90,70 @@ class CatalogPDFGenerator:
 
     def _build_story(self):
         """Construye la secuencia de "Flowables" que componen el contenido del PDF."""
+        # Se inicia en la plantilla de portada, luego se cambia a la de contenido.
         self.story.append(NextPageTemplate('Content'))
         self.story.append(PageBreak())
         product_grid = self._create_product_grid()
         self.story.append(product_grid)
 
     def _draw_cover_page(self, canvas: canvas.Canvas, doc):
-        """Dibuja la página de portada profesional y minimalista del catálogo."""
+        """Dibuja la página de portada profesional del catálogo."""
         canvas.saveState()
         width, height = letter
-        
-        canvas.setFillColor(PRIMARY_GREEN)
-        canvas.rect(0, 0, 0.5 * inch, height, stroke=0, fill=1)
 
-        # --- Logo SVG ---
-        # El logo se lee desde un archivo SVG, se convierte a un objeto de ReportLab y se dibuja.
-        logo_path = os.path.join('static', 'svg', 'logo.svg')
+        # --- Logo ---
+        logo_path = os.path.join('static', 'logos', 'logo.png')
         if os.path.exists(logo_path):
-            drawing = svg2rlg(logo_path)
-            
-            # Escalar el logo si es necesario (ej: 1.5 veces su tamaño original)
-            scale_factor = 1.5
-            drawing.width = drawing.minWidth() * scale_factor
-            drawing.height = drawing.height * scale_factor
-            drawing.scale(scale_factor, scale_factor)
-            
-            # Dibujar en el canvas
-            renderPDF.draw(drawing, canvas, width / 2 - (drawing.width / 2) + (0.25 * inch), height - 2.5 * inch)
-        
-        canvas.setFont('Helvetica-Bold', 48)
-        canvas.setFillColor(DARK_TEXT)
-        canvas.drawCentredString(width / 2 + 0.25 * inch, height / 2 + 0.5 * inch, "Catálogo de Productos")
-        
-        canvas.setFont('Helvetica', 28)
-        canvas.setFillColor(PRIMARY_GREEN)
-        canvas.drawCentredString(width / 2 + 0.25 * inch, height / 2, "DIROGSA")
+            logo = Image(logo_path, width=2.5*inch, height=0.625*inch)
+            logo.drawOn(canvas, width / 2 - (2.5*inch / 2), height - 2*inch)
 
-        generation_date = datetime.now().strftime("%B %Y").capitalize()
-        canvas.setFont('Helvetica', 14)
-        canvas.setFillColor(HexColor("#5D6D7E"))
-        canvas.drawCentredString(width / 2 + 0.25 * inch, height / 2 - 1 * inch, f"Edición: {generation_date}")
+        # --- Títulos ---
+        canvas.setFont('Helvetica-Bold', 36)
+        canvas.setFillColor(DARK_TEXT)
+        canvas.drawCentredString(width / 2, height / 2 + 1*inch, "Catálogo de Productos")
+        
+        canvas.setFont('Helvetica', 24)
+        canvas.setFillColor(PRIMARY_COLOR)
+        canvas.drawCentredString(width / 2, height / 2, "DIROGSA")
+
+        # --- Fecha de Generación ---
+        generation_date = datetime.now().strftime("%m/%Y")
+        canvas.setFont('Helvetica', 12)
+        canvas.setFillColor(MEDIUM_GRAY)
+        canvas.drawCentredString(width / 2, height / 2 - 1*inch, f"Edición: {generation_date}")
         
         canvas.restoreState()
 
-    def _draw_content_page_layout(self, canvas: canvas.Canvas, doc):
-        """Dibuja la cabecera y el pie de página en cada página de contenido."""
+    def _draw_watermark(self, canvas: canvas.Canvas, doc):
+        """Dibuja un sello de agua diagonal en la página."""
         canvas.saveState()
-        canvas.setFillColor(PRIMARY_GREEN)
+        canvas.setFillColor(WATERMARK_COLOR)
+        canvas.setFont('Helvetica-Bold', 60)
+        canvas.rotate(45)
+        # Se dibuja en una posición calculada para que aparezca centrado diagonalmente
+        canvas.drawCentredString(11 * inch / 2, 1 * inch, "DIROGSA")
+        canvas.restoreState()
+
+    def _draw_content_page_layout(self, canvas: canvas.Canvas, doc):
+        """Dibuja la cabecera, pie de página y sello de agua en cada página de contenido."""
+        self._draw_watermark(canvas, doc) # Se dibuja primero para que quede de fondo
+        
+        canvas.saveState()
+        # Cabecera
+        canvas.setFillColor(PRIMARY_COLOR)
         canvas.rect(doc.leftMargin, letter[1] - 0.5*inch, doc.width, 36, stroke=0, fill=1)
         canvas.setFillColor(white)
         canvas.setFont('Helvetica-Bold', 16)
         canvas.drawString(doc.leftMargin + 15, letter[1] - 0.5*inch + 12, "Catálogo de Productos DIROGSA")
         
+        # Pie de página
         canvas.setFillColor(DARK_TEXT)
         canvas.setFont('Helvetica', 9)
         canvas.drawRightString(letter[0] - doc.rightMargin, doc.bottomMargin - 20, f"Página {doc.page}")
         canvas.restoreState()
         
     def _create_product_cell(self, product: Dict[str, Any]) -> Table:
+        """Crea la tabla contenedora para la celda de un único producto."""
         sku_paragraph = Paragraph(product.get('sku', 'N/A'), self.styles['SKU'])
         image_flowable = self._get_image_flowable(product)
         specs_paragraph = self._get_specifications_paragraph(product)
@@ -177,6 +177,7 @@ class CatalogPDFGenerator:
         return container_table
 
     def _create_product_grid(self) -> Table:
+        """Organiza las celdas de producto en la cuadrícula principal del catálogo."""
         product_cells = [self._create_product_cell(p) for p in self.products]
         
         num_columns = 2
@@ -192,6 +193,7 @@ class CatalogPDFGenerator:
         return grid
 
     def _get_image_flowable(self, product: Dict[str, Any]):
+        """Busca, descarga si es necesario, y prepara el objeto `Image` para un producto."""
         img_size = 1.2 * inch
         sku = product.get('sku')
         image_url = product.get('main_image_url')
@@ -213,10 +215,12 @@ class CatalogPDFGenerator:
         return Paragraph("Sin Imagen", self.styles['PlaceholderText'])
 
     def _get_specifications_paragraph(self, product: Dict[str, Any]):
+        """Formatea las dimensiones del producto en un párrafo, mostrando enteros sin decimales."""
         dimensions = product.get('dimensions') or {}
         spec_parts = []
         for key, value in dimensions.items():
             if value is not None:
+                # CORRECCIÓN: Lógica para formatear enteros sin el .0
                 if isinstance(value, float) and value.is_integer():
                     formatted_value = int(value)
                 else:
@@ -229,6 +233,7 @@ class CatalogPDFGenerator:
         return Paragraph(" | ".join(spec_parts), self.styles['SpecText'])
     
     def _get_codes_flowables(self, title: str, codes: List[Dict[str, Any]]):
+        """Crea una lista de `Flowables` para una sección de códigos (ej. referencias)."""
         valid_codes = [c for c in (codes or []) if c.get('code')]
         if not valid_codes:
             return Spacer(1, 1)
@@ -237,6 +242,7 @@ class CatalogPDFGenerator:
         return [Paragraph(title, self.styles['SectionTitle']), Paragraph(text, self.styles['CodeText'])]
 
     def _get_applications_flowable_as_table(self, product: Dict[str, Any]):
+        """Formatea las aplicaciones en una tabla de dos columnas para máxima legibilidad."""
         apps = product.get('applications', [])
         if not apps:
             return Spacer(1, 1)
@@ -258,6 +264,7 @@ class CatalogPDFGenerator:
         return [Paragraph("Aplicaciones:", self.styles['SectionTitle']), app_table]
 
     def _get_commercial_info_paragraph(self, product: Dict[str, Any]):
+        """Formatea la información comercial sensible en un párrafo horizontal."""
         info_parts = [
             f"<b>Costo:</b> S/ {product.get('average_cost', 0.0):.2f}",
             f"<b>Precio:</b> S/ {product.get('price', 0.0):.2f}",

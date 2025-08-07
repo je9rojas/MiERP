@@ -15,48 +15,13 @@ import { PRODUCT_CATEGORIES, FILTER_TYPES, PRODUCT_SHAPES } from '../../../../co
 const INITIAL_DIMENSIONS_STATE = { a: '', b: '', c: '', g: '', h: '', f: '' };
 
 const DIMENSION_FIELD_DEFINITIONS = {
-    panel: [
-        { name: 'a', label: 'Largo (A) mm' },
-        { name: 'b', label: 'Ancho (B) mm' },
-        { name: 'h', label: 'Alto (H) mm' }
-    ],
-    // CORRECCIÓN: Se añade el campo 'c' para los filtros redondos.
-    round: [
-        { name: 'a', label: 'Diámetro Ext. (A) mm' },
-        { name: 'b', label: 'Diámetro Int. Sup. (B) mm' },
-        { name: 'c', label: 'Diámetro Int. Inf. (C) mm' },
-        { name: 'h', label: 'Altura (H) mm' }
-    ],
-    oval: [
-        { name: 'a', label: 'Largo Ext. (A) mm' },
-        { name: 'b', label: 'Ancho Ext. (B) mm' },
-        { name: 'h', label: 'Altura (H) mm' }
-    ],
-    cartridge: [
-        { name: 'a', label: 'Diámetro Ext. (A) mm' },
-        { name: 'b', label: 'Diámetro Int. Sup. (B) mm' },
-        { name: 'c', label: 'Diámetro Int. Inf. (C) mm' },
-        { name: 'h', label: 'Altura (H) mm' }
-    ],
-    spin_on: [
-        { name: 'h', label: 'Altura Total (H) mm' },
-        { name: 'g', label: 'Rosca (G)', type: 'text' },
-        { name: 'a', label: 'Ø Cuerpo (A) mm' },
-        { name: 'b', label: 'Ø Ext. Junta (B) mm' },
-        { name: 'c', label: 'Ø Int. Junta (C) mm' }
-    ],
-    in_line_diesel: [
-        { name: 'a', label: 'Largo Total (A) mm' },
-        { name: 'f', label: 'Tubo Entrada (F) mm' },
-        { name: 'g', label: 'Tubo Salida (G) mm' },
-        { name: 'h', label: 'Diámetro Cuerpo (H) mm' }
-    ],
-    in_line_gasoline: [
-        { name: 'a', label: 'Largo Total (A) mm' },
-        { name: 'f', label: 'Tubo Entrada (F) mm' },
-        { name: 'g', label: 'Tubo Salida (G) mm' },
-        { name: 'h', label: 'Diámetro Cuerpo (H) mm' }
-    ],
+    panel: [ { name: 'a', label: 'Largo (A) mm' }, { name: 'b', label: 'Ancho (B) mm' }, { name: 'h', label: 'Alto (H) mm' } ],
+    round: [ { name: 'a', label: 'Diámetro Ext. (A) mm' }, { name: 'b', label: 'Diámetro Int. (B) mm' }, { name: 'h', label: 'Altura (H) mm' } ],
+    oval: [ { name: 'a', label: 'Largo Ext. (A) mm' }, { name: 'b', label: 'Ancho Ext. (B) mm' }, { name: 'h', label: 'Altura (H) mm' } ],
+    cartridge: [ { name: 'a', label: 'Diámetro Ext. (A) mm' }, { name: 'b', label: 'Diámetro Int. Sup. (B) mm' }, { name: 'c', label: 'Diámetro Int. Inf. (C) mm' }, { name: 'h', label: 'Altura (H) mm' } ],
+    spin_on: [ { name: 'h', label: 'Altura Total (H) mm' }, { name: 'g', label: 'Rosca (G)', type: 'text' }, { name: 'a', label: 'Ø Cuerpo (A) mm' }, { name: 'b', label: 'Ø Ext. Junta (B) mm' }, { name: 'c', label: 'Ø Int. Junta (C) mm' } ],
+    in_line_diesel: [ { name: 'a', label: 'Largo Total (A) mm' }, { name: 'f', label: 'Tubo Entrada (F) mm' }, { name: 'g', label: 'Tubo Salida (G) mm' }, { name: 'h', label: 'Diámetro Cuerpo (H) mm' } ],
+    in_line_gasoline: [ { name: 'a', label: 'Largo Total (A) mm' }, { name: 'f', label: 'Tubo Entrada (F) mm' }, { name: 'g', label: 'Tubo Salida (G) mm' }, { name: 'h', label: 'Diámetro Cuerpo (H) mm' } ],
 };
 
 // Sub-componente memoizado solo para las dimensiones
@@ -96,6 +61,7 @@ const ProductSpecificationsSection = ({ formikProps }) => {
     const handleCategoryChange = (event) => {
         const newCategory = event.target.value;
         setFieldValue('category', newCategory);
+        // Si la nueva categoría no es 'filtro', limpiar los campos dependientes.
         if (newCategory !== 'filter') {
             setFieldValue('product_type', 'n_a');
             setFieldValue('shape', '');

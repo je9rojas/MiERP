@@ -22,11 +22,24 @@ import { getProductsAPI, deactivateProductAPI } from '../api/productsAPI';
 import useDebounce from '../../../hooks/useDebounce';
 import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
 import DataGridToolbar from '../../../components/common/DataGridToolbar';
-import InventoryLotsModal from '../components/InventoryLotsModal'; // <--- IMPORTACIÓN DEL NUEVO COMPONENTE
+import InventoryLotsModal from '../components/InventoryLotsModal';
 
-// SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
+// SECCIÓN 2: FUNCIONES DE UTILIDAD
+/**
+ * Formatea un valor numérico como una cadena de moneda en Soles (S/).
+ * @param {number | null | undefined} value - El valor numérico a formatear.
+ * @returns {string} La cadena formateada, ej: "S/ 120.50".
+ */
+const formatCurrency = (value) => {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    return `S/ ${Number(value).toFixed(2)}`;
+};
+
+// SECCIÓN 3: COMPONENTE PRINCIPAL DE LA PÁGINA
 const ProductListPage = () => {
-    // Sub-sección 2.1: Hooks y Estado Local
+    // Sub-sección 3.1: Hooks y Estado Local
     const navigate = useNavigate();
     const { enqueueSnackbar } = useSnackbar();
     const queryClient = useQueryClient();
@@ -38,7 +51,7 @@ const ProductListPage = () => {
 
     const debouncedSearchTerm = useDebounce(filters.search, 500);
 
-    // Sub-sección 2.2: Lógica de Fetching y Mutaciones de Datos (react-query)
+    // Sub-sección 3.2: Lógica de Fetching y Mutaciones (react-query)
     const { data, isLoading, isFetching, error } = useQuery({
         queryKey: ['products', paginationModel, debouncedSearchTerm],
         queryFn: () => getProductsAPI({
@@ -61,7 +74,7 @@ const ProductListPage = () => {
         },
     });
 
-    // Sub-sección 2.3: Manejadores de Eventos y Callbacks
+    // Sub-sección 3.3: Manejadores de Eventos y Callbacks
     const handleFilterChange = useCallback((event) => {
         setFilters(prev => ({ ...prev, search: event.target.value }));
         setPaginationModel(prev => ({ ...prev, page: 0 }));
@@ -74,14 +87,30 @@ const ProductListPage = () => {
         }
     }, [productToDeactivate, deactivateProduct]);
 
-    // Sub-sección 2.4: Definición de Columnas para la DataGrid (Memoizada)
+    // Sub-sección 3.4: Definición de Columnas para la DataGrid (Memoizada)
     const columns = useMemo(() => [
         { field: 'sku', headerName: 'SKU', width: 150 },
         { field: 'name', headerName: 'Nombre', flex: 1, minWidth: 250 },
         { field: 'brand', headerName: 'Marca', width: 120 },
         { field: 'stock_quantity', headerName: 'Stock Total', type: 'number', width: 110, align: 'center', headerAlign: 'center' },
-        { field: 'average_cost', headerName: 'Costo Prom.', type: 'number', width: 120, align: 'right', headerAlign: 'right', valueFormatter: (value) => `$${Number(value).toFixed(2)}` },
-        { field: 'price', headerName: 'Precio Venta', type: 'number', width: 120, align: 'right', headerAlign: 'right', valueFormatter: (value) => `$${Number(value).toFixed(2)}` },
+        { 
+            field: 'average_cost', 
+            headerName: 'Costo Prom.', 
+            type: 'number', 
+            width: 120, 
+            align: 'right', 
+            headerAlign: 'right', 
+            valueFormatter: (params) => formatCurrency(params.value) // CORRECCIÓN
+        },
+        { 
+            field: 'price', 
+            headerName: 'Precio Venta', 
+            type: 'number', 
+            width: 120, 
+            align: 'right', 
+            headerAlign: 'right', 
+            valueFormatter: (params) => formatCurrency(params.value) // CORRECCIÓN
+        },
         {
             field: 'actions',
             headerName: 'Acciones',
@@ -103,7 +132,7 @@ const ProductListPage = () => {
         },
     ], [navigate]);
 
-    // Sub-sección 2.5: Configuración de la Barra de Herramientas
+    // Sub-sección 3.5: Configuración de la Barra de Herramientas
     const toolbarProps = {
         title: "Catálogo de Productos",
         addButtonText: "Añadir Producto",
@@ -113,35 +142,26 @@ const ProductListPage = () => {
         searchPlaceholder: "Buscar por SKU, Nombre o Marca...",
     };
 
-    // Sub-sección 2.6: Renderizado del Componente
+    // Sub-sección 3.6: Renderizado del Componente
     return (
         <>
             <Container maxWidth="xl" sx={{ my: 4 }}>
                 <Paper sx={{ height: '75vh', width: '100%', borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                     {error && <Alert severity="error" sx={{ m: 2 }}>{`Error al cargar productos: ${error.message}`}</Alert>}
                     <DataGrid
-                        // --- PROPIEDADES ESENCIALES ---
                         rows={data?.items || []}
                         columns={columns}
-                        getRowId={(row) => row._id} // CORRECCIÓN #1 APLICADA AQUÍ
-                        
-                        // --- PAGINACIÓN ---
+                        getRowId={(row) => row._id}
                         rowCount={data?.total_count || 0}
                         paginationModel={paginationModel}
                         onPaginationModelChange={setPaginationModel}
                         paginationMode="server"
                         pageSizeOptions={[10, 25, 50, 100]}
-                        
-                        // --- ESTADO Y ESTILO ---
                         loading={isLoading || isFetching}
                         density="compact"
                         localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-                        
-                        // --- COMPONENTES PERSONALIZADOS ---
                         slots={{ toolbar: DataGridToolbar }}
                         slotProps={{ toolbar: toolbarProps }}
-                        
-                        // --- OTROS ---
                         disableRowSelectionOnClick
                         sx={{ border: 'none' }}
                     />
@@ -161,7 +181,7 @@ const ProductListPage = () => {
                 onConfirm={handleConfirmDeactivation}
                 isConfirming={isDeactivating}
                 title="Confirmar Desactivación"
-                message={`¿Está seguro que desea desactivar el producto '${productToDeactivate?.name}' (SKU: ${productToDeactivate?.sku})? Esta acción no se puede revertir fácilmente.`}
+                message={`¿Está seguro que desea desactivar el producto '${productToDeactivate?.name}' (SKU: ${productToDeactivate?.sku})?`}
             />
         </>
     );

@@ -50,24 +50,6 @@ class ProductRepository:
         """Encuentra un producto por su SKU, que debe ser único."""
         return await self.collection.find_one({"sku": sku})
 
-    async def find_all(self, query: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Encuentra todos los documentos que coinciden con una consulta, sin paginación.
-
-        Este método es útil para operaciones que requieren el conjunto de datos completo,
-        como la generación de reportes.
-
-        Args:
-            query: El diccionario de filtro de MongoDB.
-
-        Returns:
-            Una lista de todos los documentos que coinciden con la consulta.
-        """
-        # CORRECCIÓN: Se reintroduce el método `find_all`.
-        cursor = self.collection.find(query)
-        # El argumento length=None asegura que se recuperen todos los documentos del cursor.
-        return await cursor.to_list(length=None)
-
     async def find_paginated(self, query: Dict[str, Any], skip: int, page_size: int) -> List[Dict[str, Any]]:
         """Encuentra documentos de forma paginada que coinciden con una consulta."""
         cursor = self.collection.find(query).skip(skip).limit(page_size)
@@ -85,11 +67,22 @@ class ProductRepository:
     async def update_and_find_by_sku(self, sku: str, update_payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Actualiza un producto por su SKU y devuelve el documento actualizado.
+
+        Utiliza una operación atómica 'find_one_and_update' para garantizar la
+        consistencia de los datos.
+
+        Args:
+            sku: El SKU del producto a actualizar.
+            update_payload: El payload de actualización de MongoDB (ej: {"$set": {...}}).
+
+        Returns:
+            El documento completo del producto después de la actualización, o None si no se encontró.
         """
+        # --- CORRECCIÓN: Se implementa el método faltante ---
         updated_document = await self.collection.find_one_and_update(
             {"sku": sku},
             update_payload,
-            return_document=ReturnDocument.AFTER
+            return_document=ReturnDocument.AFTER  # Crucial: Devuelve el documento DESPUÉS de actualizar.
         )
         return updated_document
 

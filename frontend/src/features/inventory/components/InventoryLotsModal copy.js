@@ -18,22 +18,7 @@ import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 import { getInventoryLotsByProductIdAPI } from '../api/productsAPI';
 
-// SECCIÓN 2: FUNCIONES DE UTILIDAD Y CONFIGURACIÓN
-/**
- * Formatea un valor numérico como una cadena de moneda en Soles (S/).
- * Maneja correctamente el valor 0, mostrándolo formateado en lugar de vacío.
- * @param {number | null | undefined} value - El valor numérico a formatear.
- * @returns {string} La cadena formateada, ej: "S/ 120.50" o "S/ 0.00".
- */
-const formatCurrency = (value) => {
-    // CORRECCIÓN: La comprobación ahora es explícita para null y undefined,
-    // permitiendo que el número 0 sea procesado correctamente.
-    if (value === null || value === undefined) {
-        return ''; // Devuelve vacío solo si el dato realmente no existe.
-    }
-    return `S/ ${Number(value).toFixed(2)}`;
-};
-
+// SECCIÓN 2: CONSTANTES Y CONFIGURACIÓN
 const lotColumns = [
     { field: 'lot_number', headerName: 'N° de Lote', width: 200, description: 'Número de lote o de la orden de compra asociada.' },
     {
@@ -41,9 +26,7 @@ const lotColumns = [
         headerName: 'Costo Adq.',
         type: 'number',
         width: 120,
-        align: 'right',
-        headerAlign: 'right',
-        valueFormatter: (params) => formatCurrency(params.value)
+        valueFormatter: (value) => `$${Number(value).toFixed(2)}`
     },
     { field: 'current_quantity', headerName: 'Stock Actual', type: 'number', width: 120, align: 'center', headerAlign: 'center' },
     {
@@ -51,10 +34,10 @@ const lotColumns = [
         headerName: 'Fecha Recepción',
         width: 150,
         type: 'date',
-        valueGetter: (params) => new Date(params.value),
-        valueFormatter: (params) => format(params.value, 'dd/MM/yyyy')
+        valueGetter: (value) => new Date(value),
+        valueFormatter: (value) => format(value, 'dd/MM/yyyy')
     },
-    { field: 'country_of_origin', headerName: 'País Origen', flex: 1, minWidth: 130, valueGetter: (params) => params.value || 'No especificado' },
+    { field: 'country_of_origin', headerName: 'País Origen', flex: 1, minWidth: 130, valueGetter: (value) => value || 'No especificado' },
 ];
 
 // SECCIÓN 3: DEFINICIÓN DEL COMPONENTE
@@ -62,8 +45,8 @@ const InventoryLotsModal = ({ open, onClose, productId, productName }) => {
     const { data: lots, isLoading, isError, error } = useQuery({
         queryKey: ['inventoryLots', productId],
         queryFn: () => getInventoryLotsByProductIdAPI(productId),
-        enabled: !!productId && open,
-        staleTime: 5 * 60 * 1000,
+        enabled: !!productId && open, // Solo ejecuta la query si el modal está abierto y hay un ID.
+        staleTime: 5 * 60 * 1000, // Los lotes no cambian tan seguido, cache por 5 mins.
     });
 
     const renderContent = () => {
@@ -75,7 +58,7 @@ const InventoryLotsModal = ({ open, onClose, productId, productName }) => {
             );
         }
         if (isError) {
-            return <Alert severity="error" sx={{ my: 2 }}>{`Error al cargar los lotes: ${error.message}`}</Alert>;
+            return <Alert severity="error" sx={{ my: 2 }}>Error al cargar los lotes: {error.message}</Alert>;
         }
         if (!lots || lots.length === 0) {
             return (
@@ -89,12 +72,11 @@ const InventoryLotsModal = ({ open, onClose, productId, productName }) => {
                 <DataGrid
                     rows={lots}
                     columns={lotColumns}
-                    getRowId={(row) => row._id}
+                    getRowId={(row) => row._id} // CORRECCIÓN #2 APLICADA AQUÍ
                     density="compact"
                     localeText={esES.components.MuiDataGrid.defaultProps.localeText}
                     hideFooter
                     autoPageSize
-                    sx={{ border: 'none' }}
                 />
             </Box>
         );

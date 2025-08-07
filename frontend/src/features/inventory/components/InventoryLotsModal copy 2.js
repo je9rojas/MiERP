@@ -21,18 +21,16 @@ import { getInventoryLotsByProductIdAPI } from '../api/productsAPI';
 // SECCIÓN 2: FUNCIONES DE UTILIDAD Y CONFIGURACIÓN
 /**
  * Formatea un valor numérico como una cadena de moneda en Soles (S/).
- * Maneja correctamente el valor 0, mostrándolo formateado en lugar de vacío.
  * @param {number | null | undefined} value - El valor numérico a formatear.
- * @returns {string} La cadena formateada, ej: "S/ 120.50" o "S/ 0.00".
+ * @returns {string} La cadena formateada, ej: "S/ 120.50".
  */
 const formatCurrency = (value) => {
-    // CORRECCIÓN: La comprobación ahora es explícita para null y undefined,
-    // permitiendo que el número 0 sea procesado correctamente.
     if (value === null || value === undefined) {
-        return ''; // Devuelve vacío solo si el dato realmente no existe.
+        return '';
     }
     return `S/ ${Number(value).toFixed(2)}`;
 };
+
 
 const lotColumns = [
     { field: 'lot_number', headerName: 'N° de Lote', width: 200, description: 'Número de lote o de la orden de compra asociada.' },
@@ -43,7 +41,7 @@ const lotColumns = [
         width: 120,
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (params) => formatCurrency(params.value)
+        valueFormatter: (params) => formatCurrency(params.value) // CORRECCIÓN
     },
     { field: 'current_quantity', headerName: 'Stock Actual', type: 'number', width: 120, align: 'center', headerAlign: 'center' },
     {
