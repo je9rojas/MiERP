@@ -40,11 +40,9 @@ from reportlab.graphics import renderPDF
 # ==============================================================================
 
 PRIMARY_GREEN = HexColor("#1E8449")
-ACCENT_GREEN = HexColor("#2ECC71")
 DARK_TEXT = HexColor("#000000")
 MEDIUM_GRAY = HexColor("#D5D8DC")
 LIGHT_GRAY_BG = HexColor("#F4F6F7")
-
 
 # ==============================================================================
 # SECCIÓN 3: CLASE PRINCIPAL DEL GENERADOR DE PDF
@@ -71,7 +69,6 @@ class CatalogPDFGenerator:
         self._setup_page_templates()
 
     def _create_custom_styles(self):
-        """Define y registra los estilos de párrafo personalizados para el catálogo."""
         self.styles.add(ParagraphStyle(name='SKU', fontName='Helvetica-Bold', fontSize=16, textColor=DARK_TEXT, alignment=TA_LEFT, leading=18))
         self.styles.add(ParagraphStyle(name='SectionTitle', fontName='Helvetica-Bold', fontSize=7, textColor=DARK_TEXT, alignment=TA_LEFT, spaceAfter=2, leading=9))
         self.styles.add(ParagraphStyle(name='CodeText', fontName='Helvetica', fontSize=7, textColor=HexColor("#34495E"), alignment=TA_LEFT, leading=9))
@@ -80,7 +77,6 @@ class CatalogPDFGenerator:
         self.styles.add(ParagraphStyle(name='PlaceholderText', fontName='Helvetica-Oblique', fontSize=10, textColor=MEDIUM_GRAY, alignment=TA_CENTER))
 
     def _setup_page_templates(self):
-        """Define las plantillas de página para la portada y el contenido principal."""
         cover_frame = Frame(self.doc.leftMargin, self.doc.bottomMargin, self.doc.width, self.doc.height, id='cover_frame')
         content_frame = Frame(self.doc.leftMargin, self.doc.bottomMargin, self.doc.width, self.doc.height, id='content_frame')
         
@@ -90,16 +86,41 @@ class CatalogPDFGenerator:
         self.doc.addPageTemplates([cover_template, content_template])
 
     def build(self):
-        """Orquesta la construcción del contenido y compila el documento PDF final."""
         self._build_story()
         self.doc.build(self.story)
 
     def _build_story(self):
-        """Construye la secuencia de "Flowables" que componen el contenido del PDF."""
         self.story.append(NextPageTemplate('Content'))
         self.story.append(PageBreak())
         product_grid = self._create_product_grid()
         self.story.append(product_grid)
+
+    def _draw_logo(self, canvas: canvas.Canvas, x: float, y: float):
+        """
+        Dibuja el logo de la empresa, priorizando SVG sobre PNG.
+        Busca archivos con nombres específicos ('logo-full.svg' o 'logo-full.png').
+        """
+        # --- CORRECCIÓN: Se actualizan los nombres de archivo que se buscan. ---
+        svg_path = os.path.join('static', 'logos', 'logo-full.svg')
+        png_path = os.path.join('static', 'logos', 'logo-full.png')
+
+        # Prioridad 1: Intentar renderizar el logo SVG si existe.
+        if os.path.exists(svg_path):
+            try:
+                drawing = svg2rlg(svg_path)
+                scale_factor = 1.5
+                drawing.width *= scale_factor
+                drawing.height *= scale_factor
+                drawing.scale(scale_factor, scale_factor)
+                renderPDF.draw(drawing, canvas, x - (drawing.width / 2), y - (drawing.height / 2))
+                return
+            except Exception:
+                pass 
+
+        # Prioridad 2: Si no hay SVG o falla, usar el logo PNG.
+        if os.path.exists(png_path):
+            logo = Image(png_path, width=3*inch, height=0.75*inch)
+            logo.drawOn(canvas, x - (3*inch / 2), y - (0.75*inch / 2))
 
     def _draw_cover_page(self, canvas: canvas.Canvas, doc):
         """Dibuja la página de portada profesional y minimalista del catálogo."""
@@ -109,33 +130,21 @@ class CatalogPDFGenerator:
         canvas.setFillColor(PRIMARY_GREEN)
         canvas.rect(0, 0, 0.5 * inch, height, stroke=0, fill=1)
 
-        # --- Logo SVG ---
-        # El logo se lee desde un archivo SVG, se convierte a un objeto de ReportLab y se dibuja.
-        logo_path = os.path.join('static', 'svg', 'logo.svg')
-        if os.path.exists(logo_path):
-            drawing = svg2rlg(logo_path)
-            
-            # Escalar el logo si es necesario (ej: 1.5 veces su tamaño original)
-            scale_factor = 1.5
-            drawing.width = drawing.minWidth() * scale_factor
-            drawing.height = drawing.height * scale_factor
-            drawing.scale(scale_factor, scale_factor)
-            
-            # Dibujar en el canvas
-            renderPDF.draw(drawing, canvas, width / 2 - (drawing.width / 2) + (0.25 * inch), height - 2.5 * inch)
+        center_x = (width + 0.5 * inch) / 2
+        self._draw_logo(canvas, center_x, height - 2.5 * inch)
         
         canvas.setFont('Helvetica-Bold', 48)
         canvas.setFillColor(DARK_TEXT)
-        canvas.drawCentredString(width / 2 + 0.25 * inch, height / 2 + 0.5 * inch, "Catálogo de Productos")
+        canvas.drawCentredString(center_x, height / 2 + 0.5 * inch, "Catálogo de Productos")
         
         canvas.setFont('Helvetica', 28)
         canvas.setFillColor(PRIMARY_GREEN)
-        canvas.drawCentredString(width / 2 + 0.25 * inch, height / 2, "DIROGSA")
+        canvas.drawCentredString(center_x, height / 2, "DIROGSA")
 
         generation_date = datetime.now().strftime("%B %Y").capitalize()
         canvas.setFont('Helvetica', 14)
         canvas.setFillColor(HexColor("#5D6D7E"))
-        canvas.drawCentredString(width / 2 + 0.25 * inch, height / 2 - 1 * inch, f"Edición: {generation_date}")
+        canvas.drawCentredString(center_x, height / 2 - 1 * inch, f"Edición: {generation_date}")
         
         canvas.restoreState()
 

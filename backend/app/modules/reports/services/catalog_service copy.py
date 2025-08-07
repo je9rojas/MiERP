@@ -1,69 +1,98 @@
-# /backend/app/modules/inventory/catalog_generator.py
+# backend/app/modules/reports/services/catalog_service.py
+
+"""
+Servicio de Generación de Catálogos en PDF.
+
+Este módulo contiene la clase CatalogPDFGenerator, responsable de tomar una lista
+de datos de productos y transformarla en un documento PDF profesional y listo
+para ser distribuido. Encapsula toda la lógica de diseño, maquetación y
+renderizado utilizando la librería ReportLab.
+"""
+
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES
+# ==============================================================================
 
 import os
 import requests
 from io import BytesIO
-from typing import List, Dict
+from typing import List, Dict, Any
+from datetime import datetime
 
-from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle, Image, NextPageTemplate, PageBreak
+# Importaciones de ReportLab para la estructura del PDF
+from reportlab.platypus import (
+    BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle,
+    Image, NextPageTemplate, PageBreak
+)
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.lib.colors import HexColor, white
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.colors import HexColor, white, black
 from reportlab.lib.units import inch
+from reportlab.pdfgen import canvas
+
+# Importaciones para renderizar SVG en ReportLab
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPDF
+
+# ==============================================================================
+# SECCIÓN 2: CONSTANTES DE DISEÑO Y PALETA DE COLORES
+# ==============================================================================
+
+PRIMARY_GREEN = HexColor("#1E8449")
+ACCENT_GREEN = HexColor("#2ECC71")
+DARK_TEXT = HexColor("#000000")
+MEDIUM_GRAY = HexColor("#D5D8DC")
+LIGHT_GRAY_BG = HexColor("#F4F6F7")
 
 
-# --- SECCIÓN 1: CONSTANTES DE DISEÑO Y PALETA DE COLORES ---
-
-PRIMARY_GREEN = HexColor("#2E7D32")
-DARK_TEXT = HexColor("#212121")
-MEDIUM_GRAY = HexColor("#BDBDBD")
-LIGHT_GRAY_BG = HexColor("#F5F5F5")
-
+# ==============================================================================
+# SECCIÓN 3: CLASE PRINCIPAL DEL GENERADOR DE PDF
+# ==============================================================================
 
 class CatalogPDFGenerator:
     """
-    Clase que encapsula toda la lógica para generar un catálogo de productos
-    con un diseño profesional, enfocado en la legibilidad, la jerarquía visual
-    y un layout flexible que evita la superposición de contenido.
+    Clase que encapsula la lógica para generar un catálogo de productos en PDF.
     """
 
-    def __init__(self, products: List[Dict], buffer: BytesIO, view_type: str):
+    def __init__(self, products: List[Dict[str, Any]], buffer: BytesIO, view_type: str):
         self.products = products
         self.buffer = buffer
         self.view_type = view_type
         self.styles = getSampleStyleSheet()
-        self.doc = None
         self.story = []
+        self.doc = BaseDocTemplate(
+            self.buffer,
+            pagesize=letter,
+            topMargin=0.75*inch, bottomMargin=0.75*inch,
+            leftMargin=0.5*inch, rightMargin=0.5*inch
+        )
         self._create_custom_styles()
-
+        self._setup_page_templates()
 
     def _create_custom_styles(self):
-        """Define y registra los estilos de párrafo optimizados para el catálogo."""
-        self.styles.add(ParagraphStyle(name='SKU', fontName='Helvetica-Bold', fontSize=18, textColor=DARK_TEXT, alignment=TA_LEFT, leading=20))
+        """Define y registra los estilos de párrafo personalizados para el catálogo."""
+        self.styles.add(ParagraphStyle(name='SKU', fontName='Helvetica-Bold', fontSize=16, textColor=DARK_TEXT, alignment=TA_LEFT, leading=18))
         self.styles.add(ParagraphStyle(name='SectionTitle', fontName='Helvetica-Bold', fontSize=7, textColor=DARK_TEXT, alignment=TA_LEFT, spaceAfter=2, leading=9))
-        self.styles.add(ParagraphStyle(name='CodeText', fontName='Helvetica', fontSize=7, textColor=HexColor("#424242"), alignment=TA_LEFT, leading=9))
+        self.styles.add(ParagraphStyle(name='CodeText', fontName='Helvetica', fontSize=7, textColor=HexColor("#34495E"), alignment=TA_LEFT, leading=9))
         self.styles.add(ParagraphStyle(name='SpecText', fontName='Helvetica', fontSize=8, textColor=DARK_TEXT, alignment=TA_CENTER, leading=10))
         self.styles.add(ParagraphStyle(name='CommercialText', fontName='Helvetica-Bold', fontSize=8, textColor=PRIMARY_GREEN, alignment=TA_CENTER, leading=10))
         self.styles.add(ParagraphStyle(name='PlaceholderText', fontName='Helvetica-Oblique', fontSize=10, textColor=MEDIUM_GRAY, alignment=TA_CENTER))
 
-
-    # --- SECCIÓN 2: ORQUESTACIÓN DE LA CONSTRUCCIÓN DEL DOCUMENTO ---
-    
-    def build(self):
-        """Ejecuta la secuencia completa para construir y generar el PDF."""
-        self.doc = BaseDocTemplate(self.buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
-        self._setup_page_templates()
-        self._build_story()
-        self.doc.build(self.story)
-
     def _setup_page_templates(self):
         """Define las plantillas de página para la portada y el contenido principal."""
-        cover_frame = Frame(0, 0, self.doc.width + self.doc.leftMargin * 2, self.doc.height + self.doc.bottomMargin * 2, id='cover')
+        cover_frame = Frame(self.doc.leftMargin, self.doc.bottomMargin, self.doc.width, self.doc.height, id='cover_frame')
+        content_frame = Frame(self.doc.leftMargin, self.doc.bottomMargin, self.doc.width, self.doc.height, id='content_frame')
+        
         cover_template = PageTemplate(id='Cover', frames=[cover_frame], onPage=self._draw_cover_page)
-        content_frame = Frame(self.doc.leftMargin, self.doc.bottomMargin, self.doc.width, self.doc.height, id='content')
         content_template = PageTemplate(id='Content', frames=[content_frame], onPage=self._draw_content_page_layout)
+        
         self.doc.addPageTemplates([cover_template, content_template])
+
+    def build(self):
+        """Orquesta la construcción del contenido y compila el documento PDF final."""
+        self._build_story()
+        self.doc.build(self.story)
 
     def _build_story(self):
         """Construye la secuencia de "Flowables" que componen el contenido del PDF."""
@@ -72,231 +101,166 @@ class CatalogPDFGenerator:
         product_grid = self._create_product_grid()
         self.story.append(product_grid)
 
-
-    # --- SECCIÓN 3: DIBUJO DE ELEMENTOS DE PÁGINA (CABECERAS, PORTADA) ---
-
-    def _draw_cover_page(self, canvas, doc):
-        """Dibuja la página de portada del catálogo."""
+    def _draw_cover_page(self, canvas: canvas.Canvas, doc):
+        """Dibuja la página de portada profesional y minimalista del catálogo."""
         canvas.saveState()
+        width, height = letter
+        
         canvas.setFillColor(PRIMARY_GREEN)
-        canvas.rect(0, 0, letter[0], letter[1], stroke=0, fill=1)
-        canvas.setFillColor(white)
-        canvas.setFont('Helvetica-Bold', 60)
-        canvas.drawCentredString(letter[0] / 2, letter[1] / 2 + 100, "CATÁLOGO")
-        canvas.setFont('Helvetica-Bold', 40)
-        canvas.drawCentredString(letter[0] / 2, letter[1] / 2 + 40, "DE PRODUCTOS")
-        canvas.setFont('Helvetica', 20)
-        canvas.drawCentredString(letter[0] / 2, doc.bottomMargin, "Nombre de la Empresa S.A.C.")
+        canvas.rect(0, 0, 0.5 * inch, height, stroke=0, fill=1)
+
+        # --- Logo SVG ---
+        # El logo se lee desde un archivo SVG, se convierte a un objeto de ReportLab y se dibuja.
+        logo_path = os.path.join('static', 'svg', 'logo.svg')
+        if os.path.exists(logo_path):
+            drawing = svg2rlg(logo_path)
+            
+            # Escalar el logo si es necesario (ej: 1.5 veces su tamaño original)
+            scale_factor = 1.5
+            drawing.width = drawing.minWidth() * scale_factor
+            drawing.height = drawing.height * scale_factor
+            drawing.scale(scale_factor, scale_factor)
+            
+            # Dibujar en el canvas
+            renderPDF.draw(drawing, canvas, width / 2 - (drawing.width / 2) + (0.25 * inch), height - 2.5 * inch)
+        
+        canvas.setFont('Helvetica-Bold', 48)
+        canvas.setFillColor(DARK_TEXT)
+        canvas.drawCentredString(width / 2 + 0.25 * inch, height / 2 + 0.5 * inch, "Catálogo de Productos")
+        
+        canvas.setFont('Helvetica', 28)
+        canvas.setFillColor(PRIMARY_GREEN)
+        canvas.drawCentredString(width / 2 + 0.25 * inch, height / 2, "DIROGSA")
+
+        generation_date = datetime.now().strftime("%B %Y").capitalize()
+        canvas.setFont('Helvetica', 14)
+        canvas.setFillColor(HexColor("#5D6D7E"))
+        canvas.drawCentredString(width / 2 + 0.25 * inch, height / 2 - 1 * inch, f"Edición: {generation_date}")
+        
         canvas.restoreState()
 
-    def _draw_content_page_layout(self, canvas, doc):
+    def _draw_content_page_layout(self, canvas: canvas.Canvas, doc):
         """Dibuja la cabecera y el pie de página en cada página de contenido."""
         canvas.saveState()
         canvas.setFillColor(PRIMARY_GREEN)
         canvas.rect(doc.leftMargin, letter[1] - 0.5*inch, doc.width, 36, stroke=0, fill=1)
         canvas.setFillColor(white)
-        canvas.setFont('Helvetica-Bold', 18)
-        canvas.drawString(doc.leftMargin + 15, letter[1] - 0.5*inch + 12, "CATÁLOGO DE PRODUCTOS")
+        canvas.setFont('Helvetica-Bold', 16)
+        canvas.drawString(doc.leftMargin + 15, letter[1] - 0.5*inch + 12, "Catálogo de Productos DIROGSA")
+        
         canvas.setFillColor(DARK_TEXT)
         canvas.setFont('Helvetica', 9)
         canvas.drawRightString(letter[0] - doc.rightMargin, doc.bottomMargin - 20, f"Página {doc.page}")
         canvas.restoreState()
-
-
-    # --- SECCIÓN 4: CREACIÓN DE CELDAS Y REJILLA DE PRODUCTOS ---
-
-    def _create_product_cell(self, product: Dict) -> Table:
-        """
-        Crea la tabla contenedora para un único producto con un layout profesional.
-        """
+        
+    def _create_product_cell(self, product: Dict[str, Any]) -> Table:
         sku_paragraph = Paragraph(product.get('sku', 'N/A'), self.styles['SKU'])
         image_flowable = self._get_image_flowable(product)
         specs_paragraph = self._get_specifications_paragraph(product)
         
-        references_flowables = self._get_codes_flowables(
-            title="Referencias Cruzadas:",
-            codes=product.get('cross_references', [])
-        )
+        references_flowables = self._get_codes_flowables("Referencias Cruzadas:", product.get('cross_references', []))
         applications_flowable = self._get_applications_flowable_as_table(product)
         
-        right_column_data = [
-            [references_flowables],
-            [applications_flowable]
-        ]
-        
-        right_column_table = Table(right_column_data, colWidths=['100%'], rowHeights=[None, None])
+        right_column_table = Table([[references_flowables], [applications_flowable]], colWidths=['100%'], rowHeights=[None, None])
         right_column_table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
 
-        table_data = [
-            [sku_paragraph, None],
-            [image_flowable, right_column_table],
-            [specs_paragraph, None],
-        ]
+        table_data = [[sku_paragraph, None], [image_flowable, right_column_table], [specs_paragraph, None]]
         
         if self.view_type == 'seller':
-            commercial_info_paragraph = self._get_commercial_info_paragraph(product)
-            table_data.append([commercial_info_paragraph, None])
+            table_data.append([self._get_commercial_info_paragraph(product), None])
 
         container_table = Table(table_data, colWidths=['40%', '60%'])
-        
-        style_commands = [
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('VALIGN', (0,1), (0,1), 'TOP'),
-            ('SPAN', (0,0), (1,0)),
-            ('SPAN', (0,2), (1,2)),
-            ('BOTTOMPADDING', (0,0), (-1,0), 6),
-            ('TOPPADDING', (0,2), (-1,-1), 4),
-            ('BACKGROUND', (0,0), (-1,0), LIGHT_GRAY_BG),
-        ]
+        style_commands = [('VALIGN', (0,0), (-1,-1), 'TOP'), ('SPAN', (0,0), (1,0)), ('SPAN', (0,2), (1,2)), ('BOTTOMPADDING', (0,0), (-1,0), 6), ('TOPPADDING', (0,2), (-1,-1), 4), ('BACKGROUND', (0,0), (-1,0), LIGHT_GRAY_BG)]
         if self.view_type == 'seller':
             style_commands.append(('SPAN', (0,3), (1,3)))
-
         container_table.setStyle(TableStyle(style_commands))
         return container_table
 
     def _create_product_grid(self) -> Table:
-        """Organiza las celdas de producto en la cuadrícula principal del catálogo."""
-        all_cells_as_tables = [self._create_product_cell(p) for p in self.products]
+        product_cells = [self._create_product_cell(p) for p in self.products]
         
         num_columns = 2
         table_data = []
-        for i in range(0, len(all_cells_as_tables), num_columns):
-            row = all_cells_as_tables[i:i + num_columns]
+        for i in range(0, len(product_cells), num_columns):
+            row = product_cells[i:i + num_columns]
             if len(row) < num_columns:
                 row.extend([Spacer(1, 1)] * (num_columns - len(row)))
             table_data.append(row)
             
         grid = Table(table_data, colWidths=[self.doc.width / num_columns] * num_columns)
-        grid.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('LEFTPADDING', (0,0), (-1,-1), 8),
-            ('RIGHTPADDING', (0,0), (-1,-1), 8),
-            ('TOPPADDING', (0,0), (-1,-1), 8),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-            ('BOX', (0,0), (-1,-1), 0.5, MEDIUM_GRAY),
-            ('LINEAFTER', (0,0), (-2,-1), 0.5, MEDIUM_GRAY),
-            ('LINEBELOW', (0,0), (-1,-2), 0.5, MEDIUM_GRAY),
-        ]))
+        grid.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 8), ('RIGHTPADDING', (0,0), (-1,-1), 8), ('TOPPADDING', (0,0), (-1,-1), 8), ('BOTTOMPADDING', (0,0), (-1,-1), 8), ('BOX', (0,0), (-1,-1), 0.5, MEDIUM_GRAY), ('LINEAFTER', (0,0), (-2,-1), 0.5, MEDIUM_GRAY), ('LINEBELOW', (0,0), (-1,-2), 0.5, MEDIUM_GRAY)]))
         return grid
 
-
-    # --- SECCIÓN 5: MÉTODOS AUXILIARES PARA GENERAR CONTENIDO ---
-
-    def _get_image_flowable(self, product: Dict):
-        """Busca y prepara el objeto `Image` para un producto."""
-        img_size = 1 * inch
+    def _get_image_flowable(self, product: Dict[str, Any]):
+        img_size = 1.2 * inch
         sku = product.get('sku')
         image_url = product.get('main_image_url')
-        img = None
 
         if image_url:
             try:
                 response = requests.get(image_url, stream=True, timeout=5)
                 response.raise_for_status()
-                img = Image(response.raw, width=img_size, height=img_size)
+                return Image(BytesIO(response.content), width=img_size, height=img_size, hAlign='CENTER')
             except requests.exceptions.RequestException:
-                img = None
+                pass
         
-        if not img and sku:
+        if sku:
             for ext in ['.jpg', '.png', '.jpeg']:
                 local_path = os.path.join('static', 'product_images', sku + ext)
                 if os.path.exists(local_path):
-                    img = Image(local_path, width=img_size, height=img_size)
-                    break
-        
-        if img:
-            img.hAlign = 'CENTER'
-            return img
+                    return Image(local_path, width=img_size, height=img_size, hAlign='CENTER')
         
         return Paragraph("Sin Imagen", self.styles['PlaceholderText'])
 
-    def _get_specifications_paragraph(self, product: Dict):
-        """Formatea las especificaciones del producto en un párrafo horizontal."""
-        specs = product.get('specifications', {})
+    def _get_specifications_paragraph(self, product: Dict[str, Any]):
+        dimensions = product.get('dimensions') or {}
         spec_parts = []
-        spec_keys = ['A', 'B', 'C', 'G', 'H', 'D', 'F']
-        for key in spec_keys:
-            if key in specs and specs[key] is not None:
-                spec_parts.append(f"<b>{key}:</b> {specs[key]}")
+        for key, value in dimensions.items():
+            if value is not None:
+                if isinstance(value, float) and value.is_integer():
+                    formatted_value = int(value)
+                else:
+                    formatted_value = value
+                spec_parts.append(f"<b>{key.upper()}:</b> {formatted_value}")
         
         if not spec_parts:
             return Spacer(1, 1)
 
-        specs_text = " | ".join(spec_parts)
-        return Paragraph(specs_text, self.styles['SpecText'])
+        return Paragraph(" | ".join(spec_parts), self.styles['SpecText'])
     
-    
-    def _get_codes_flowables(self, title: str, codes: List[Dict]) -> List:
-        """Crea una lista de `Flowables` para una sección de códigos."""
+    def _get_codes_flowables(self, title: str, codes: List[Dict[str, Any]]):
         valid_codes = [c for c in (codes or []) if c.get('code')]
         if not valid_codes:
-            return []
+            return Spacer(1, 1)
             
-        elements = [Paragraph(title, self.styles['SectionTitle'])]
-        text = ", ".join([f"{c.get('brand')}: {c.get('code')}" for c in valid_codes])
-        elements.append(Paragraph(text, self.styles['CodeText']))
-        return elements
+        text = ", ".join([f"{c.get('brand', '')}: {c.get('code', '')}" for c in valid_codes])
+        return [Paragraph(title, self.styles['SectionTitle']), Paragraph(text, self.styles['CodeText'])]
 
-    def _get_applications_flowable_as_table(self, product: Dict):
-        """
-        Formatea las aplicaciones en una tabla de dos columnas para máxima legibilidad.
-        """
+    def _get_applications_flowable_as_table(self, product: Dict[str, Any]):
         apps = product.get('applications', [])
         if not apps:
             return Spacer(1, 1)
 
-        application_texts = []
-        for app in apps:
-            brand = app.get('brand')
-            model = app.get('model')
-            if brand:
-                text = f"• {brand} {model}" if model else f"• {brand}"
-                application_texts.append(Paragraph(text, self.styles['CodeText']))
-
-        if not application_texts:
+        application_paragraphs = [Paragraph(f"• {app.get('brand')} {app.get('model', '')}", self.styles['CodeText']) for app in apps if app.get('brand')]
+        if not application_paragraphs:
             return Spacer(1, 1)
 
         num_columns = 2
+        num_rows = (len(application_paragraphs) + num_columns - 1) // num_columns
         table_data = []
-        num_rows = (len(application_texts) + num_columns - 1) // num_columns
         for i in range(num_rows):
-            row = []
-            for j in range(num_columns):
-                index = i + j * num_rows
-                if index < len(application_texts):
-                    row.append(application_texts[index])
-                else:
-                    row.append("")
+            row = [application_paragraphs[i + j * num_rows] if i + j * num_rows < len(application_paragraphs) else "" for j in range(num_columns)]
             table_data.append(row)
 
         app_table = Table(table_data, colWidths=['50%', '50%'])
-        app_table.setStyle(TableStyle([
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('LEFTPADDING', (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 2),
-            ('TOPPADDING', (0,0), (-1,-1), 0),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 1),
-        ]))
+        app_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP'), ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 2), ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,-1), 1)]))
         
-        return [
-            Paragraph("Aplicaciones:", self.styles['SectionTitle']),
-            app_table
-        ]
+        return [Paragraph("Aplicaciones:", self.styles['SectionTitle']), app_table]
 
-
-    def _get_commercial_info_paragraph(self, product: Dict):
-        """Formatea la información comercial sensible en un párrafo horizontal."""
-        cost = product.get('cost', 0.0)
-        price = product.get('price', 0.0)
-        stock = product.get('stock_quantity', 0)
-        points = product.get('points_on_sale', 0.0)
-
+    def _get_commercial_info_paragraph(self, product: Dict[str, Any]):
         info_parts = [
-            f"<b>Costo:</b> S/ {cost:.2f}",
-            f"<b>Precio:</b> S/ {price:.2f}",
-            f"<b>Stock:</b> {stock}",
-            f"<b>Puntos:</b> {points:.2f}"
+            f"<b>Costo:</b> S/ {product.get('average_cost', 0.0):.2f}",
+            f"<b>Precio:</b> S/ {product.get('price', 0.0):.2f}",
+            f"<b>Stock:</b> {product.get('stock_quantity', 0)}",
         ]
-        
-        info_text = " | ".join(info_parts)
-        return Paragraph(info_text, self.styles['CommercialText'])
+        return Paragraph(" | ".join(info_parts), self.styles['CommercialText'])
