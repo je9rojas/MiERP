@@ -1,12 +1,11 @@
-# /backend/app/modules/inventory/product_service.py
+# backend/app/modules/inventory/product_service.py
 
 """
-Capa de Servicio para el módulo de Inventario.
+Capa de Servicio para la gestión del Catálogo de Productos.
 
-Contiene la lógica de negocio para las operaciones con productos, actuando como
-intermediario entre las rutas de la API y el repositorio de la base de datos.
-Su responsabilidad es aplicar validaciones, orquestar operaciones y transformar
-los datos del formato de la base de datos al formato de salida de la API (DTO).
+Contiene la lógica de negocio para las operaciones CRUD (Crear, Leer, Actualizar,
+Borrar) de los productos maestros. Este servicio es agnóstico a la lógica de
+stock transaccional, la cual es responsabilidad del 'inventory_service'.
 """
 
 # ==============================================================================
@@ -16,76 +15,125 @@ los datos del formato de la base de datos al formato de salida de la API (DTO).
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
-from io import BytesIO
 from fastapi import HTTPException, status
-import pprint # Módulo para imprimir diccionarios de forma legible
 
+# Modelos
 from .product_models import (
-    ProductCreate,
-    ProductInDB,
-    ProductUpdate,
-    ProductOut,
-    ProductOutDetail,
-    CatalogFilterPayload,
-    ProductCategory,
-    FilterType,
-    ProductShape
+    ProductCreate, ProductInDB, ProductUpdate, ProductOut, ProductOutDetail,
+    ProductCategory, FilterType, ProductShape
 )
+
+# Repositorios
 from .repositories.product_repository import ProductRepository
-from .catalog_generator import CatalogPDFGenerator
 
 # ==============================================================================
-# SECCIÓN 2: FUNCIONES DEL SERVICIO DE PRODUCTOS
+# SECCIÓN 2: FUNCIONES DEL SERVICIO
 # ==============================================================================
 
 async def create_product(db: AsyncIOMotorDatabase, product_data: ProductCreate) -> ProductOutDetail:
     """
-    Crea un nuevo producto, asegurando que el SKU no esté duplicado.
-    Devuelve el producto completo y detallado.
+    Crea un nuevo producto maestro en el catálogo.
+
+    Esta función valida la unicidad del SKU y crea el documento del producto
+    con valores de stock y costo inicializados en cero. La creación del lote
+    de inventario inicial es gestionada por un orquestador externo (la capa de rutas).
     """
-    repo = ProductRepository(db)
+    product_repo = ProductRepository(db)
     
-    if await repo.find_by_sku(product_data.sku):
+    if await product_repo.find_by_sku(product_data.sku):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"El SKU '{product_data.sku}' ya está registrado."
         )
     
-    product_to_db = ProductInDB(**product_data.model_dump())
-    product_doc = product_to_db.model_dump(by_alias=True)
+    # Se extraen los datos del lote inicial para que el orquestador los maneje.
+    # El producto maestro siempre se crea con stock y valor cero.
+    product_data_for_db = product_data.model_copy(
+        update={
+            "stock_quantity": 0,
+            "average_cost": 0.0,
+            "total_value": 0.0
+        }
+    )
     
-    inserted_id = await repo.insert_one(product_doc)
-    created_product_doc = await repo.find_by_id(str(inserted_id))
+    product_to_db = ProductInDB(**product_data_for_db.model_dump())
+    inserted_id = await product_repo.insert_one(product_to_db.model_dump(by_alias=True))
     
+    created_product_doc = await product_repo.find_by_id(str(inserted_id))
     if not created_product_doc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al recuperar el producto después de la creación."
+            detail="Error crítico: No se pudo recuperar el producto inmediatamente después de su creación."
         )
 
     return ProductOutDetail.model_validate(created_product_doc)
 
 
-async def get_products_with_filters_and_pagination(
-    db: AsyncIOMotorDatabase,
-    page: int,
-    page_size: int,
-    search: Optional[str],
-    brand: Optional[str],
-    category: Optional[ProductCategory],
-    product_type: Optional[FilterType],
-    shape: Optional[ProductShape],
-) -> Dict[str, Any]:
+async def get_product_by_id(db: AsyncIOMotorDatabase, product_id: str) -> ProductOutDetail:
+    """Obtiene un único producto por su ID de base de datos."""
+    repo = ProductRepository(db)
+    product_doc = await repo.find_by_id(product_id)
+    if not product_doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Producto con ID '{product_id}' no encontrado.")
+    return ProductOutDetail.model_validate(product_doc)
+
+
+async def get_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> ProductOutDetail:
+    """Obtiene un único producto por su SKU."""
+    repo = ProductRepository(db)
+    product_doc = await repo.find_by_sku(sku)
+    if not product_doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Producto con SKU '{sku}' no encontrado.")
+    return ProductOutDetail.model_validate(product_doc)
+
+
+async def update_product_by_sku(
+    db: AsyncIOMotorDatabase, sku: str, product_update_data: ProductUpdate
+) -> ProductOutDetail:
     """
-    Obtiene una lista paginada y filtrada de productos activos.
+
+    Actualiza la información de catálogo de un producto de forma robusta.
+    Maneja correctamente los campos anidados y opcionales para operaciones PATCH.
     """
     repo = ProductRepository(db)
     
+    update_data = product_update_data.model_dump(exclude_unset=True)
+    
+    if not update_data:
+        return await get_product_by_sku(db, sku)
+
+    update_payload = {"$set": {}}
+
+    nested_fields = ["dimensions", "oem_codes", "cross_references", "applications"]
+    for field in nested_fields:
+        if field in update_data:
+            update_payload["$set"][field] = update_data.pop(field)
+
+    update_payload["$set"].update(update_data)
+    update_payload["$set"]["updated_at"] = datetime.now(timezone.utc)
+    
+    updated_doc = await repo.update_and_find_by_sku(sku, update_payload)
+    
+    if not updated_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail=f"Producto con SKU '{sku}' no encontrado para actualizar."
+        )
+
+    return ProductOutDetail.model_validate(updated_doc)
+
+
+async def get_products_paginated(
+    db: AsyncIOMotorDatabase, page: int, page_size: int, search: Optional[str], brand: Optional[str],
+    category: Optional[ProductCategory], product_type: Optional[FilterType], shape: Optional[ProductShape]
+) -> Dict[str, Any]:
+    """Obtiene una lista paginada y filtrada de productos activos."""
+    repo = ProductRepository(db)
     query: Dict[str, Any] = {"is_active": True}
     
     if search:
         search_regex = {"$regex": search, "$options": "i"}
-        query["$or"] = [{"sku": search_regex}, {"name": search_regex}]
+        query["$or"] = [{"sku": search_regex}, {"name": search_regex}, {"brand": search_regex}]
     if brand:
         query["brand"] = brand
     if category:
@@ -96,94 +144,16 @@ async def get_products_with_filters_and_pagination(
         query["shape"] = shape.value
         
     skip = (page - 1) * page_size
-    
     product_docs = await repo.find_paginated(query, skip, page_size)
     total_count = await repo.count_documents(query)
-
-    # --- DETECTIVE #1: INSPECCIONAR DATOS CRUDOS DE MONGODB ---
-    if product_docs:
-        print("\n✅ --- [DETECTIVE #1] DATOS CRUDOS DEL PRIMER PRODUCTO (DESDE MONGO) --- ✅")
-        pprint.pprint(product_docs[0])
-        print("----------------------------------------------------------------------\n")
     
-    # Esta es la línea donde ocurre la transformación
     items = [ProductOut.model_validate(doc) for doc in product_docs]
-
-    # --- DETECTIVE #2: INSPECCIONAR DATOS TRANSFORMADOS POR PYDANTIC ---
-    if items:
-        print("\n✅ --- [DETECTIVE #2] DATOS TRANSFORMADOS DEL PRIMER PRODUCTO (PARA ENVIAR) --- ✅")
-        # .model_dump() convierte el objeto Pydantic de nuevo a un diccionario para imprimirlo
-        pprint.pprint(items[0].model_dump())
-        print("--------------------------------------------------------------------------\n")
-
     return {"total_count": total_count, "items": items}
 
 
-async def get_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> Optional[ProductOutDetail]:
-    """
-    Obtiene un único producto por su SKU y lo devuelve en formato de salida detallado.
-    """
-    repo = ProductRepository(db)
-    product_doc = await repo.find_by_sku(sku)
-    if product_doc:
-        return ProductOutDetail.model_validate(product_doc)
-    return None
-
-
-async def update_product_by_sku(
-    db: AsyncIOMotorDatabase, sku: str, product_update_data: ProductUpdate
-) -> Optional[ProductOutDetail]:
-    """
-    Actualiza un producto existente y devuelve la versión completa y actualizada.
-    """
-    repo = ProductRepository(db)
-    update_data = product_update_data.model_dump(exclude_unset=True)
-    
-    if not update_data:
-        return await get_product_by_sku(db, sku)
-
-    update_data["updated_at"] = datetime.now(timezone.utc)
-    matched_count = await repo.update_one(sku, update_data)
-
-    if matched_count > 0:
-        return await get_product_by_sku(db, sku)
-    return None
-
-
 async def deactivate_product_by_sku(db: AsyncIOMotorDatabase, sku: str) -> bool:
-    """
-    Desactiva un producto (soft delete). Devuelve True si fue exitoso.
-    """
+    """Desactiva un producto (borrado lógico)."""
     repo = ProductRepository(db)
     update_data = {"is_active": False, "updated_at": datetime.now(timezone.utc)}
     modified_count = await repo.deactivate_one(sku, update_data)
     return modified_count > 0
-
-
-async def generate_catalog_pdf(db: AsyncIOMotorDatabase, filters: CatalogFilterPayload) -> Optional[bytes]:
-    """
-    Genera un catálogo de productos en PDF basado en los filtros proporcionados.
-    """
-    repo = ProductRepository(db)
-    
-    query: Dict[str, Any] = {"is_active": True}
-    if filters.search_term:
-        search_regex = {"$regex": filters.search_term, "$options": "i"}
-        query["$or"] = [{"name": search_regex}, {"sku": search_regex}]
-    if filters.product_types:
-        query["product_type"] = {"$in": [pt.value for pt in filters.product_types]}
-
-    product_docs = await repo.find_all(query)
-    if not product_docs:
-        return None
-
-    product_docs.sort(key=lambda p: p.get('sku', ''))
-
-    buffer = BytesIO()
-    generator = CatalogPDFGenerator(product_docs, buffer, filters.view_type)
-    generator.build()
-    
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
-    
-    return pdf_bytes

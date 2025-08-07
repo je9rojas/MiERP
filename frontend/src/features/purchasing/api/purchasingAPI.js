@@ -1,47 +1,72 @@
-// /frontend/src/api/purchasingAPI.js
+// /frontend/src/features/purchasing/api/purchasingAPI.js
+
+/**
+ * @file Contiene todas las funciones para interactuar con los endpoints de Órdenes de Compra del backend.
+ *
+ * Este módulo actúa como una capa de abstracción sobre las llamadas de red (Axios),
+ * proporcionando un conjunto de funciones claras y reutilizables para que los
+ * componentes y hooks del módulo de compras puedan solicitar o enviar datos
+ * sin conocer los detalles de la implementación de la API.
+ */
+
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
+// ==============================================================================
 
 import api from '../../../app/axiosConfig';
 
+// ==============================================================================
+// SECCIÓN 2: FUNCIONES DE LA API
+// ==============================================================================
+
 /**
  * Obtiene una lista paginada y filtrada de órdenes de compra.
- * @param {object} params - Parámetros de consulta (page, pageSize, search, status).
- * @returns {Promise<object>} - La respuesta de la API con { items: [], total: 0 }.
+ * @param {object} params - Objeto con parámetros de consulta (ej. { page, pageSize, search, status }).
+ * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada (ej. { items: [], total_count: 0 }).
  */
 export const getPurchaseOrdersAPI = async (params) => {
-  const response = await api.get('/purchasing/purchase-orders', { params });
-  return response.data;
+    const response = await api.get('/purchase-orders', { params });
+    return response.data;
 };
 
 /**
- * Obtiene los datos de una única orden de compra por su ID.
- * @param {string} id - El ID de la orden de compra.
- * @returns {Promise<object>} - Los datos de la orden de compra.
+ * Obtiene los datos detallados de una única orden de compra por su ID.
+ * @param {string} orderId - El ID de la orden de compra a obtener.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra.
  */
-export const getPurchaseOrderByIdAPI = async (id) => {
-  const response = await api.get(`/purchasing/purchase-orders/${id}`);
-  return response.data;
+export const getPurchaseOrderByIdAPI = async (orderId) => {
+    const response = await api.get(`/purchase-orders/${orderId}`);
+    return response.data;
 };
 
 /**
- * Envía los datos de una nueva orden de compra para su creación.
- * @param {object} poData - Los datos de la orden de compra.
- * @returns {Promise<object>} - La respuesta de la API con la orden creada.
+ * Envía los datos de una nueva orden de compra al backend para su creación.
+ * @param {object} purchaseOrderData - El payload con los datos de la orden de compra desde el formulario.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra recién creada.
  */
-export const createPurchaseOrderAPI = async (poData) => {
-  const response = await api.post('/purchasing/purchase-orders', poData);
-  return response.data;
+export const createPurchaseOrderAPI = async (purchaseOrderData) => {
+    const response = await api.post('/purchase-orders', purchaseOrderData);
+    return response.data;
 };
 
 /**
- * Envía la petición para aprobar una orden de compra y generar su factura.
- * @param {string} poId - El ID de la orden a aprobar.
- * @returns {Promise<object>} - La respuesta de la API con la factura generada.
+ * Envía los datos actualizados de una orden de compra para su modificación.
+ * @param {string} orderId - El ID de la orden de compra a actualizar.
+ * @param {object} updateData - El payload con los campos a actualizar.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra actualizada.
  */
-export const approvePurchaseOrderAPI = async (poId) => {
-  const response = await api.post(`/purchasing/purchase-orders/${poId}/approve`);
-  return response.data;
+export const updatePurchaseOrderAPI = async (orderId, updateData) => {
+    const response = await api.patch(`/purchase-orders/${orderId}`, updateData);
+    return response.data;
 };
 
-// En el futuro, podrías añadir más funciones aquí, como:
-// export const updatePurchaseOrderAPI = (id, payload) => api.put(`/purchasing/purchase-orders/${id}`, payload);
-// export const cancelPurchaseOrderAPI = (id) => api.post(`/purchasing/purchase-orders/${id}/cancel`);
+/**
+ * Envía una petición para cambiar el estado de una orden de compra (ej. aprobar, cancelar).
+ * @param {string} orderId - El ID de la orden de compra.
+ * @param {string} action - La acción a realizar (ej. 'approve', 'cancel').
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra actualizada.
+ */
+export const updatePurchaseOrderStatusAPI = async (orderId, action) => {
+    const response = await api.post(`/purchase-orders/${orderId}/status`, { action });
+    return response.data;
+};

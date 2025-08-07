@@ -1,101 +1,136 @@
-# /backend/app/modules/purchasing/purchasing_routes.py
+# backend/app/modules/purchasing/purchasing_routes.py
 
 """
-Define los endpoints de la API para el módulo de Compras, utilizando un sistema de
-control de acceso basado en roles (RBAC) para proteger cada operación.
+Define los endpoints de la API para la gestión de Órdenes de Compra.
+
+Este router expone las operaciones CRUD para las órdenes de compra, así como
+endpoints de acciones específicas como la importación de inventario. Aplica
+seguridad basada en roles y delega toda la lógica de negocio a la capa de servicio.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES
+# ==============================================================================
+
+from fastapi import APIRouter, Depends, Query, status, UploadFile, File
 from typing import List, Optional
-from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
-
-# --- SECCIÓN 1: IMPORTACIONES DE LA APLICACIÓN ---
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.database import get_db
-# --- CAMBIO CLAVE: Se importa la dependencia 'role_checker' que sí existe. ---
 from app.dependencies.roles import role_checker
-# --- CAMBIO CLAVE: Se importa el Enum 'UserRole' para definir los permisos. ---
 from app.modules.users.user_models import UserRole, UserOut
 from . import purchasing_service
-from .purchase_order_models import PurchaseOrderCreate, PurchaseOrderOut, InvoiceOut
+from .purchasing_models import PurchaseOrderCreate, PurchaseOrderOut, PurchaseOrderUpdate
+from app.modules.auth.dependencies import get_current_active_user
 
+# ==============================================================================
+# SECCIÓN 2: DEFINICIÓN DEL ROUTER Y MODELOS DE RESPUESTA
+# ==============================================================================
 
-# --- SECCIÓN 2: CONFIGURACIÓN DEL ROUTER Y MODELOS DE RESPUESTA ---
+router = APIRouter(
+    prefix="/purchase-orders",
+    tags=["Compras - Órdenes de Compra"]
+)
 
-router = APIRouter(prefix="/purchasing", tags=["Compras - Órdenes de Compra"])
-
-class PaginatedPurchaseOrderResponse(BaseModel):
-    """Modelo de respuesta para las peticiones paginadas de órdenes de compra."""
-    total: int
+class PaginatedPurchaseOrdersResponse(BaseModel):
+    """Modelo de respuesta para una lista paginada de órdenes de compra."""
+    total_count: int
     items: List[PurchaseOrderOut]
 
+# ==============================================================================
+# SECCIÓN 3: ENDPOINTS DE LA API
+# ==============================================================================
 
-# --- SECCIÓN 3: DEFINICIÓN DE LISTAS DE ROLES PERMITIDOS ---
-# Se definen aquí para mantener el código de los endpoints limpio y legible.
-# Estas listas utilizan el Enum UserRole para evitar errores de tipeo.
-
-ROLES_CAN_MANAGE_PO = [UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE]
-ROLES_CAN_APPROVE_PO = [UserRole.ADMIN, UserRole.MANAGER]
-
-
-# --- SECCIÓN 4: ENDPOINTS DEL CRUD DE ÓRDENES DE COMPRA ---
-
-@router.get("/purchase-orders", response_model=PaginatedPurchaseOrderResponse)
-async def get_all_purchase_orders_route(
+@router.post(
+    "/upload-initial-inventory",
+    response_model=PurchaseOrderOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Importar Inventario Inicial desde CSV",
+    description="Crea una única Orden de Compra a partir de un archivo CSV para la carga inicial de inventario."
+)
+async def upload_initial_inventory_file(
+    file: UploadFile = File(..., description="Archivo CSV con columnas: sku, quantity, cost"),
     db: AsyncIOMotorDatabase = Depends(get_db),
-    # --- CAMBIO CLAVE: Se utiliza 'role_checker' con la lista de roles correspondiente. ---
-    _user: UserOut = Depends(role_checker(ROLES_CAN_MANAGE_PO)),
-    search: Optional[str] = None,
-    status: Optional[str] = None,
-    page: int = 1,
-    pageSize: int = 10,
+    current_user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN]))
 ):
     """
-    Obtiene una lista paginada de órdenes de compra.
-    Requiere que el rol del usuario esté en la lista ROLES_CAN_MANAGE_PO.
+    Endpoint para procesar un archivo CSV y registrar el inventario inicial del sistema.
     """
-    result = await purchasing_service.get_purchase_orders_with_filters(
-        db=db, search=search, status=status, page=page, page_size=pageSize
+    return await purchasing_service.create_purchase_order_from_file(db, file, current_user)
+
+
+@router.post(
+    "",
+    response_model=PurchaseOrderOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear una nueva Orden de Compra"
+)
+async def create_new_purchase_order(
+    po_data: PurchaseOrderCreate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+):
+    """
+    Registra una nueva orden de compra en el sistema. El usuario que crea la orden
+    se obtiene del token de autenticación.
+    """
+    return await purchasing_service.create_purchase_order(db, po_data, current_user)
+
+
+@router.get(
+    "",
+    response_model=PaginatedPurchaseOrdersResponse,
+    summary="Obtener lista paginada de Órdenes de Compra"
+)
+async def get_all_purchase_orders(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE, UserRole.ACCOUNTANT])),
+    search: Optional[str] = Query(None, description="Término de búsqueda por número de orden."),
+    page: int = Query(1, ge=1, description="Número de página."),
+    page_size: int = Query(10, ge=1, le=100, description="Tamaño de la página.")
+):
+    """
+    Recupera una lista paginada de órdenes de compra, con opción de búsqueda.
+    Protegido por roles que tienen permiso para ver esta información.
+    """
+    result = await purchasing_service.get_purchase_orders_paginated(
+        db=db, search=search, page=page, page_size=page_size
     )
-    if result is None:
-        return {"total": 0, "items": []}
     return result
 
 
-@router.post("/purchase-orders", response_model=PurchaseOrderOut, status_code=status.HTTP_201_CREATED)
-async def create_purchase_order_route(
-    po_data: PurchaseOrderCreate,
+@router.get(
+    "/{order_id}",
+    response_model=PurchaseOrderOut,
+    summary="Obtener una Orden de Compra por ID",
+    responses={404: {"description": "Orden de Compra no encontrada"}}
+)
+async def get_purchase_order_by_id_route(
+    order_id: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    # --- CAMBIO CRAVE: Se utiliza 'role_checker' para la creación. ---
-    user: UserOut = Depends(role_checker(ROLES_CAN_MANAGE_PO))
+    _user: UserOut = Depends(get_current_active_user)
 ):
-    """
-    Crea una nueva orden de compra.
-    Requiere que el rol del usuario esté en la lista ROLES_CAN_MANAGE_PO.
-    """
-    try:
-        created_po = await purchasing_service.create_purchase_order(db, po_data, user)
-        return created_po
-    except ValueError as ve:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    """Obtiene los detalles completos de una orden de compra específica por su ID."""
+    # La lógica para poblar el proveedor debería estar en el servicio.
+    order = await purchasing_service.get_purchase_order_by_id(db, order_id)
+    return order
 
 
-@router.post("/purchase-orders/{po_id}/approve", response_model=InvoiceOut)
-async def approve_purchase_order_route(
-    po_id: str,
+@router.patch(
+    "/{order_id}",
+    response_model=PurchaseOrderOut,
+    summary="Actualizar una Orden de Compra",
+    responses={404: {"description": "Orden de Compra no encontrada o no editable"}}
+)
+async def update_purchase_order_route(
+    order_id: str,
+    order_data: PurchaseOrderUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    # --- CAMBIO CLAVE: Se utiliza 'role_checker' con la lista de roles de aprobación. ---
-    user: UserOut = Depends(role_checker(ROLES_CAN_APPROVE_PO))
+    _user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER]))
 ):
     """
-    Aprueba una orden de compra pendiente y genera su factura.
-    Requiere que el rol del usuario esté en la lista más restrictiva ROLES_CAN_APPROVE_PO.
+    Actualiza una orden de compra. Solo se permiten actualizaciones en ciertos estados (ej. 'borrador').
     """
-    try:
-        invoice = await purchasing_service.approve_po_and_create_invoice(db, po_id, user)
-        return invoice
-    except ValueError as ve:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    updated_order = await purchasing_service.update_purchase_order(db, order_id, order_data)
+    return updated_order

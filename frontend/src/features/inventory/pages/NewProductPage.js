@@ -1,111 +1,89 @@
+// frontend/src/features/inventory/pages/NewProductPage.js
+
 /**
  * @file Página contenedora para el formulario de creación de un nuevo producto.
- *
- * Este componente actúa como un "contenedor inteligente" (Smart Container). Su única
- * responsabilidad es orquestar la lógica de alto nivel para la creación de un
- * producto, incluyendo:
- * - La gestión del estado de envío (loading/submitting).
- * - La comunicación con la API a través del servicio correspondiente.
- * - La gestión de la retroalimentación al usuario (notificaciones de éxito/error).
- * - La navegación tras una operación exitosa.
- *
- * Delega toda la lógica de presentación, validación de campos y gestión del estado
- * del formulario al componente reutilizable `ProductForm`.
+ * @description Este componente orquesta el flujo de creación de un producto.
+ * Actúa como un "contenedor inteligente", conectando el formulario, la lógica de
+ * transformación de datos (mappers) y la comunicación con la API.
  */
 
-// ==============================================================================
-// SECCIÓN 1: IMPORTACIONES
-// ==============================================================================
-
-import React, { useState, useCallback } from 'react';
+// SECCIÓN 1: IMPORTACIONES DE MÓDULOS
+import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Typography, Paper, Container, Box } from '@mui/material';
 
 import ProductForm from '../components/ProductForm';
 import { createProductAPI } from '../api/productsAPI';
+import { mapFormToCreateAPI } from '../productMappers'; // <--- USANDO EL MAPPER CENTRALIZADO
+import { formatApiError } from '../../../utils/errorUtils';
 
-// ==============================================================================
-// SECCIÓN 2: FUNCIONES DE AYUDA (UTILITIES)
-// ==============================================================================
-
-/**
- * Formatea un objeto de error de la API en un mensaje legible para el usuario.
- * @param {object} error El objeto de error capturado en el bloque catch.
- * @returns {string} Un mensaje de error formateado y listo para ser mostrado.
- */
-const formatApiError = (error) => {
-    const errorDetail = error.response?.data?.detail;
-    const defaultErrorMessage = 'Ocurrió un error inesperado al procesar la solicitud.';
-
-    // Caso 1: Error de validación de Pydantic (devuelve un array de errores)
-    if (Array.isArray(errorDetail)) {
-        return errorDetail
-            .map(err => `${err.loc[1] || 'Campo'}: ${err.msg}`) // ej. "sku: Este campo es requerido"
-            .join('; ');
-    }
-    
-    // Caso 2: Error de negocio manejado (devuelve un string)
-    if (typeof errorDetail === 'string') {
-        return errorDetail; // ej. "El SKU ya existe en la base de datos."
-    }
-    
-    // Caso 3: Otros errores de red o servidor no controlados
-    return error.message || defaultErrorMessage;
-};
-
-
-// ==============================================================================
-// SECCIÓN 3: COMPONENTE PRINCIPAL DE LA PÁGINA
-// ==============================================================================
-
+// SECCIÓN 2: DEFINICIÓN DEL COMPONENTE PRINCIPAL
 const NewProductPage = () => {
-    // --- Hooks para navegación, notificaciones y estado ---
+    // Sub-sección 2.1: Hooks de React y Librerías
     const navigate = useNavigate();
     const { enqueueSnackbar } = useSnackbar();
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const queryClient = useQueryClient();
 
-    /**
-     * Manejador para el evento de envío del formulario.
-     * Esta función se pasa como prop a `ProductForm`.
-     * @param {object} productData Los datos del producto, ya validados y formateados por Formik.
-     */
-    const handleCreateProduct = useCallback(async (productData) => {
-        setIsSubmitting(true);
-
-        try {
-            await createProductAPI(productData);
-            enqueueSnackbar('Producto creado exitosamente!', { variant: 'success' });
+    // Sub-sección 2.2: Mutación de Creación con React Query
+    const { mutate: createProduct, isPending: isSubmitting } = useMutation({
+        mutationFn: createProductAPI, // La función que realiza la llamada a la API.
+        onSuccess: (data) => {
+            enqueueSnackbar(`Producto "${data.name}" creado exitosamente!`, {
+                variant: 'success',
+            });
+            queryClient.invalidateQueries({ queryKey: ['products'] }); // Invalida la cache de la lista de productos.
             navigate('/inventario/productos');
-        } catch (error) {
-            console.error("Error detallado al crear producto:", error);
+        },
+        onError: (error) => {
+            console.error("Error detallado al crear producto:", error.response || error);
             const userFriendlyErrorMessage = formatApiError(error);
             enqueueSnackbar(userFriendlyErrorMessage, {
                 variant: 'error',
-                persist: true, // Mantiene el mensaje de error visible hasta que el usuario lo cierre
+                persist: true,
             });
-        } finally {
-            setIsSubmitting(false);
-        }
-    }, [navigate, enqueueSnackbar]);
+        },
+    });
 
+    // Sub-sección 2.3: Manejador de Envío del Formulario
+    /**
+     * Orquesta el proceso de creación al recibir los datos del formulario.
+     * @param {object} formData Los datos crudos provenientes del estado de Formik.
+     */
+    const handleCreateProduct = useCallback((formData) => {
+        // Paso 1: Mapear los datos del formulario al formato esperado por la API.
+        const apiPayload = mapFormToCreateAPI(formData);
+        
+        // Paso 2: Ejecutar la mutación con el payload preparado.
+        createProduct(apiPayload);
 
-    // --- Renderizado de la UI ---
+    }, [createProduct]);
+
+    // Sub-sección 2.4: Renderizado de la Interfaz de Usuario (UI)
     return (
         <Container maxWidth="lg">
-            <Paper sx={{ p: { xs: 2, sm: 3, md: 4 }, my: 4, borderRadius: 2, boxShadow: 3 }}>
-                <Box sx={{ mb: 4 }}>
-                    <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
+            <Paper 
+                component="main"
+                sx={{ 
+                    p: { xs: 2, sm: 3, md: 4 }, 
+                    my: { xs: 2, md: 4 },
+                    borderRadius: 2, 
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)' 
+                }}
+            >
+                <Box sx={{ mb: 4, borderBottom: '1px solid', borderColor: 'divider', pb: 2 }}>
+                    <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: '600' }}>
                         Crear Nuevo Producto
                     </Typography>
                     <Typography variant="body1" color="text.secondary">
-                        Complete todos los campos a continuación para registrar un nuevo artículo en el inventario.
+                        Rellene la información del catálogo para registrar un nuevo artículo en el sistema.
                     </Typography>
                 </Box>
                 
                 <ProductForm
                     onSubmit={handleCreateProduct}
-                    isSubmitting={isSubmitting}
+                    isSubmitting={isSubmitting} // El estado de carga viene directamente de useMutation.
                 />
             </Paper>
         </Container>

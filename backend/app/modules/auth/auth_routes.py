@@ -1,67 +1,78 @@
 # /backend/app/modules/auth/auth_routes.py
 
 """
-Define los endpoints de la API para la autenticación, gestión de perfiles y verificación de tokens.
-Este archivo se centra en la definición de las rutas y delega la lógica de negocio a la capa de servicio
-y la lógica de validación de usuarios a las dependencias.
+Define los endpoints de la API para la autenticación, gestión de perfiles y
+verificación de tokens. Este módulo es el punto de entrada para todas las
+operaciones relacionadas con la sesión del usuario.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
-from fastapi.security import OAuth2PasswordRequestForm
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES
+# ==============================================================================
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import timedelta
 from typing import Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
-
-# --- SECCIÓN 1: IMPORTACIONES ---
 
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.security import create_access_token
 from app.modules.users.user_models import UserOut
 from . import auth_service
+
+# ==============================================================================
+# SECCIÓN 2: CONFIGURACIÓN DE SEGURIDAD Y ROUTER
+# ==============================================================================
+
+# Se define el esquema de seguridad OAuth2. Al definirlo aquí, rompemos el
+# ciclo de importación con el módulo de dependencias. FastAPI lo utiliza para
+# la documentación de la API y para extraer el token 'Bearer'.
+reusable_oauth2 = OAuth2PasswordBearer(
+    tokenUrl="/api/v1/auth/login" # Se usa la ruta completa para mayor claridad
+)
+
+# Se importa la dependencia DESPUÉS de definir el esquema que necesita.
 from .dependencies import get_current_active_user
-
-
-# --- SECCIÓN 2: CONFIGURACIÓN DEL ROUTER ---
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
-
-# --- SECCIÓN 3: MODELOS DE RESPUESTA DE LA API ---
+# ==============================================================================
+# SECCIÓN 3: MODELOS DE RESPUESTA DE LA API
+# ==============================================================================
 
 class TokenResponse(BaseModel):
     """Define la estructura de la respuesta para el endpoint de login."""
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
     user: UserOut
 
+# ==============================================================================
+# SECCIÓN 4: ENDPOINTS DE LA API
+# ==============================================================================
 
-# --- SECCIÓN 4: ENDPOINTS DE LA API ---
-
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, summary="Iniciar Sesión")
 async def login_for_access_token(
-    request: Request,
     db: AsyncIOMotorDatabase = Depends(get_db),
     form_data: OAuth2PasswordRequestForm = Depends()
 ):
     """
-    Autentica a un usuario con 'username' y 'password' y devuelve un token de acceso y los datos del usuario.
-    """
-    client_ip = request.client.host
-    print(f"--- [AUTH LOGIN] Intento de login para '{form_data.username}' desde IP: {client_ip} ---")
+    Autentica a un usuario con nombre de usuario y contraseña.
 
+    Si las credenciales son válidas, devuelve un token de acceso JWT y el
+    objeto completo del usuario.
+    """
     user_doc = await auth_service.authenticate_user(
         db=db, username=form_data.username, password=form_data.password
     )
     if not user_doc:
-        print(f"❌ Fallo de autenticación para '{form_data.username}'.")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Nombre de usuario o contraseña incorrectos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    print(f"✅ Autenticación exitosa para '{form_data.username}'.")
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -69,25 +80,24 @@ async def login_for_access_token(
         expires_delta=access_token_expires
     )
     
-    user_info = UserOut(**user_doc)
-    
     return {
         "access_token": access_token,
-        "token_type": "bearer",
-        "user": user_info
+        "user": UserOut.model_validate(user_doc)
     }
 
-@router.get("/profile", response_model=UserOut)
+@router.get("/profile", response_model=UserOut, summary="Obtener Perfil del Usuario")
 async def get_user_profile(current_user: UserOut = Depends(get_current_active_user)):
     """
-    Devuelve el perfil del usuario actualmente autenticado.
+    Devuelve el perfil del usuario actualmente autenticado a través del token.
     """
     return current_user
 
-@router.get("/verify-token", response_model=Dict[str, Any])
+@router.get("/verify-token", response_model=Dict[str, Any], summary="Verificar Token de Sesión")
 async def verify_token_route(current_user: UserOut = Depends(get_current_active_user)):
     """
-    Endpoint para que el frontend pueda verificar rápidamente si un token almacenado es válido.
-    La validación ocurre implícitamente en la dependencia 'get_current_active_user'.
+    Endpoint para que el frontend verifique si un token almacenado es válido.
+
+    La validación ocurre implícitamente en la dependencia `get_current_active_user`.
+    Si la dependencia se resuelve, el token es válido.
     """
-    return {"status": "ok", "message": "Token is valid", "user": current_user}
+    return {"status": "ok", "user": current_user}

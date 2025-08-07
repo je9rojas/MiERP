@@ -1,10 +1,10 @@
+// /frontend/src/features/inventory/api/productsAPI.js
+
 /**
- * @file Contiene todas las funciones para interactuar con los endpoints de productos del backend.
+ * @file Contiene las funciones de API para el Catálogo de Productos y el Inventario.
  *
- * Este módulo actúa como una capa de abstracción sobre las llamadas de red (Axios),
- * proporcionando un conjunto de funciones claras y reutilizables para que los
- * componentes y hooks de la aplicación puedan solicitar o enviar datos de productos
- * sin conocer los detalles de la implementación de la API.
+ * Este módulo encapsula las llamadas de Axios a los endpoints de productos
+ * (catálogo) y lotes de inventario (stock transaccional).
  */
 
 // ==============================================================================
@@ -14,26 +14,26 @@
 import api from '../../../app/axiosConfig';
 
 // ==============================================================================
-// SECCIÓN 2: FUNCIONES DE LA API
+// SECCIÓN 2: FUNCIONES DE API PARA EL CATÁLOGO DE PRODUCTOS
 // ==============================================================================
 
 /**
- * Envía los datos de un nuevo producto al backend para su creación.
+ * Envía los datos de un nuevo producto maestro al backend para su creación.
  * @param {object} productData - El payload del producto desde el formulario.
  * @returns {Promise<object>} Una promesa que resuelve con los datos del producto creado.
  */
 export const createProductAPI = async (productData) => {
-  const response = await api.post('/products/', productData);
+  const response = await api.post('/products', productData);
   return response.data;
 };
 
 /**
  * Obtiene una lista paginada y filtrada de productos desde el backend.
- * @param {object} params - Objeto con parámetros de consulta (page, pageSize, search, etc.).
+ * @param {object} params - Objeto con parámetros de consulta (page, page_size, search, etc.).
  * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada (items, total_count).
  */
 export const getProductsAPI = async (params) => {
-  const response = await api.get('/products/', { params });
+  const response = await api.get('/products', { params });
   return response.data;
 };
 
@@ -43,7 +43,6 @@ export const getProductsAPI = async (params) => {
  * @returns {Promise<object>} Una promesa que resuelve con los datos del producto encontrado.
  */
 export const getProductBySkuAPI = async (sku) => {
-  // Aseguramos que el SKU se codifique correctamente para la URL, por si contiene caracteres especiales.
   const encodedSku = encodeURIComponent(sku);
   const response = await api.get(`/products/${encodedSku}`);
   return response.data;
@@ -57,7 +56,6 @@ export const getProductBySkuAPI = async (sku) => {
  */
 export const updateProductAPI = async (sku, productData) => {
   const encodedSku = encodeURIComponent(sku);
-  // Se utiliza el método PATCH, que es el estándar para actualizaciones parciales.
   const response = await api.patch(`/products/${encodedSku}`, productData);
   return response.data;
 };
@@ -72,15 +70,18 @@ export const deactivateProductAPI = async (sku) => {
   await api.delete(`/products/${encodedSku}`);
 };
 
+// ==============================================================================
+// SECCIÓN 3: FUNCIONES DE API PARA LOTES DE INVENTARIO
+// ==============================================================================
+
 /**
- * Solicita la generación de un catálogo en PDF al backend.
- * @param {object} payload - Los filtros para el catálogo (search_term, product_types, view_type).
- * @returns {Promise<Blob>} Una promesa que resuelve a un objeto Blob que representa el archivo PDF.
+ * Obtiene todos los lotes de inventario asociados a un ID de producto específico.
+ * @param {string} productId - El ID del producto para el cual se solicitan los lotes.
+ * @returns {Promise<Array<object>>} Una promesa que resuelve a un array de objetos de lote.
  */
-export const generateCatalogAPI = async (payload) => {
-  const response = await api.post('/products/catalog', payload, {
-    // Es crucial indicarle a Axios que la respuesta esperada es un archivo binario.
-    responseType: 'blob',
+export const getInventoryLotsByProductIdAPI = async (productId) => {
+  const response = await api.get('/inventory-lots', {
+    params: { product_id: productId }
   });
   return response.data;
 };

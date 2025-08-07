@@ -1,20 +1,15 @@
+# backend/app/modules/inventory/product_models.py
+
 """
-Define los modelos de datos de Pydantic para la entidad 'Producto' del inventario.
+Define los modelos de datos de Pydantic para la entidad maestra 'Producto'.
 
-Este módulo implementa una arquitectura de DTOs (Data Transfer Objects) para
-gestionar los datos de productos de manera segura y organizada. Se definen
-modelos distintos para los diferentes flujos de datos:
-
-1.  **Modelos de Entrada (Create/Update):** Definen la forma de los datos que la
-    API espera recibir para crear o modificar un recurso.
-2.  **Modelos de Base de Datos (InDB):** Representan la estructura completa y
-    verdadera del documento tal como se almacena en la base de datos (ej. MongoDB).
-3.  **Modelos de Salida (Out):** Definen la forma de los datos que la API expone
-    al cliente, permitiendo ocultar campos sensibles o internos.
+Un 'Producto' en este contexto es una entidad de catálogo que contiene la
+información descriptiva y estática. Los datos transaccionales como el stock
+y el costo se manejan a través de un modelo de Lotes de Inventario.
 """
 
 # ==============================================================================
-# SECCIÓN 1: IMPORTACIONES DE MÓDULOS
+# SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
@@ -25,20 +20,17 @@ from bson import ObjectId as BsonObjectId
 
 from app.models.shared import PyObjectId
 
-
 # ==============================================================================
-# SECCIÓN 2: ENUMS PARA CATEGORIZACIÓN ESTANDARIZADA
+# SECCIÓN 2: ENUMS Y MODELOS DE SOPORTE
 # ==============================================================================
 
 class ProductCategory(str, Enum):
-    """Categorías principales de productos en el sistema."""
     FILTER = "filter"
     BATTERY = "battery"
     OIL = "oil"
     SPARE_PART = "spare_part"
 
 class FilterType(str, Enum):
-    """Subtipos específicos para la categoría 'Filtro'."""
     AIR = "air"
     OIL = "oil"
     CABIN = "cabin"
@@ -46,7 +38,6 @@ class FilterType(str, Enum):
     NOT_APPLICABLE = "n_a"
 
 class ProductShape(str, Enum):
-    """Formas físicas o de construcción de los productos, principalmente filtros."""
     PANEL = "panel"
     ROUND = "round"
     OVAL = "oval"
@@ -56,105 +47,88 @@ class ProductShape(str, Enum):
     IN_LINE_GASOLINE = "in_line_gasoline"
     NOT_APPLICABLE = "n_a"
 
-
-# ==============================================================================
-# SECCIÓN 3: MODELOS DE SOPORTE Y DATOS ANIDADOS
-# ==============================================================================
-
 class FilterDimensions(BaseModel):
-    """
-    Modelo fuertemente tipado para las dimensiones de los filtros.
-
-    Este modelo está diseñado para ser flexible, aceptando valores numéricos para
-    medidas estándar y valores de texto para especificaciones complejas como
-    el tamaño de una rosca (ej. "M20x1.5").
-    """
-    a: Optional[float] = Field(None, description="Dimensión A, generalmente el diámetro exterior o longitud.")
-    b: Optional[float] = Field(None, description="Dimensión B, generalmente el diámetro interior o ancho.")
-    c: Optional[float] = Field(None, description="Dimensión C, generalmente una segunda medida de diámetro interior.")
-    g: Optional[Union[str, float]] = Field(None, description="Dimensión G, representa la rosca. Puede ser un texto (ej. 'M20x1.5') o un número.")
-    h: Optional[float] = Field(None, description="Dimensión H, generalmente la altura total del filtro.")
-    f: Optional[float] = Field(None, description="Dimensión F, otra medida relevante según la forma del filtro.")
-
-    model_config = ConfigDict(
-        extra='forbid',
-        json_schema_extra={
-            "example": {
-                "a": 100.5,
-                "h": 150,
-                "g": "M20x1.5"
-            }
-        }
-    )
+    a: Optional[float] = Field(None)
+    b: Optional[float] = Field(None)
+    c: Optional[float] = Field(None)
+    g: Optional[Union[str, float]] = Field(None)
+    h: Optional[float] = Field(None)
+    f: Optional[float] = Field(None)
+    model_config = ConfigDict(extra='forbid')
 
 class OEMCode(BaseModel):
-    """Representa un código de fabricante de equipo original (OEM)."""
-    brand: str = Field(..., description="Marca del fabricante OEM.")
-    code: str = Field(..., description="Código del producto OEM.")
+    brand: str
+    code: str
 
 class CrossReference(BaseModel):
-    """Representa una referencia cruzada con un producto de otra marca."""
-    brand: str = Field(..., description="Marca del producto equivalente.")
-    code: str = Field(..., description="Código del producto equivalente.")
+    brand: str
+    code: str
 
 class Application(BaseModel):
-    """Describe la aplicación de un producto en un vehículo específico."""
-    brand: str = Field(..., description="Marca del vehículo (ej. Toyota).")
-    model: Optional[str] = Field(None, description="Modelo del vehículo (ej. Corolla).")
-    years: List[int] = Field(default_factory=list, description="Rango de años de fabricación del modelo.")
-    engine: Optional[str] = Field(None, description="Especificación del motor (ej. 2.0L 16V).")
-
+    brand: str
+    model: Optional[str] = None
+    years: List[int] = Field(default_factory=list)
+    engine: Optional[str] = None
 
 # ==============================================================================
-# SECCIÓN 4: ARQUITECTURA DE MODELOS PRINCIPALES DE PRODUCTO (DTOs)
+# SECCIÓN 3: ARQUITECTURA DE MODELOS DE PRODUCTO
 # ==============================================================================
 
 class ProductBase(BaseModel):
     """
-    Modelo base con todos los campos comunes que definen un producto.
-    Sirve como la estructura fundamental de la cual otros DTOs heredan.
+    Modelo base con la información de catálogo de un producto.
+    Contiene todos los campos que son comunes entre la creación y la lectura.
     """
-    sku: str = Field(..., min_length=1, description="Código de Referencia Único (SKU) del producto.")
+    sku: str = Field(..., min_length=1, description="Código de Referencia Único (SKU).")
     name: str = Field(..., min_length=3, description="Nombre descriptivo del producto.")
     brand: str = Field(..., min_length=2, description="Marca del producto.")
-    description: Optional[str] = Field(None, description="Descripción detallada o notas adicionales sobre el producto.")
-    category: ProductCategory = Field(..., description="Categoría principal a la que pertenece el producto.")
-    product_type: FilterType = Field(FilterType.NOT_APPLICABLE, description="Subtipo específico, principalmente para filtros.")
-    shape: Optional[ProductShape] = Field(None, description="Forma física o tipo de construcción del producto.")
-    cost: float = Field(..., ge=0, description="Costo de adquisición del producto.")
-    price: float = Field(..., ge=0, description="Precio de venta al público del producto.")
-    stock_quantity: int = Field(0, ge=0, description="Cantidad de unidades disponibles en inventario.")
-    points_on_sale: float = Field(0.0, ge=0, description="Puntos generados por la venta de este producto.")
+    description: Optional[str] = Field(None, description="Descripción detallada del producto.")
+    category: ProductCategory
+    product_type: FilterType = FilterType.NOT_APPLICABLE
+    shape: Optional[ProductShape] = None
+    
+    # Estos campos son calculados a partir de los lotes de inventario.
+    # Son de solo lectura en la API de salida y se inicializan para la creación.
+    stock_quantity: int = Field(0, ge=0, description="Cantidad total en stock (calculada a partir de la suma de lotes).")
+    average_cost: float = Field(0.0, ge=0, description="Costo promedio ponderado de todas las unidades en stock.")
+    total_value: float = Field(0.0, ge=0, description="Valor total del inventario para este producto (stock * costo promedio).")
+    
+    price: float = Field(..., ge=0, description="Precio de venta al público.")
+    points_on_sale: float = Field(0.0, ge=0, description="Puntos generados por la venta.")
     weight_g: Optional[float] = Field(None, ge=0, description="Peso del producto en gramos.")
-    dimensions: Optional[FilterDimensions] = Field(None, description="Dimensiones físicas del producto, si aplica.")
-    oem_codes: List[OEMCode] = Field(default_factory=list, description="Lista de códigos OEM equivalentes.")
-    cross_references: List[CrossReference] = Field(default_factory=list, description="Lista de referencias cruzadas con otras marcas.")
-    applications: List[Application] = Field(default_factory=list, description="Lista de vehículos en los que aplica el producto.")
-    main_image_url: Optional[str] = Field(None, description="URL de la imagen principal del producto.")
-    image_urls: List[str] = Field(default_factory=list, description="Lista de URLs de imágenes adicionales.")
+    
+    dimensions: Optional[FilterDimensions] = None
+    oem_codes: List[OEMCode] = Field(default_factory=list)
+    cross_references: List[CrossReference] = Field(default_factory=list)
+    applications: List[Application] = Field(default_factory=list)
+    
+    main_image_url: Optional[str] = None
+    image_urls: List[str] = Field(default_factory=list)
 
 class ProductCreate(ProductBase):
     """
-    DTO de Entrada para la creación de un nuevo producto.
-    Hereda directamente de ProductBase, definiendo el contrato para la API de creación.
+    DTO para crear un nuevo producto. El stock y costo inicial se pueden especificar
+    para crear un lote inicial si es necesario.
     """
     pass
 
 class ProductUpdate(BaseModel):
     """
-    DTO de Entrada para la actualización parcial (PATCH) de un producto.
-    Todos los campos son opcionales para permitir modificaciones de solo algunos atributos.
+    DTO para actualizar la información de catálogo de un producto.
+    Todos los campos son opcionales para soportar actualizaciones parciales (PATCH).
+    Nota: El stock y el costo no se actualizan aquí, sino a través de movimientos de inventario.
     """
     name: Optional[str] = Field(None, min_length=3)
     brand: Optional[str] = Field(None, min_length=2)
-    description: Optional[str] = Field(None)
+    description: Optional[str] = None
     category: Optional[ProductCategory] = None
     product_type: Optional[FilterType] = None
     shape: Optional[ProductShape] = None
-    cost: Optional[float] = Field(None, ge=0)
     price: Optional[float] = Field(None, ge=0)
-    stock_quantity: Optional[int] = Field(None, ge=0)
+    
+    # --- CORRECCIÓN: Se añade 'points_on_sale' para que sea actualizable ---
     points_on_sale: Optional[float] = Field(None, ge=0)
+    
     weight_g: Optional[float] = Field(None, ge=0)
     dimensions: Optional[FilterDimensions] = None
     oem_codes: Optional[List[OEMCode]] = None
@@ -164,68 +138,26 @@ class ProductUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 class ProductInDB(ProductBase):
-    """
-    Modelo que representa el documento completo del producto como se almacena en MongoDB.
-    Incluye campos de auditoría y el identificador único de la base de datos.
-    """
+    """Modelo que representa el documento completo como se almacena en MongoDB."""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    is_active: bool = Field(True, description="Indica si el producto está activo y disponible para la venta.")
+    is_active: bool = Field(True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_schema_extra={
-            "example": {
-                "sku": "WIX-51348",
-                "name": "Filtro de Aceite Spin-On",
-                "brand": "WIX",
-                "category": "filter",
-                "product_type": "oil",
-                "_id": "64c919f18e974f039d226a97",
-                "is_active": True,
-                "created_at": "2023-08-01T12:00:00Z",
-                "updated_at": "2023-08-01T12:00:00Z"
-            }
-        }
-    )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={BsonObjectId: str})
 
 class ProductOut(ProductBase):
-    """
-    DTO de Salida que define la estructura de un producto expuesto por la API.
-    Este es el modelo que el cliente recibirá al consultar productos.
-    """
+    """DTO de Salida para exponer la información del producto."""
     id: PyObjectId = Field(..., alias="_id")
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
-    @field_serializer('id', when_used='json')
-    def serialize_id(self, id_obj: BsonObjectId) -> str:
-        """Convierte el ObjectId de MongoDB a string durante la serialización a JSON."""
+    @field_serializer('id')
+    def serialize_id(self, id_obj: BsonObjectId, _info) -> str:
         return str(id_obj)
 
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True
-    )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 class ProductOutDetail(ProductOut):
-    """
-    DTO de Salida para una vista detallada del producto.
-    Actualmente, este DTO es un alias de ProductOut, pero puede extenderse en el
-    futuro para incluir más información o relaciones pobladas.
-    """
+    """Alias para la vista detallada de un producto. No requiere campos adicionales por ahora."""
     pass
-
-
-# ==============================================================================
-# SECCIÓN 5: MODELOS PARA FUNCIONALIDADES ESPECÍFICAS
-# ==============================================================================
-
-class CatalogFilterPayload(BaseModel):
-    """Define la carga útil para filtrar el catálogo de productos."""
-    search_term: Optional[str] = Field(None, description="Término de búsqueda para SKU, nombre, etc.")
-    product_types: Optional[List[FilterType]] = Field(None, description="Lista de tipos de filtro para acotar la búsqueda.")
-    view_type: str = Field('client', description="Define el tipo de vista, puede afectar precios o campos visibles.")

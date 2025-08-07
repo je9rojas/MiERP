@@ -425,6 +425,13 @@ frontend/src/components/layout/ListPageLayout.js
 /frontend/src/features/inventory/components/ProductGridToolbar.js
 
 
+
+
+
+
+
+
+
 BACKEND
 -----------------------------------------------
 
@@ -473,11 +480,18 @@ BACKEND
 
 # ---------------------- INVENTARIO ----------------------
 /backend/app/modules/inventory/__init__.py
-/backend/app/modules/inventory/catalog_generator.py
+
+/backend/app/modules/inventory/inventory_models.py
+/backend/app/modules/inventory/inventory_service.py
+/backend/app/modules/inventory/inventory_routes.py
 /backend/app/modules/inventory/product_models.py
 /backend/app/modules/inventory/product_routes.py
 /backend/app/modules/inventory/product_service.py
 /backend/app/modules/inventory/repositories/product_repository.py
+/backend/app/modules/inventory/repositories/inventory_lot_repository.py
+
+
+
 
 # ---------------------- COMPRAS (purchasing) ----------------------
 /backend/app/modules/purchasing/__init__.py
@@ -485,6 +499,24 @@ BACKEND
 /backend/app/modules/purchasing/purchasing_routes.py
 /backend/app/modules/purchasing/purchasing_service.py
 /backend/app/modules/purchasing/repositories/purchase_repository.py
+
+
+# ---------------------- Reportes ----------------------
+
+
+/backend/app/modules/reports/services/catalog_service.py
+/backend/app/modules/reports/reports_service.py
+/backend/app/modules/reports/reports_routes.py
+/backend/app/modules/reports/reports_models.py
+
+
+
+# ---------------------- Ventas ----------------------
+
+/backend/app/modules/sales/sales_models.py
+/backend/app/modules/sales/sales_service.py
+/backend/app/modules/sales/repositories/sales_repository.py
+/backend/app/modules/sales/sales_routes.py
 
 # ---------------------- ROLES ----------------------
 /backend/app/modules/roles/__init__.py
@@ -545,6 +577,7 @@ FRONTEND
 /frontend/src/constants/rolesAndPermissions.js
 /frontend/src/constants/validationSchemas.js
 /frontend/src/constants/permissions.js
+/frontend/src/constants/crmConstants.js
 
 # ---------------------- MÓDULOS DE NEGOCIO ----------------------
 
@@ -560,23 +593,35 @@ FRONTEND
 /frontend/src/features/auth/
 
 
-# ---------------------- (estructura pendiente de detallar) 
+# ---------------------- CRM ------------------
 
 
 
 /frontend/src/features/crm/api/suppliersAPI.js
+/frontend/src/features/crm/api/customersAPI.js
+
 /frontend/src/features/crm/components/SupplierForm.js
+/frontend/src/features/crm/components/SupplierDataGrid.js
 /frontend/src/features/crm/pages/NewSupplierPage.js
 /frontend/src/features/crm/pages/SupplierListPage.js
 
 
 
+# ---------------------- Inventario
 
-# ----------------------
+
+frontend/src/features/inventory/productMappers.js
 
 /frontend/src/features/inventory/api/productsAPI.js
+
+frontend/src/features/inventory/components/product/ProductPrimaryInfoSection.js
+frontend/src/features/inventory/components/product/ProductCommercialDataSection.js
+frontend/src/features/inventory/components/product/ProductSpecificationsSection.js
+frontend/src/features/inventory/components/product/ProductReferenceSection.js
+
 /frontend/src/features/inventory/components/ProductForm.js
 /frontend/src/features/inventory/components/ProductGridToolbar.js
+frontend/src/features/inventory/components/InventoryLotsModal.js
 /frontend/src/features/inventory/pages/EditProductPage.js
 /frontend/src/features/inventory/pages/InactiveProductListPage.js
 /frontend/src/features/inventory/pages/NewProductPage.js
@@ -588,9 +633,20 @@ FRONTEND
 /frontend/src/features/purchasing/components/PurchaseOrderGridToolbar.js
 /frontend/src/features/purchasing/pages/
 /frontend/src/features/purchasing/pages/
+/frontend/src/features/purchasing/components/PurchaseOrderDataGrid.js
 
+# ---------------------- Reportes ----------------------
 
+/frontend/src/features/reports/api/reportsAPI.js
+/frontend/src/features/reports/pages/ProductCatalogPage.js
 
+# ---------------------- Ventas ----------------------
+
+/frontend/src/features/sales/components/SalesOrderForm.js
+/frontend/src/features/sales/api/salesAPI.js
+/frontend/src/features/sales/pages/NewSalesOrderPage.js
+/frontend/src/features/sales/pages/SalesOrderListPage.js
+/frontend/src/features/sales/components/SalesOrderDataGrid.js
 
 # ---------------------- HOOKS PERSONALIZADOS ----------------------
 /frontend/src/hooks/useDebounce.js

@@ -1,36 +1,62 @@
 # /backend/app/api.py
 
 """
-Ensamblador Principal de la API.
+Concentrador Principal de Rutas de la API (API Router Hub).
 
-Este archivo importa todos los routers de los diferentes módulos de la aplicación
-y los incluye en un único APIRouter principal. Esto mantiene el archivo `main.py`
-limpio y desacoplado de la estructura específica de las rutas de la API,
-facilitando la organización y escalabilidad del proyecto.
+Este archivo actúa como el punto de ensamblaje para todos los routers modulares
+de la aplicación. Su única responsabilidad es importar los routers de cada
+módulo de negocio y unirlos bajo un único `APIRouter` principal.
+
+Esta centralización mantiene el archivo `main.py` limpio y agnóstico a la
+estructura de las rutas, promoviendo una arquitectura modular, organizada y
+fácil de escalar.
 """
+
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES DE ROUTERS
+# ==============================================================================
 
 from fastapi import APIRouter
 
-# Importamos los routers de cada módulo de negocio
-from app.modules.auth import auth_routes
-from app.modules.crm import supplier_routes, customer_routes
-from app.modules.data_management import data_management_routes
-from app.modules.inventory import product_routes
-from app.modules.purchasing import purchasing_routes
-from app.modules.roles import role_routes
-from app.modules.users import user_routes
+# Importamos los routers individuales de cada módulo, usando un alias
+# consistente para mayor claridad y prevención de colisiones de nombres.
+from app.modules.auth import auth_routes as auth_router
+from app.modules.users import user_routes as users_router
+from app.modules.roles import role_routes as roles_router
+from app.modules.crm import supplier_routes as suppliers_router
+# from app.modules.crm import customer_routes as customers_router # Listo para el futuro
+from app.modules.inventory import product_routes as products_router
+from app.modules.inventory import inventory_routes as inventory_router
+from app.modules.purchasing import purchasing_routes as purchasing_router
+from app.modules.sales import sales_routes as sales_router
+from app.modules.reports import reports_routes as reports_router
+from app.modules.data_management import data_management_routes as data_management_router
 
-# Creamos el router principal que agrupará todas las rutas de la API.
+# ==============================================================================
+# SECCIÓN 2: ENSAMBLAJE DEL ROUTER PRINCIPAL
+# ==============================================================================
+
 api_router = APIRouter()
 
-# Incluimos cada router modular en el router principal.
-# Cada uno ya tiene su propio prefijo (ej. '/products', '/suppliers'), por lo que
-# las URLs finales serán compuestas, por ejemplo: /api/v1/products
-api_router.include_router(auth_routes.router)
-api_router.include_router(user_routes.router)
-api_router.include_router(role_routes.router)
-api_router.include_router(product_routes.router)
-api_router.include_router(supplier_routes.router)
-api_router.include_router(customer_routes.router)
-api_router.include_router(purchasing_routes.router)
-api_router.include_router(data_management_routes.router)
+# Se registran los routers en un orden lógico que refleja la estructura del negocio.
+# El prefijo de cada uno (ej. '/products') se define dentro de su propio archivo de rutas.
+# El prefijo global '/api/v1' se aplica en `main.py`.
+
+# --- Sistema y Gestión de Acceso ---
+api_router.include_router(auth_router.router)
+api_router.include_router(users_router.router)
+api_router.include_router(roles_router.router)
+
+# --- CRM (Entidades de Negocio) ---
+api_router.include_router(suppliers_router.router)
+# api_router.include_router(customers_router.router)
+
+# --- Flujo de Mercancía ---
+api_router.include_router(products_router.router)     # Catálogo de Productos
+api_router.include_router(inventory_router.router)    # Lotes y Movimientos de Stock
+api_router.include_router(purchasing_router.router)   # Entradas (Órdenes de Compra)
+api_router.include_router(sales_router.router)        # Salidas (Órdenes de Venta)
+
+# --- Análisis y Administración ---
+api_router.include_router(reports_router.router)
+api_router.include_router(data_management_router.router)
