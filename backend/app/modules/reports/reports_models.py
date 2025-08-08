@@ -4,8 +4,7 @@
 Define los modelos de datos de Pydantic para el módulo de Reportes.
 
 Este archivo contiene los modelos que definen las estructuras de datos de entrada
-(payloads de filtros) y de salida (si fueran necesarios) para la generación
-de los diferentes reportes del sistema.
+(payloads de filtros) para la generación de los diferentes reportes del sistema.
 """
 
 # ==============================================================================
@@ -24,25 +23,27 @@ from app.modules.inventory.product_models import FilterType
 class CatalogFilterPayload(BaseModel):
     """
     Define el payload de entrada para la generación del catálogo de productos.
-    Este modelo es flexible y soporta tres modos de generación:
-    1. Por SKUs específicos (ignora otros filtros).
-    2. Por Tipos de Producto (puede combinarse con un término de búsqueda).
-    3. Completo (puede combinarse con un término de búsqueda).
+    
+    Es un modelo flexible que permite la generación de catálogos con una
+    jerarquía de filtros:
+    1. Si se proporcionan SKUs, se crea un catálogo personalizado.
+    2. Si no, se pueden usar filtros combinados por marca y/o tipo.
+    3. Si no se proporciona ningún filtro, se genera el catálogo completo.
     """
     
     product_skus: Optional[List[str]] = Field(
-        None,
-        description="Prioridad 1: Lista explícita de SKUs para generar un catálogo personalizado. Si se proporciona, los otros filtros de búsqueda son ignorados."
+        default=None,
+        description="Prioridad 1: Lista explícita de SKUs para generar un catálogo personalizado. Si se proporciona, los otros filtros son ignorados."
+    )
+
+    brands: Optional[List[str]] = Field(
+        default_factory=list,
+        description="Prioridad 2: Lista opcional de marcas para generar un catálogo temático. Ej: ['WIX', 'Bosch']."
     )
     
     product_types: Optional[List[FilterType]] = Field(
-        None,
-        description="Prioridad 2: Lista de tipos de filtro para generar un catálogo temático (ej: 'solo filtros de aceite')."
-    )
-
-    search_term: Optional[str] = Field(
-        None,
-        description="Prioridad 3: Término de búsqueda general por SKU o nombre. Se aplica dentro de los 'product_types' si se proporcionan, o sobre todo el catálogo si no."
+        default_factory=list,
+        description="Prioridad 2: Lista opcional de tipos de filtro para acotar la búsqueda. Se puede combinar con el filtro de marcas."
     )
 
     view_type: str = Field(

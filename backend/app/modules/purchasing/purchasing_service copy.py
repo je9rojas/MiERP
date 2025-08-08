@@ -1,4 +1,4 @@
-# /backend/app/modules/purchasing/purchasing_service.py
+# backend/app/modules/purchasing/purchasing_service.py
 
 """
 Capa de Servicio para la lógica de negocio del módulo de Compras.
@@ -13,31 +13,26 @@ para registrar los movimientos de stock correspondientes.
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
+import pandas as pd
+from io import StringIO
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile
 from pymongo import DESCENDING
 
-# Repositorios
 from .repositories.purchase_order_repository import PurchaseOrderRepository
 from app.modules.inventory.repositories.product_repository import ProductRepository
 from app.modules.crm.repositories.supplier_repository import SupplierRepository
 from app.modules.inventory.repositories.inventory_lot_repository import InventoryLotRepository
-
-# Modelos
 from app.modules.users.user_models import UserOut
 from .purchasing_models import (
-    PurchaseOrderCreate,
-    PurchaseOrderItem,
-    PurchaseOrderInDB,
-    PurchaseOrderOut,
-    PurchaseOrderStatus
+    PurchaseOrderCreate, PurchaseOrderItem, PurchaseOrderInDB,
+    PurchaseOrderOut, PurchaseOrderStatus
 )
 from app.modules.inventory.inventory_models import InventoryLotInDB
-
-# Servicios
 from app.modules.inventory import inventory_service
+from app.modules.crm import crm_service
 
 # ==============================================================================
 # SECCIÓN 2: FUNCIONES DE AYUDA PRIVADAS
@@ -50,12 +45,10 @@ async def _validate_and_enrich_items(db: AsyncIOMotorDatabase, items_data: List)
     total_amount = 0.0
 
     for item_in in items_data:
-        product_doc = await product_repo.find_by_id(str(item_in.product_id))
+        product_id_str = str(item_in.product_id)
+        product_doc = await product_repo.find_by_id(product_id_str)
         if not product_doc:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"El producto con ID '{item_in.product_id}' no existe."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"El producto con ID '{product_id_str}' no existe.")
         
         item_total = item_in.quantity_ordered * item_in.unit_cost
         total_amount += item_total
@@ -71,17 +64,27 @@ async def _validate_and_enrich_items(db: AsyncIOMotorDatabase, items_data: List)
         
     return enriched_items, total_amount
 
-async def _generate_po_number(db: AsyncIOMotorDatabase) -> str:
-    """Genera un número de orden de compra único."""
-    timestamp = int(datetime.now(timezone.utc).timestamp())
-    # En producción, esto debería usar un contador atómico de MongoDB.
-    return f"OC-{timestamp}"
+async def _generate_po_number(db: AsyncIOMotorDatabase, prefix: str = "OC") -> str:
+    """Genera un número de orden de compra único y secuencial."""
+    po_repo = PurchaseOrderRepository(db)
+    last_po = await po_repo.find_one_sorted([("created_at", DESCENDING)])
+    if last_po and last_po.get("order_number", "").startswith(f"{prefix}-"):
+        try:
+            last_num = int(last_po["order_number"].split('-')[-1])
+            new_num = last_num + 1
+            return f"{prefix}-{datetime.now().year}-{str(new_num).zfill(5)}"
+        except (ValueError, IndexError):
+            pass
+    
+    return f"{prefix}-{datetime.now().year}-{'1'.zfill(5)}"
 
 # ==============================================================================
-# SECCIÓN 3: FUNCIONES PÚBLICAS DEL SERVICIO
+# SECCIÓN 3: FUNCIONES DEL SERVICIO (OPERACIONES CRUD)
 # ==============================================================================
 
-async def create_purchase_order(db: AsyncIOMotorDatabase, po_data: PurchaseOrderCreate, user: UserOut) -> PurchaseOrderOut:
+async def create_purchase_order(
+    db: AsyncIOMotorDatabase, po_data: PurchaseOrderCreate, user: UserOut, prefix: str = "OC"
+) -> PurchaseOrderOut:
     """
     Crea una nueva Orden de Compra en estado 'Borrador'. Esta operación no afecta al stock.
     """
@@ -93,7 +96,7 @@ async def create_purchase_order(db: AsyncIOMotorDatabase, po_data: PurchaseOrder
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El proveedor especificado no existe.")
 
     enriched_items, total_amount = await _validate_and_enrich_items(db, po_data.items)
-    order_number = await _generate_po_number(db)
+    order_number = await _generate_po_number(db, prefix)
 
     po_to_db = PurchaseOrderInDB(
         order_number=order_number,
@@ -113,40 +116,25 @@ async def create_purchase_order(db: AsyncIOMotorDatabase, po_data: PurchaseOrder
     created_po_doc['supplier'] = supplier_doc
     return PurchaseOrderOut.model_validate(created_po_doc)
 
-
-async def receive_purchase_order(db: AsyncIOMotorDatabase, po_id: str, user: UserOut):
+async def get_purchase_order_by_id(db: AsyncIOMotorDatabase, order_id: str) -> PurchaseOrderOut:
     """
-    Marca una Orden de Compra como recibida, crea los lotes de inventario
-    correspondientes y delega la actualización del stock al servicio de inventario.
+    Obtiene una única Orden de Compra por su ID, enriqueciendo los datos del proveedor.
     """
     po_repo = PurchaseOrderRepository(db)
-    lot_repo = InventoryLotRepository(db)
+    supplier_repo = SupplierRepository(db)
 
-    po_doc = await po_repo.find_by_id(po_id)
+    po_doc = await po_repo.find_by_id(order_id)
     if not po_doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La Orden de Compra no existe.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"La Orden de Compra con ID '{order_id}' no fue encontrada.")
     
-    # Aquí se añadiría la lógica para validar si la orden puede ser recibida (ej. debe estar 'Aprobada')
+    supplier_doc = await supplier_repo.find_by_id(str(po_doc.get("supplier_id")))
+    if not supplier_doc:
+        # Esto indica una posible inconsistencia de datos, pero se maneja elegantemente.
+        po_doc['supplier'] = {"business_name": "Proveedor no encontrado"}
+    else:
+        po_doc['supplier'] = supplier_doc
 
-    for item in po_doc['items']:
-        lot_doc_model = InventoryLotInDB(
-            product_id=item['product_id'],
-            purchase_order_id=po_doc['_id'],
-            supplier_id=po_doc['supplier_id'],
-            warehouse_id=user.warehouse_id, # Asume que el usuario tiene un almacén asignado
-            lot_number=f"LOTE-{po_doc['order_number']}-{item['sku']}",
-            received_on=datetime.now(timezone.utc),
-            acquisition_cost=item['unit_cost'],
-            initial_quantity=item['quantity_ordered'],
-            current_quantity=item['quantity_ordered'],
-        )
-        await lot_repo.insert_one(lot_doc_model.model_dump(by_alias=True))
-        
-        await inventory_service.update_product_summary_from_lots(db, str(item['product_id']))
-
-    await po_repo.update_one_by_id(po_id, {"status": PurchaseOrderStatus.COMPLETED})
-    return {"status": "success", "message": "Mercancía recibida y lotes de inventario creados."}
-
+    return PurchaseOrderOut.model_validate(po_doc)
 
 async def get_purchase_orders_paginated(db: AsyncIOMotorDatabase, page: int, page_size: int, search: Optional[str]) -> Dict[str, Any]:
     """
@@ -171,3 +159,88 @@ async def get_purchase_orders_paginated(db: AsyncIOMotorDatabase, page: int, pag
         populated_items.append(PurchaseOrderOut.model_validate(doc))
 
     return {"total_count": total_count, "items": populated_items}
+
+# ==============================================================================
+# SECCIÓN 4: FUNCIONES DEL SERVICIO (OPERACIONES DE ACCIÓN)
+# ==============================================================================
+
+async def receive_purchase_order(db: AsyncIOMotorDatabase, po_id: str, user: UserOut) -> Dict[str, str]:
+    """
+    Marca una Orden de Compra como recibida, crea los lotes de inventario
+    y delega la actualización del stock al servicio de inventario.
+    """
+    po_repo = PurchaseOrderRepository(db)
+    lot_repo = InventoryLotRepository(db)
+
+    po_doc = await po_repo.find_by_id(po_id)
+    if not po_doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La Orden de Compra no existe.")
+    
+    if po_doc["status"] == PurchaseOrderStatus.COMPLETED:
+         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Esta orden de compra ya ha sido recibida.")
+
+    for item in po_doc['items']:
+        lot_doc_model = InventoryLotInDB(
+            product_id=item['product_id'],
+            purchase_order_id=po_doc['_id'],
+            supplier_id=po_doc['supplier_id'],
+            warehouse_id=user.warehouse_id,
+            lot_number=f"LOTE-{po_doc['order_number']}-{item['sku']}",
+            received_on=datetime.now(timezone.utc),
+            acquisition_cost=item['unit_cost'],
+            initial_quantity=item['quantity_ordered'],
+            current_quantity=item['quantity_ordered'],
+        )
+        await lot_repo.insert_one(lot_doc_model.model_dump(by_alias=True))
+        
+        await inventory_service.update_product_summary_from_lots(db, str(item['product_id']))
+
+    await po_repo.update_one_by_id(po_id, {"status": PurchaseOrderStatus.COMPLETED, "received_date": datetime.now(timezone.utc)})
+    return {"status": "success", "message": "Mercancía recibida y lotes de inventario creados."}
+
+async def create_purchase_order_from_file(db: AsyncIOMotorDatabase, file: UploadFile, user: UserOut) -> PurchaseOrderOut:
+    """
+    Crea y recibe una Orden de Compra a partir de un archivo CSV de inventario inicial.
+    """
+    try:
+        content = await file.read()
+        csv_file = StringIO(content.decode('utf-8'))
+        df = pd.read_csv(csv_file)
+        
+        required_columns = ['sku', 'quantity', 'cost']
+        if not all(col in df.columns for col in required_columns):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"El archivo CSV debe contener las columnas: {', '.join(required_columns)}.")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"No se pudo procesar el archivo. Error: {e}")
+
+    system_supplier = await crm_service.get_or_create_system_supplier(db)
+    
+    product_repo = ProductRepository(db)
+    items_to_create = []
+    for index, row in df.iterrows():
+        product = await product_repo.find_by_sku(row['sku'])
+        if not product:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Fila {index + 2}: El producto con SKU '{row['sku']}' no fue encontrado en el sistema.")
+        
+        items_to_create.append({"product_id": product["_id"], "quantity_ordered": int(row['quantity']), "unit_cost": float(row['cost'])})
+
+    po_data_dict = {
+        "supplier_id": system_supplier.id,
+        "order_date": datetime.now(timezone.utc),
+        "notes": "Orden de compra generada automáticamente por la carga de inventario inicial.",
+        "items": items_to_create
+    }
+    po_data = PurchaseOrderCreate(**po_data_dict)
+    
+    initial_inventory_po = await create_purchase_order(db, po_data, user, "INV-INICIAL")
+
+    await receive_purchase_order(db, str(initial_inventory_po.id), user)
+
+    po_repo = PurchaseOrderRepository(db)
+    final_po_doc = await po_repo.find_by_id(str(initial_inventory_po.id))
+    
+    # Nos aseguramos de que el proveedor esté poblado para la respuesta final.
+    if final_po_doc:
+        final_po_doc['supplier'] = system_supplier.model_dump()
+    
+    return PurchaseOrderOut.model_validate(final_po_doc)

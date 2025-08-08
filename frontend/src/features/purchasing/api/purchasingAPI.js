@@ -1,4 +1,4 @@
-// /frontend/src/features/purchasing/api/purchasingAPI.js
+// frontend/src/features/purchasing/api/purchasingAPI.js
 
 /**
  * @file Contiene todas las funciones para interactuar con los endpoints de Órdenes de Compra del backend.
@@ -21,7 +21,7 @@ import api from '../../../app/axiosConfig';
 
 /**
  * Obtiene una lista paginada y filtrada de órdenes de compra.
- * @param {object} params - Objeto con parámetros de consulta (ej. { page, pageSize, search, status }).
+ * @param {object} params - Objeto con parámetros de consulta (ej. { page, pageSize, search }).
  * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada (ej. { items: [], total_count: 0 }).
  */
 export const getPurchaseOrdersAPI = async (params) => {

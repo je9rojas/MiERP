@@ -1,4 +1,4 @@
-# /backend/app/modules/purchasing/repositories/purchase_order_repository.py
+# backend/app/modules/purchasing/repositories/purchase_order_repository.py
 
 """
 Capa de Repositorio para la entidad 'Orden de Compra' (Purchase Order).
@@ -36,35 +36,37 @@ class PurchaseOrderRepository:
         """
         self.collection = db.purchase_orders
 
+    async def insert_one(self, order_doc: Dict[str, Any]) -> ObjectId:
+        """
+        Inserta un nuevo documento de orden de compra en la colección.
+        """
+        result = await self.collection.insert_one(order_doc)
+        return result.inserted_id
+
     async def find_by_id(self, order_id: str) -> Optional[Dict[str, Any]]:
         """
         Busca una única orden de compra por su ObjectId de MongoDB.
-
-        Args:
-            order_id: El ID (en formato string) de la orden a buscar.
-
-        Returns:
-            Un diccionario representando el documento si se encuentra, de lo contrario None.
         """
         try:
             return await self.collection.find_one({"_id": ObjectId(order_id)})
         except InvalidId:
             return None
 
-    async def insert_one(self, order_doc: Dict[str, Any]) -> ObjectId:
+    async def find_one_sorted(self, sort_options: List) -> Optional[Dict[str, Any]]:
         """
-        Inserta un nuevo documento de orden de compra en la colección.
+        Encuentra el primer documento de la colección según un criterio de ordenamiento.
+        
+        Útil para obtener el documento más reciente o más antiguo.
 
         Args:
-            order_doc: Un diccionario que representa la orden a crear.
+            sort_options: Una lista de tuplas para el ordenamiento (ej. [("campo", -1)]).
 
         Returns:
-            El ObjectId del documento recién insertado.
+            El documento encontrado o None si la colección está vacía.
         """
-        result = await self.collection.insert_one(order_doc)
-        return result.inserted_id
+        # --- CORRECCIÓN: Se añade el método faltante. ---
+        return await self.collection.find_one(sort=sort_options)
 
-    # --- FUNCIÓN CORREGIDA ---
     async def find_all_paginated(
         self,
         query: Dict[str, Any],
@@ -74,15 +76,6 @@ class PurchaseOrderRepository:
     ) -> List[Dict[str, Any]]:
         """
         Encuentra múltiples documentos de órdenes de compra con paginación y ordenamiento.
-
-        Args:
-            query: El diccionario de consulta de MongoDB para filtrar los resultados.
-            skip: El número de documentos a omitir.
-            limit: El número máximo de documentos a devolver.
-            sort_options: Una lista de tuplas para el ordenamiento (ej. [("campo", 1)]).
-
-        Returns:
-            Una lista de diccionarios, cada uno representando una orden de compra.
         """
         cursor = self.collection.find(query)
         if sort_options:
@@ -94,25 +87,12 @@ class PurchaseOrderRepository:
     async def count_documents(self, query: Dict[str, Any]) -> int:
         """
         Cuenta el número total de documentos que coinciden con una consulta.
-
-        Args:
-            query: El diccionario de consulta de MongoDB.
-
-        Returns:
-            El número total de documentos coincidentes.
         """
         return await self.collection.count_documents(query)
 
     async def update_one_by_id(self, order_id: str, update_data: Dict[str, Any]) -> int:
         """
         Actualiza un documento de orden de compra existente, buscándolo por su ID.
-
-        Args:
-            order_id: El ID de la orden a actualizar.
-            update_data: Un diccionario con los campos y valores a actualizar.
-
-        Returns:
-            El número de documentos que coincidieron con el filtro (0 o 1).
         """
         try:
             result = await self.collection.update_one(

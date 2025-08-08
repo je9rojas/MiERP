@@ -1,205 +1,99 @@
 // /frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
 
 /**
- * @file Página principal para la visualización, filtrado y gestión de Órdenes de Compra.
- * Utiliza un diseño profesional con carga de datos inicial y una barra de herramientas siempre visible,
- * empleando MUI DataGrid para la tabla y react-query para la gestión de datos.
+ * @file Página contenedora para listar y gestionar las Órdenes de Compra.
+ *
+ * Este componente actúa como el "cerebro" de la página, orquestando la
+ * obtención de datos desde la API y gestionando el estado de la interfaz de
+ * usuario. Utiliza React Query para una gestión de datos eficiente y declarativa,
+ * implementando paginación y búsqueda del lado del servidor.
  */
 
-// --- SECCIÓN 1: IMPORTACIONES ---
-import React, { useState, useMemo, useCallback } from 'react';
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
+// ==============================================================================
+
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Container, Paper, Alert, IconButton, Tooltip, Typography, Chip } from '@mui/material';
-
-// --- ¡CORRECCIÓN CLAVE AQUÍ! ---
-// Se importa el componente 'DataGrid' desde la raíz del paquete.
-import { DataGrid } from '@mui/x-data-grid';
-// Se importa el paquete de idioma 'esES' desde el subdirectorio específico 'locales'.
-import { esES } from '@mui/x-data-grid/locales';
-
 import { useQuery } from '@tanstack/react-query';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import EditIcon from '@mui/icons-material/Edit';
-import SearchIcon from '@mui/icons-material/Search';
+import { Container, Paper, Box, Alert } from '@mui/material';
 
-import { usePermissions } from '../../../hooks/usePermissions';
-import { CAN_CRUD_PURCHASE_ORDERS } from '../../../constants/rolesAndPermissions';
 import { getPurchaseOrdersAPI } from '../api/purchasingAPI';
 import useDebounce from '../../../hooks/useDebounce';
-import FilterBar from '../../../components/common/FilterBar';
-import PurchaseOrderGridToolbar from '../components/PurchaseOrderGridToolbar';
+import PurchaseOrderDataGrid from '../components/PurchaseOrderDataGrid';
+import DataGridToolbar from '../../../components/common/DataGridToolbar';
 
-
-// --- SECCIÓN 2: DEFINICIONES Y COMPONENTES AUXILIARES ---
-
-const purchaseOrderFilterDefinitions = [
-  { name: 'search', label: 'Buscar por N° Orden o Proveedor', type: 'search', gridSize: 6 },
-  { name: 'status', label: 'Filtrar por Estado', type: 'select', options: [
-      { value: 'draft', label: 'Borrador' },
-      { value: 'pending_approval', label: 'Pendiente Aprobación' },
-      { value: 'approved', label: 'Aprobada' },
-      { value: 'rejected', label: 'Rechazada' },
-      { value: 'completed', label: 'Completada' },
-    ], gridSize: 4 },
-];
-
-const getStatusChip = (status) => {
-    const statusMap = {
-      draft: { label: 'Borrador', color: 'default' },
-      pending_approval: { label: 'Pendiente', color: 'warning' },
-      approved: { label: 'Aprobada', color: 'info' },
-      completed: { label: 'Completada', color: 'success' },
-      cancelled: { label: 'Cancelada', color: 'error' },
-    };
-    const style = statusMap[status] || { label: status, color: 'default' };
-    return <Chip label={style.label} color={style.color} size="small" />;
-};
-
-const CustomNoRowsOverlay = () => (
-  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-    <SearchIcon sx={{ fontSize: 60, mb: 2, color: 'text.secondary' }} />
-    <Typography variant="h6" component="h2" gutterBottom>
-      No se encontraron resultados
-    </Typography>
-    <Typography color="text.secondary">
-      Intente ajustar sus criterios de búsqueda o filtros.
-    </Typography>
-  </Box>
-);
-
-
-// --- SECCIÓN 3: COMPONENTE PRINCIPAL DE LA PÁGINA ---
+// ==============================================================================
+// SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
+// ==============================================================================
 
 const PurchaseOrderListPage = () => {
+    // --- 2.1: Hooks y Gestión de Estado ---
+    const navigate = useNavigate();
+    const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-  // --- 3.1: Hooks y Estado ---
-  const navigate = useNavigate();
-  const { hasPermission } = usePermissions();
-  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
-  const [filters, setFilters] = useState({ search: '', status: '' });
-  const debouncedFilters = useDebounce(filters, 400);
+    // --- 2.2: Lógica de Obtención de Datos con React Query ---
+    const {
+        data,
+        isLoading,
+        isError,
+        error
+    } = useQuery({
+        queryKey: ['purchaseOrders', paginationModel.page + 1, paginationModel.pageSize, debouncedSearchTerm],
+        queryFn: () => getPurchaseOrdersAPI({
+            page: paginationModel.page + 1,
+            pageSize: paginationModel.pageSize,
+            search: debouncedSearchTerm,
+        }),
+        placeholderData: (previousData) => previousData,
+        staleTime: 5000,
+    });
 
-  // --- 3.2: Lógica de Obtención de Datos ---
-  const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ['purchaseOrders', paginationModel, debouncedFilters],
-    queryFn: async () => {
-      const params = {
-        page: paginationModel.page + 1,
-        pageSize: paginationModel.pageSize,
-        search: debouncedFilters.search.trim() || undefined,
-        status: debouncedFilters.status || undefined,
-      };
-      return getPurchaseOrdersAPI(params);
-    },
-    keepPreviousData: true,
-  });
+    // --- 2.3: Manejadores de Eventos ---
+    const handleAddOrder = () => {
+        navigate('/compras/ordenes/nueva');
+    };
 
-  // --- 3.3: Manejadores de Eventos ---
-  const handleFilterChange = useCallback((newFilters) => {
-    setPaginationModel(prev => ({ ...prev, page: 0 }));
-    setFilters(newFilters);
-  }, []);
-  
-  const handleNavigateToDetail = useCallback((orderId) => {
-    navigate(`/compras/ordenes/detalle/${orderId}`);
-  }, [navigate]);
+    const handleViewOrEditOrder = (orderId) => {
+        // En el futuro, podrías tener una página de solo vista y otra de edición.
+        // Por ahora, asumimos que "ver" y "editar" llevan al mismo lugar.
+        navigate(`/compras/ordenes/editar/${orderId}`);
+    };
 
-  const handleNavigateToEdit = useCallback((orderId) => {
-    navigate(`/compras/ordenes/editar/${orderId}`);
-  }, [navigate]);
+    // --- 2.4: Preparación de Props para Componentes Hijos ---
+    const toolbarProps = {
+        title: "Gestión de Órdenes de Compra",
+        addButtonText: "Nueva Orden de Compra",
+        onAddClick: handleAddOrder,
+        searchTerm: searchTerm,
+        onSearchChange: (event) => setSearchTerm(event.target.value),
+        searchPlaceholder: "Buscar por N° de Orden o Proveedor..."
+    };
 
-  // --- 3.4: Definición de Columnas para DataGrid ---
-  const columns = useMemo(() => [
-    { field: 'order_number', headerName: 'N° de Orden', width: 180 },
-    { field: 'supplier_name', headerName: 'Proveedor', flex: 1, minWidth: 250 },
-    { field: 'order_date', headerName: 'Fecha Creación', width: 150, type: 'date', valueGetter: (value) => new Date(value) },
-    { field: 'total_amount', headerName: 'Monto Total', type: 'number', width: 150, align: 'right', headerAlign: 'right', valueFormatter: (value) => `S/ ${Number(value).toFixed(2)}` },
-    { field: 'status', headerName: 'Estado', width: 150, renderCell: (params) => getStatusChip(params.value) },
-    {
-      field: 'actions', 
-      headerName: 'Acciones', 
-      type: 'actions', 
-      width: 120, 
-      align: 'center', 
-      headerAlign: 'center',
-      getActions: (params) => {
-        const actions = [];
-        if ((params.row.status === 'draft' || params.row.status === 'pending_approval') && hasPermission(CAN_CRUD_PURCHASE_ORDERS)) {
-          actions.push(
-            <Tooltip title="Editar Orden" key="edit">
-              <IconButton onClick={() => handleNavigateToEdit(params.row._id)} size="small" color="primary"><EditIcon /></IconButton>
-            </Tooltip>
-          );
-        }
-        actions.push(
-          <Tooltip title="Ver Detalle / Aprobar" key="view">
-            <IconButton onClick={() => handleNavigateToDetail(params.row._id)} size="small"><VisibilityIcon /></IconButton>
-          </Tooltip>
-        );
-        return actions;
-      },
-    },
-  ], [handleNavigateToDetail, handleNavigateToEdit, hasPermission]);
-
-
-  // --- 3.5: Renderizado del Componente ---
-  return (
-    <Container maxWidth="xl">
-      <Paper 
-        sx={{ 
-          p: { xs: 2, md: 3 }, 
-          my: 4, 
-          borderRadius: 2, 
-          boxShadow: 3 
-        }}
-      >
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', mb: 2 }}>
-          Gestión de Órdenes de Compra
-        </Typography>
-
-        <FilterBar
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          filterDefinitions={purchaseOrderFilterDefinitions}
-        />
-      
-        <Box 
-          sx={{ flexGrow: 1, width: '100%', mt: 2, height: 'calc(100vh - 350px)' }}
-        >
-          {error && <Alert severity="error" sx={{ my: 2 }}>{error.message || 'Error al cargar las órdenes de compra.'}</Alert>}
-          
-          <DataGrid
-            rows={data?.items || []}
-            columns={columns}
-            getRowId={(row) => row._id}
-            rowCount={data?.total || 0}
-            loading={isLoading || isFetching}
-            pageSizeOptions={[10, 25, 50]}
-            paginationModel={paginationModel}
-            onPaginationModelChange={setPaginationModel}
-            paginationMode="server"
-            density="compact"
-            localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-            disableRowSelectionOnClick
-            slots={{
-              toolbar: PurchaseOrderGridToolbar,
-              noRowsOverlay: CustomNoRowsOverlay,
-            }}
-            slotProps={{
-              toolbar: {
-                onAddClick: () => navigate('/compras/ordenes/nueva'),
-              },
-            }}
-            initialState={{
-              sorting: {
-                sortModel: [{ field: 'order_number', sort: 'desc' }],
-              },
-            }}
-          />
-        </Box>
-      </Paper>
-    </Container>
-  );
+    // --- 2.5: Renderizado de la UI ---
+    return (
+        <Container maxWidth="xl" sx={{ my: 4 }}>
+            <Paper sx={{ p: 0, borderRadius: 2, boxShadow: 3, overflow: 'hidden' }}>
+                {isError && (
+                    <Alert severity="error" sx={{ m: 2 }}>
+                        Error al cargar las órdenes de compra: {error.message}
+                    </Alert>
+                )}
+                
+                <PurchaseOrderDataGrid
+                    orders={data?.items || []}
+                    rowCount={data?.total_count || 0}
+                    isLoading={isLoading}
+                    paginationModel={paginationModel}
+                    onPaginationModelChange={setPaginationModel}
+                    onViewOrEditOrder={handleViewOrEditOrder}
+                    toolbarProps={toolbarProps}
+                />
+            </Paper>
+        </Container>
+    );
 };
 
 export default PurchaseOrderListPage;

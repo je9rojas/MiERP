@@ -52,13 +52,10 @@ class PurchaseOrderItem(BaseModel):
     quantity_ordered: int
     unit_cost: float
 
-    @field_serializer('product_id')
-    def serialize_product_id(self, product_id_obj: PyObjectId, _info):
-        return str(product_id_obj)
-
     model_config = ConfigDict(
         from_attributes=True,
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed=True,
+        json_encoders={PyObjectId: str}
     )
 
 # ==============================================================================
@@ -102,7 +99,8 @@ class PurchaseOrderInDB(BaseModel):
 
 class PurchaseOrderOut(BaseModel):
     """DTO para exponer los datos de una Orden de Compra a través de la API."""
-    # CORRECCIÓN DEFINITIVA: Se define el campo 'id' para que Pydantic sepa leer el alias '_id'.
+    # CORRECCIÓN: El campo se llama 'id' en el modelo para el frontend,
+    # pero le decimos a Pydantic que lo lea desde el campo '_id' del documento de la BD.
     id: PyObjectId = Field(..., alias="_id")
     
     order_number: str
@@ -116,14 +114,16 @@ class PurchaseOrderOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # Este serializador garantiza que el 'id' siempre se convierta a string en la salida JSON.
+    # Este serializador se asegura de que el ObjectId se convierta a string en la salida JSON.
     @field_serializer('id')
     def serialize_id(self, id_obj: PyObjectId, _info):
         return str(id_obj)
 
     model_config = ConfigDict(
+        # CORRECCIÓN CLAVE: populate_by_name permite que los alias funcionen correctamente al leer.
         populate_by_name=True,
-        from_attributes=True,
         arbitrary_types_allowed=True,
-        # No se necesita json_encoders aquí, ya que los serializadores explícitos lo manejan.
+        from_attributes=True,
+        # El json_encoder maneja la serialización de otros ObjectId en el modelo.
+        json_encoders={PyObjectId: str}
     )

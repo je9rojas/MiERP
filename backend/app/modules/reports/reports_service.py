@@ -32,9 +32,9 @@ async def generate_product_catalog_pdf(db: AsyncIOMotorDatabase, filters: Catalo
 
     Implementa una lógica de filtrado jerárquica para soportar múltiples
     modos de generación:
-    1. Por SKUs específicos.
-    2. Por Tipos de Producto (con búsqueda opcional).
-    3. Completo (con búsqueda opcional).
+    1. Por SKUs específicos (máxima prioridad).
+    2. Por Marcas y/o Tipos de Producto.
+    3. Completo (si no se aplican otros filtros).
     """
     product_repo = ProductRepository(db)
     product_docs: List[Dict[str, Any]] = []
@@ -45,22 +45,18 @@ async def generate_product_catalog_pdf(db: AsyncIOMotorDatabase, filters: Catalo
         # Prioridad 1: Catálogo Personalizado por lista de SKUs.
         found_docs = await product_repo.find_by_skus(filters.product_skus)
         sku_map = {doc['sku']: doc for doc in found_docs}
-        # Se preserva el orden original de la lista de SKUs.
+        # Se preserva el orden original de la lista de SKUs del usuario.
         product_docs = [sku_map[sku] for sku in filters.product_skus if sku in sku_map]
 
     else:
-        # Prioridad 2 y 3: Catálogo por Tipo o Completo.
+        # Prioridad 2: Catálogo General o filtrado por Marca y/o Tipo.
         query: Dict[str, Any] = {"is_active": True}
+        
+        if filters.brands:
+            query["brand"] = {"$in": filters.brands}
 
         if filters.product_types:
-            # Filtra por uno o más tipos de producto.
             query["product_type"] = {"$in": [pt.value for pt in filters.product_types]}
-        
-        if filters.search_term:
-            # El término de búsqueda se puede combinar con el filtro de tipo,
-            # o se aplica a todo el catálogo si no hay tipos seleccionados.
-            search_regex = {"$regex": filters.search_term, "$options": "i"}
-            query["$or"] = [{"name": search_regex}, {"sku": search_regex}]
         
         product_docs = await product_repo.find_all(query)
         # Para catálogos no personalizados, se ordena alfabéticamente por SKU.

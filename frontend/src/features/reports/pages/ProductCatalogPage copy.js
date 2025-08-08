@@ -2,171 +2,148 @@
 
 /**
  * @file Página interactiva para la generación de catálogos de productos.
- * @description Permite a los usuarios construir y generar catálogos en PDF, ya sea
- * un catálogo completo (con filtros) o uno personalizado seleccionando productos específicos.
+ * @description Permite a los usuarios generar catálogos en PDF, ya sea el catálogo
+ * completo o uno filtrado por una o más marcas y/o tipos de producto.
  */
 
-// SECCIÓN 1: IMPORTACIONES DE MÓDulos
+// SECCIÓN 1: IMPORTACIONES DE MÓDULOS
 import React, { useState, useCallback } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import {
     Container, Paper, Typography, Box, Button, Grid, TextField,
     MenuItem, CircularProgress, FormControl, FormLabel, RadioGroup,
-    FormControlLabel, Radio, Autocomplete, Chip,
+    FormControlLabel, Radio,
 } from '@mui/material';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 
 import { generateCatalogAPI } from '../api/reportsAPI';
-import { getProductsAPI } from '../../inventory/api/productsAPI'; // Reutilizamos la API de productos
 import { FILTER_TYPES } from '../../../constants/productConstants';
 import { formatApiError } from '../../../utils/errorUtils';
-import useDebounce from '../../../hooks/useDebounce';
 import { useAuth } from '../../../app/contexts/AuthContext';
 import { hasPermission, CAN_VIEW_COMMERCIAL_DATA } from '../../../constants/rolesAndPermissions';
 import PageHeader from '../../../components/common/PageHeader';
 
-// SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
+// SECCIÓN 2: DATOS CONSTANTES (MOCKS)
+// A futuro, esta lista de marcas debería venir de una API.
+const AVAILABLE_BRANDS = [
+    { value: 'WIX', label: 'WIX Filters' },
+    // { value: 'Bosch', label: 'Bosch Automotive' }, 
+    // { value: 'Filtron', label: 'Filtron' },
+];
+
+// SECCIÓN 3: COMPONENTE PRINCIPAL DE LA PÁGINA
 const ProductCatalogPage = () => {
-    // Sub-sección 2.1: Hooks y Estado
+    // Sub-sección 3.1: Hooks y Estado
     const { enqueueSnackbar } = useSnackbar();
     const { user } = useAuth();
     
-    // Estado para el tipo de reporte
-    const [reportType, setReportType] = useState('full'); // 'full' o 'custom'
-    // Estado para los filtros del catálogo completo
-    const [filters, setFilters] = useState({ search_term: '', product_types: [] });
-    // Estado para el tipo de vista (cliente/vendedor)
+    const [reportType, setReportType] = useState('all'); // 'all' o 'by_brand'
+    const [selectedBrands, setSelectedBrands] = useState([]);
+    const [selectedTypes, setSelectedTypes] = useState([]);
     const [viewType, setViewType] = useState('client');
-    // Estado para la búsqueda en el Autocomplete
-    const [productSearch, setProductSearch] = useState('');
-    // Estado para los productos seleccionados en el catálogo personalizado
-    const [selectedProducts, setSelectedProducts] = useState([]);
 
-    const debouncedProductSearch = useDebounce(productSearch, 500);
     const canViewSellerCatalog = hasPermission(CAN_VIEW_COMMERCIAL_DATA, user?.role);
 
-    // Sub-sección 2.2: Lógica de Datos (react-query)
-    const { data: productOptions, isLoading: isLoadingProducts } = useQuery({
-        queryKey: ['productSearch', debouncedProductSearch],
-        queryFn: () => getProductsAPI({ search: debouncedProductSearch, page_size: 20 }),
-        enabled: debouncedProductSearch.length > 2 && reportType === 'custom',
-        select: (data) => data.items || [], // Solo nos interesan los productos
-    });
-
+    // Sub-sección 3.2: Lógica de Mutación (react-query)
     const { mutate: generateCatalog, isPending: isGenerating } = useMutation({
         mutationFn: generateCatalogAPI,
-        onSuccess: (pdfBlob) => {
+        onSuccess: (pdfBlob, variables) => {
+            const dateStamp = new Date().toISOString().slice(0, 10);
+            const viewLabel = variables.view_type === 'seller' ? 'vendedor' : 'cliente';
+            let typeLabel = 'general';
+
+            if (variables.brands && variables.brands.length > 0) {
+                typeLabel = `marca(${variables.brands.join(',')})`;
+            }
+
+            const fileName = `catalogo_${typeLabel}_${viewLabel}_${dateStamp}.pdf`;
+
             const url = window.URL.createObjectURL(pdfBlob);
             const link = document.createElement('a');
             link.href = url;
-            link.setAttribute('download', `catalogo_${reportType}_${new Date().toISOString().slice(0,10)}.pdf`);
+            link.setAttribute('download', fileName);
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
+            link.parentNode.removeChild(link);
             window.URL.revokeObjectURL(url);
             enqueueSnackbar('Catálogo generado y descarga iniciada.', { variant: 'success' });
         },
         onError: (error) => {
-            console.error("Error al generar el catálogo:", error);
-            enqueueSnackbar(formatApiError(error), { variant: 'error' });
+            console.error("Error al generar el catálogo:", error.response || error);
+            enqueueSnackbar(formatApiError(error), { variant: 'error', persist: true });
         },
     });
 
-    // Sub-sección 2.3: Manejadores de Eventos
-    const handleFilterChange = useCallback((event) => {
-        const { name, value } = event.target;
-        setFilters(prev => ({ ...prev, [name]: value }));
-    }, []);
-
+    // Sub-sección 3.3: Manejadores de Eventos
     const handleGenerateClick = useCallback(() => {
         if (isGenerating) return;
 
-        let payload = { view_type: viewType };
-
-        if (reportType === 'custom') {
-            payload.product_skus = selectedProducts.map(p => p.sku);
-        } else {
-            payload.search_term = filters.search_term || null;
-            payload.product_types = filters.product_types.length > 0 ? filters.product_types : null;
-        }
+        const payload = {
+            view_type: viewType,
+            brands: reportType === 'by_brand' ? selectedBrands : [],
+            product_types: reportType === 'by_brand' ? selectedTypes : [],
+        };
         
         generateCatalog(payload);
-    }, [isGenerating, reportType, viewType, selectedProducts, filters, generateCatalog]);
+    }, [isGenerating, reportType, viewType, selectedBrands, selectedTypes, generateCatalog]);
 
-    const isGenerateButtonDisabled = isGenerating || (reportType === 'custom' && selectedProducts.length === 0);
+    const isGenerateButtonDisabled = isGenerating || (reportType === 'by_brand' && selectedBrands.length === 0);
 
-    // Sub-sección 2.4: Renderizado de la UI
+    // Sub-sección 3.4: Renderizado de la UI
     return (
         <Container maxWidth="md" sx={{ my: 4 }}>
             <Paper sx={{ p: { xs: 2, md: 4 }, borderRadius: 2, boxShadow: 3 }}>
                 <PageHeader
                     title="Constructor de Catálogos"
-                    subtitle="Genere catálogos en PDF, ya sea el catálogo completo o uno personalizado a pedido."
+                    subtitle="Genere catálogos en PDF para todo el inventario o para marcas específicas."
+                    showAddButton={false} // Ocultamos el botón "+" que no tiene función aquí.
                 />
 
                 <Grid container spacing={4} sx={{ mt: 2 }}>
                     <Grid item xs={12}>
                         <FormControl component="fieldset">
-                            <FormLabel component="legend">1. Seleccione el Tipo de Reporte</FormLabel>
+                            <FormLabel component="legend">1. Seleccione el Alcance del Catálogo</FormLabel>
                             <RadioGroup row value={reportType} onChange={(e) => setReportType(e.target.value)}>
-                                <FormControlLabel value="full" control={<Radio />} label="Catálogo Completo" />
-                                <FormControlLabel value="custom" control={<Radio />} label="Catálogo Personalizado" />
+                                <FormControlLabel value="all" control={<Radio />} label="Catálogo General (Todos los productos)" />
+                                <FormControlLabel value="by_brand" control={<Radio />} label="Filtrar por Marca" />
                             </RadioGroup>
                         </FormControl>
                     </Grid>
 
-                    {reportType === 'full' ? (
+                    {reportType === 'by_brand' && (
                         <Grid item xs={12} container spacing={2}>
                             <Grid item xs={12}>
-                                <Typography variant="h6" gutterBottom>Filtros para el Catálogo Completo</Typography>
+                                <Typography variant="h6" gutterBottom>Filtros Específicos</Typography>
                             </Grid>
                             <Grid item xs={12} sm={6}>
-                                <TextField fullWidth name="search_term" label="Buscar por SKU o Nombre" variant="outlined" value={filters.search_term} onChange={handleFilterChange} />
+                                <TextField
+                                    select
+                                    fullWidth
+                                    name="brands_selector"
+                                    label="Seleccione una o más Marcas"
+                                    variant="outlined"
+                                    value={selectedBrands}
+                                    onChange={(e) => setSelectedBrands(e.target.value)}
+                                    SelectProps={{ multiple: true, renderValue: (selected) => selected.join(', ') }}
+                                >
+                                    {AVAILABLE_BRANDS.map((option) => (<MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>))}
+                                </TextField>
                             </Grid>
                             <Grid item xs={12} sm={6}>
-                                <TextField select fullWidth name="product_types" label="Filtrar por Tipo de Filtro" variant="outlined" value={filters.product_types} onChange={handleFilterChange} SelectProps={{ multiple: true, renderValue: (selected) => selected.join(', ') }}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    name="product_types_selector"
+                                    label="Tipo de Filtro (Opcional)"
+                                    variant="outlined"
+                                    value={selectedTypes}
+                                    onChange={(e) => setSelectedTypes(e.target.value)}
+                                    SelectProps={{ multiple: true, renderValue: (selected) => selected.join(', ') }}
+                                >
                                     {FILTER_TYPES.map((option) => (<MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>))}
                                 </TextField>
                             </Grid>
-                        </Grid>
-                    ) : (
-                        <Grid item xs={12}>
-                             <Typography variant="h6" gutterBottom>Constructor del Catálogo Personalizado</Typography>
-                             <Autocomplete
-                                multiple
-                                id="product-selector"
-                                options={productOptions || []}
-                                getOptionLabel={(option) => `(${option.sku}) ${option.name}`}
-                                isOptionEqualToValue={(option, value) => option.sku === value.sku}
-                                filterOptions={(x) => x}
-                                value={selectedProducts}
-                                onChange={(event, newValue) => setSelectedProducts(newValue)}
-                                inputValue={productSearch}
-                                onInputChange={(event, newInputValue) => setProductSearch(newInputValue)}
-                                loading={isLoadingProducts}
-                                renderInput={(params) => (
-                                    <TextField
-                                        {...params}
-                                        label="Añadir Productos al Catálogo"
-                                        placeholder="Escriba un SKU o nombre para buscar..."
-                                        InputProps={{
-                                            ...params.InputProps,
-                                            endAdornment: (
-                                                <>
-                                                    {isLoadingProducts ? <CircularProgress color="inherit" size={20} /> : null}
-                                                    {params.InputProps.endAdornment}
-                                                </>
-                                            ),
-                                        }}
-                                    />
-                                )}
-                                renderTags={(value, getTagProps) =>
-                                    value.map((option, index) => (
-                                        <Chip variant="outlined" label={`(${option.sku}) ${option.name}`} {...getTagProps({ index })} />
-                                    ))
-                                }
-                            />
                         </Grid>
                     )}
                     
@@ -189,7 +166,7 @@ const ProductCatalogPage = () => {
                         onClick={handleGenerateClick}
                         disabled={isGenerateButtonDisabled}
                     >
-                        {isGenerating ? 'Generando PDF...' : 'Generar Catálogo PDF'}
+                        {isGenerating ? 'Generando PDF...' : 'Generar Catálogo'}
                     </Button>
                 </Box>
             </Paper>

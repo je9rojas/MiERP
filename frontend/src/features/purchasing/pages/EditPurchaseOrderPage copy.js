@@ -7,7 +7,7 @@
  */
 
 // SECCIÓN 1: IMPORTACIONES DE MÓDULOS
-import React, { useCallback, useEffect } from 'react'; // Se añade useEffect para el console.log
+import React, { useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -55,39 +55,29 @@ const EditPurchaseOrderPage = () => {
                 queryKey: ['suppliersListForForm'],
                 queryFn: () => getSuppliersAPI({ page: 1, page_size: 1000 }),
                 select: (data) => data.items || [],
-                staleTime: 5 * 60 * 1000,
+                staleTime: 5 * 60 * 1000, // Cache de 5 minutos
             },
             {
                 queryKey: ['productsListForForm'],
                 queryFn: () => getProductsAPI({ page: 1, page_size: 1000 }),
                 select: (data) => data.items || [],
-                staleTime: 5 * 60 * 1000,
+                staleTime: 5 * 60 * 1000, // Cache de 5 minutos
             },
         ],
     });
 
     const [orderQuery, suppliersQuery, productsQuery] = results;
 
+    // Se considera que está cargando si CUALQUIERA de las queries está en estado de carga.
     const isLoading = results.some(query => query.isLoading);
     const isError = results.some(query => query.isError);
     const error = orderQuery.error || suppliersQuery.error || productsQuery.error;
     
-    // --- INICIO DE LA SECCIÓN DE DEPURACIÓN ---
-    useEffect(() => {
-        // Este efecto se ejecutará solo cuando las queries dejen de cargar.
-        if (!isLoading && !isError) {
-            console.group("[DEBUG] EditPurchaseOrderPage - Datos Cargados");
-            console.log("Orden de Compra (orderQuery.data):", orderQuery.data);
-            console.log("Lista de Productos (productsQuery.data):", productsQuery.data);
-            console.groupEnd();
-        }
-    }, [isLoading, isError, orderQuery.data, productsQuery.data]);
-    // --- FIN DE LA SECCIÓN DE DEPURACIÓN ---
-
     // Sub-sección 3.3: Lógica de Mutación (Actualización)
     const { mutate: updatePurchaseOrder, isPending: isUpdating } = useMutation({
         mutationFn: (payload) => updatePurchaseOrderAPI(orderId, payload),
         onSuccess: (data) => {
+            // CORRECCIÓN: Se accede a `data.order_number` de forma segura.
             enqueueSnackbar(`Orden de Compra ${data?.order_number || ''} actualizada exitosamente.`, { variant: 'success' });
             queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
             queryClient.invalidateQueries({ queryKey: ['purchaseOrder', orderId] });
@@ -131,6 +121,7 @@ const EditPurchaseOrderPage = () => {
                     showAddButton={false}
                 />
                 <Box mt={3}>
+                    {/* Se renderiza el formulario solo cuando todos los datos necesarios están listos. */}
                     {orderQuery.data && suppliersQuery.data && productsQuery.data && (
                         <PurchaseOrderForm
                             initialData={orderQuery.data}

@@ -52,6 +52,7 @@ class PurchaseOrderItem(BaseModel):
     quantity_ordered: int
     unit_cost: float
 
+    # CORRECCIÓN DEFINITIVA: Usar un serializador explícito para el ID del producto.
     @field_serializer('product_id')
     def serialize_product_id(self, product_id_obj: PyObjectId, _info):
         return str(product_id_obj)
@@ -97,14 +98,12 @@ class PurchaseOrderInDB(BaseModel):
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        json_encoders={PyObjectId: str}
+        json_encoders={PyObjectId: str} # Aquí sí es útil para la inserción
     )
 
 class PurchaseOrderOut(BaseModel):
     """DTO para exponer los datos de una Orden de Compra a través de la API."""
-    # CORRECCIÓN DEFINITIVA: Se define el campo 'id' para que Pydantic sepa leer el alias '_id'.
-    id: PyObjectId = Field(..., alias="_id")
-    
+    id: str  # En la salida, el id siempre será un string.
     order_number: str
     supplier: SupplierOut
     order_date: datetime
@@ -116,14 +115,9 @@ class PurchaseOrderOut(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # Este serializador garantiza que el 'id' siempre se convierta a string en la salida JSON.
-    @field_serializer('id')
-    def serialize_id(self, id_obj: PyObjectId, _info):
-        return str(id_obj)
-
+    # Se usa Pydantic para validar y transformar el documento de la BD a este modelo.
     model_config = ConfigDict(
         populate_by_name=True,
-        from_attributes=True,
+        from_attributes=True, # Permite leer desde atributos de un objeto (como el doc de la BD)
         arbitrary_types_allowed=True,
-        # No se necesita json_encoders aquí, ya que los serializadores explícitos lo manejan.
     )

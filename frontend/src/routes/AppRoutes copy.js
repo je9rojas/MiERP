@@ -4,14 +4,8 @@
  * @file Gestor principal de rutas de la aplicación.
  *
  * Este componente define toda la navegación de la aplicación utilizando React Router.
- * Implementa las siguientes características avanzadas para un rendimiento y seguridad óptimos:
- * - **Carga Perezosa (Lazy Loading):** Utiliza `React.lazy` y `React.Suspense` para
- *   dividir el código. Cada página se descarga solo cuando el usuario navega a ella,
- *   lo que reduce drásticamente el tiempo de carga inicial.
- * - **Guardianes de Ruta (Route Guards):** Protege las rutas basadas en el estado de
- *   autenticación del usuario y sus roles, redirigiendo si no se cumplen los requisitos.
- * - **Layouts Anidados:** Estructura las rutas para que compartan layouts comunes
- *   (ej. `DashboardLayout` para las páginas internas, `AuthLayout` para las de autenticación).
+ * Implementa características avanzadas como Carga Perezosa (Lazy Loading) y Guardianes
+ * de Ruta para un rendimiento y seguridad óptimos.
  */
 
 // ==============================================================================
@@ -49,6 +43,8 @@ const DataManagementPage = lazy(() => import('../features/admin/pages/DataManage
 const SupplierListPage = lazy(() => import('../features/crm/pages/SupplierListPage'));
 const NewSupplierPage = lazy(() => import('../features/crm/pages/NewSupplierPage'));
 const ProductCatalogPage = lazy(() => import('../features/reports/pages/ProductCatalogPage'));
+const SalesOrderListPage = lazy(() => import('../features/sales/pages/SalesOrderListPage'));
+const NewSalesOrderPage = lazy(() => import('../features/sales/pages/NewSalesOrderPage'));
 
 // ==============================================================================
 // SECCIÓN 2: COMPONENTES GUARDIANES DE RUTAS (ROUTE GUARDS)
@@ -65,6 +61,8 @@ const PrivateRoutesGuard = ({ allowedRoles }) => {
     if (!isAuthenticated) {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
+
+
 
     if (allowedRoles && !checkUserRole(user?.role, allowedRoles)) {
         return <Navigate to="/unauthorized" replace />;
@@ -104,6 +102,10 @@ const AppRoutes = () => {
                     <Route element={<DashboardLayout />}>
                         <Route path="/dashboard" element={<DashboardPage />} />
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+                        {/* Módulo de Ventas */}
+                        <Route path="ventas/ordenes" element={<SalesOrderListPage />} />
+                        <Route path="ventas/ordenes/nueva" element={<NewSalesOrderPage />} />
 
                         {/* Módulo de Inventario */}
                         <Route path="inventario/productos" element={<ProductListPage />} />

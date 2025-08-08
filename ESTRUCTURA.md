@@ -1,434 +1,161 @@
 /backend/
-├── .venv/                      # Entorno virtual de Python
-├── app/
+├── .venv/
+├── static/
+│   ├── product_images/
+│   └── logos/              (+) # Carpeta dedicada para logos (PNG, SVG). Más limpio.
+├── .env.example
+├── pyproject.toml
+└── requirements.txt
+/backend/app/
+├── __init__.py
+├── api.py
+├── main.py
+├── core/
 │   ├── __init__.py
-│   ├── main.py                 # Punto de entrada y orquestador principal de la API
-│   │
-│   ├── core/                   # Lógica central y configuración
-│   │   ├── __init__.py
-│   │   ├── config.py           # Gestión de variables de entorno
-│   │   ├── database.py         # Conexión a la base de datos
-│   │   └── security.py         # Lógica de contraseñas y JWT
-│   │
-│   ├── dependencies/           # Dependencias reutilizables de FastAPI
-│   │   ├── __init__.py
-│   │   └── roles.py            # El `role_checker` para proteger endpoints
-│   │
-│   ├── models/                 # Modelos Pydantic compartidos
-│   │   ├── __init__.py
-│   │   └── shared.py           # Contiene `PyObjectId` y otros modelos comunes
-│   │
-│   └── modules/                # <-- CORAZÓN DE LA ARQUITECTURA: Módulos de Negocio
-│       ├── __init__.py
-│       ├── auth/               # Módulo de Autenticación
-│       │   ├── __init__.py
-│       │   ├── auth_routes.py
-│       │   └── auth_service.py
-│       │
-│       ├── crm/                # Módulo de Clientes y Proveedores
-│       │   ├── __init__.py
-│       │   ├── customer_models.py
-│       │   ├── customer_routes.py
-│       │   ├── supplier_models.py
-│       │   ├── supplier_routes.py
-│       │   ├── crm_service.py
-│       │   └── repositories/
-│       │       ├── customer_repository.py
-│       │       └── supplier_repository.py
-│       │
-│       ├── data_management/    # <-- ¡NUEVO! Módulo de Importación/Exportación
-│       │   ├── __init__.py
-│       │   ├── data_management_routes.py
-│       │   └── data_management_service.py
-│       │
-│       ├── inventory/          # Módulo de Inventario (Ahora más limpio)
-│       │   ├── __init__.py
-│       │   ├── catalog_generator.py # <-- ¡NUEVO! Lógica de diseño del PDF
-│       │   ├── product_models.py
-│       │   ├── product_routes.py
-│       │   ├── product_service.py   # Ahora enfocado en el CRUD y la lógica de negocio
-│       │   └── repositories/
-│       │       └── product_repository.py
-│       │
-│       ├── purchasing/         # Módulo de Compras
-│       │   └── ... (su estructura)
-│       │
-│       ├── roles/              # Módulo de Gestión de Roles
-│       │   └── ... (su estructura)
-│       │
-│       └── users/              # Módulo de Gestión de Usuarios
-│           └── ... (su estructura)
-│
-├── static/                     # <-- ¡NUEVO! Carpeta para archivos estáticos
-│   └── product_images/         # Carpeta de respaldo para las imágenes de productos
-│
-├── pyproject.toml              # Configuración de herramientas de desarrollo
-└── requirements.txt            # Dependencias de Python
+│   ├── config.py
+│   ├── database.py
+│   └── security.py
+├── dependencies/
+│   ├── __init__.py
+│   └── roles.py
+├── models/
+│   ├── __init__.py
+│   └── shared.py
+└── modules/
+    ├── __init__.py
+    ├── auth/
+    │   # ... (Estructura actual es correcta)
+    ├── crm/
+    │   # ... (Estructura actual es correcta, aunque `crm_service.py` podría dividirse si crece mucho)
+    ├── data_management/
+    │   # ... (Estructura actual es correcta)
+    ├── inventory/
+    │   ├── __init__.py
+    │   ├── product_routes.py
+    │   ├── product_service.py
+    │   ├── product_models.py
+    │   ├── repositories/
+    │   │   ├── product_repository.py
+    │   │   └── inventory_lot_repository.py
+    │   ├── inventory_routes.py
+    │   ├── inventory_service.py
+    │   ├── inventory_models.py
+    │   ├── adjustments_routes.py     (+) # Rutas para la nueva funcionalidad de ajustes.
+    │   ├── adjustments_service.py    (+) # Lógica de negocio para los ajustes.
+    │   └── adjustments_models.py     (+) # Modelos Pydantic para los ajustes.
+    ├── purchasing/
+    │   ├── __init__.py
+    │   ├── purchasing_routes.py
+    │   ├── purchasing_service.py
+    │   ├── purchasing_models.py
+    │   └── repositories/
+    │       └── purchase_order_repository.py (*) # Nombre más explícito que purchase_repository.py
+    ├── reports/
+    │   ├── __init__.py
+    │   ├── reports_routes.py
+    │   ├── reports_service.py
+    │   ├── reports_models.py
+    │   └── services/
+    │       └── catalog_service.py
+    ├── sales/
+    │   # ... (Estructura actual es correcta)
+    ├── roles/
+    │   # ... (Estructura actual es correcta)
+    └── users/
+        # ... (Estructura actual es correcta)
 
--------------------------------------
 
 /frontend/
-├── node_modules/               # Dependencias de JavaScript
-├── public/                     # Archivos públicos (index.html, favicon, etc.)
+├── node_modules/
+├── public/
+│   ├── images/              (*) # Carpeta dedicada para imágenes estáticas como logos.
+│   └── index.html
 ├── src/
-│   ├── App.js                  # Componente raíz (renderiza AppRoutes)
-│   ├── index.js                # Punto de entrada (renderiza App, proveedores)
-│   │
-│   ├── app/                    # Configuración y estado global
-│   │   ├── axiosConfig.js      # Configuración centralizada de Axios
-│   │   ├── contexts/
-│   │   │   └── AuthContext.js  # Contexto de autenticación
-│   │   └── theme.js            # Tema de Material-UI
-│   │
+│   ├── App.js
+│   ├── index.js
+│   ├── app/
+│   │   ├── axiosConfig.js
+│   │   ├── theme.js
+│   │   └── contexts/
+│   │       └── AuthContext.js
 │   ├── components/
-│   │   ├── common/             # Componentes de UI genéricos y reutilizables
+│   │   ├── common/              # Componentes 100% genéricos (Botones, Diálogos, etc.)
 │   │   │   ├── ConfirmationDialog.js
-│   │   │   ├── FilterBar.js
+│   │   │   ├── DataGridToolbar.js
+│   │   │   ├── Logo.js
 │   │   │   └── PageHeader.js
-│   │   └── layout/             # Componentes de la estructura principal
+│   │   └── layout/              # Componentes de estructura de la página
+│   │       ├── AuthLayout.js
 │   │       ├── DashboardLayout.js
-│   │       ├── DashboardSidebar.js
-│   │       └── AuthLayout.js
-│   │
-│   ├── constants/              # Constantes de la aplicación
+│   │       └── DashboardSidebar.js
+│   ├── constants/               # Constantes y configuraciones globales de la UI
+│   │   ├── crmConstants.js
 │   │   ├── productConstants.js
-│   │   ├── rolesAndPermissions.js # ¡NUEVO! Sistema de permisos basado en acciones
-│   │   └── validationSchemas.js   # Esquemas de validación de Yup
-│   │
-│   ├── features/               # <-- CORAZÓN DE LA ARQUITECTURA: Módulos de Negocio
-│   │   ├── admin/              # Módulo de Administración
-│   │   │   ├── api/
-│   │   │   │   └── dataManagementAPI.js # <-- ¡NUEVO! API para import/export
+│   │   ├── rolesAndPermissions.js
+│   │   └── validationSchemas.js
+│   ├── features/                # El corazón de la aplicación, separado por dominio de negocio
+│   │   ├── admin/
+│   │   │   ├── api/             (+) # Cada módulo tiene su propia carpeta de API
+│   │   │   │   └── dataManagementAPI.js
 │   │   │   ├── components/
-│   │   │   │   └── DataImporter.js      # <-- ¡NUEVO! Componente para subir archivos
+│   │   │   │   └── DataImporter.js
 │   │   │   └── pages/
-│   │   │       ├── DataManagementPage.js # <-- ¡NUEVA! Página de gestión de datos
+│   │   │       ├── DataManagementPage.js
 │   │   │       └── UserManagementPage.js
 │   │   ├── auth/
-│   │   │   └── ... (su estructura)
+│   │   │   ├── api/
+│   │   │   │   └── authAPI.js
+│   │   │   └── pages/
+│   │   │       └── LoginPage.js
+│   │   ├── crm/
+│   │   │   ├── api/
+│   │   │   │   ├── customersAPI.js
+│   │   │   │   └── suppliersAPI.js
+│   │   │   ├── components/
+│   │   │   └── pages/
 │   │   ├── inventory/
 │   │   │   ├── api/
 │   │   │   │   └── productsAPI.js
 │   │   │   ├── components/
-│   │   │   │   ├── ProductForm.js         # Formulario compartido
-│   │   │   │   └── ProductGridToolbar.js  # <-- ¡NUEVO! Toolbar para el DataGrid
+│   │   │   │   ├── product/     # Sub-componentes específicos del formulario de producto
+│   │   │   │   ├── InventoryLotsModal.js
+│   │   │   │   └── ProductForm.js
+│   │   │   ├── mappers/         (*) # Lógica de "traducción" de datos en su propia carpeta
+│   │   │   │   └── productMappers.js
 │   │   │   └── pages/
 │   │   │       ├── EditProductPage.js
-│   │   │       ├── InactiveProductListPage.js # <-- ¡NUEVA! Página para reactivar
 │   │   │       ├── NewProductPage.js
-│   │   │       ├── ProductListPage.js
-│   │   │       └── ProductMovementPage.js   # <-- ¡NUEVA! Página de historial
-│   │   └── purchasing/
-│   │       └── ... (su estructura)
-│   │
-│   ├── hooks/                  # Hooks personalizados
-│   │   └── useDebounce.js
-│   │
-│   ├── routes/                 # Definición central de las rutas
+│   │   │       └── ProductListPage.js
+│   │   ├── purchasing/
+│   │   │   ├── api/
+│   │   │   │   └── purchasingAPI.js
+│   │   │   ├── components/
+│   │   │   │   ├── PurchaseOrderDataGrid.js
+│   │   │   │   └── PurchaseOrderForm.js
+│   │   │   └── pages/
+│   │   │       ├── EditPurchaseOrderPage.js
+│   │   │       ├── NewPurchaseOrderPage.js
+│   │   │       └── PurchaseOrderListPage.js
+│   │   ├── reports/
+│   │   │   ├── api/
+│   │   │   │   └── reportsAPI.js
+│   │   │   └── pages/
+│   │   │       └── ProductCatalogPage.js
+│   │   └── sales/
+│   │       # ... (Seguiría la misma estructura: api/, components/, pages/)
+│   ├── hooks/                   # Hooks reutilizables en toda la aplicación
+│   │   ├── useDebounce.js
+│   │   └── usePermissions.js
+│   ├── routes/
 │   │   └── AppRoutes.js
-│   │
-│   └── utils/                  # Funciones de utilidad genéricas
+│   └── utils/                   # Funciones de utilidad puras y genéricas
 │       ├── auth/
 │       │   ├── auth.js
 │       │   └── roles.js
-│
-├── package.json                # Dependencias de JavaScript
-└── .env.local                  # Variables de entorno
-
------------------------------------
-
-/setup.py
-
-/backend/requirements.txt
-/backend/requirements-dev.txt 
-
-/backend/app/main.py
-
-backend/app/core/database.py
-backend/app/core/security.py
-backend/app/core/config.py
-backend/app/core/secrets_manager.py
-
-/backend/app/dependencies/roles.py
-
-
-
-backend/app/modules/users/user_models.py
-backend/app/modules/users/user_service.py
-backend/app/modules/users/user_routes.py
-/backend/app/modules/users/repositories/user_repository.py
-
-backend/app/modules/auth/auth_service.py
-backend/app/modules/auth/auth_routes.py
-
-backend/app/modules/roles/role_service.py
-backend/app/modules/roles/role_routes.py
-
-backend/app/modules/crm/supplier_models.py
-backend/app/modules/crm/crm_service.py
-
-backend/app/modules/inventory/product_models.py.
-
-backend/app/modules/inventory/product_service.py.
-backend/app/modules/inventory/product_routes.py.
-/modules/inventory/repositories/product_repository.py
-
-
-backend/app/modules/purchasing/purchase_order_models.py
-backend/app/modules/purchasing/purchase_order_routes.py.
-backend/app/modules/purchasing/purchasing_models.py
-
-backend/app/modules/crm/supplier_routes.py.
-
-
-
-
-
-
-
-
-/backend/scripts/create_superadmin.py
-
-----------------------------------
-
-/frontend/src/main.js
-/frontend/src/App.js
-/frontend/src/index.js
-
-
-
-/frontend/src/app/contexts/AuthContext.js
-/frontend/src/app/store.js
-/frontend/src/app/theme.js
-
-
-/frontend/src/components/auth/LoginForm.js
-/frontend/src/components/auth/LoginForm.js
-
-/frontend/src/components/common/PageHeader.js
-/frontend/src/components/common/ConfirmationDialog.js
-/frontend/src/components/common/FilterBar.js
-
-/frontend/src/components/layout/AuthLayout.js
-/frontend/src/components/layout/DashboardAppBar.js
-/frontend/src/components/layout/DashboardLayout.js
-/frontend/src/components/layout/DashboardSidebar.js
-/frontend/src/components/common/SupplierAutocomplete.js
-/frontend/src/components/common/ProductAutocomplete.js
-
-/frontend/src/constants/productConstants.js
-/frontend/src/constants/apiConfig.js
-/frontend/src/constants/rolesAndPermissions.js
-/frontend/src/constants/validationSchemas.js
-
-/frontend/src/features/auth/pages/LoginPage.js
-
-frontend/src/features/inventory/api/productsAPI.js.
-/frontend/src/features/admin/components/UserFormModal.js
-/frontend/src/features/admin/pages/UserManagementPage.js
-/frontend/src/features/dashboard/pages/DashboardPage.js
-/frontend/src/features/auth/pages/RegisterPage.js
-/frontend/src/features/home/pages/HomePage.js
-
-/frontend/src/features/inventory/pages/ProductCatalogPage.js
-/frontend/src/features/inventory/components/CatalogFilterForm.js
-frontend/src/features/inventory/pages/NewProductPage.js
-frontend/src/features/inventory/components/ProductForm.js
-frontend/src/features/inventory/pages/ProductListPage.j
-/frontend/src/features/inventory/pages/EditProductPage.js
-/frontend/src/features/inventory/productSlice.js
-
-
-/frontend/src/features/purchasing/pages/NewPurchaseOrderPage.js
-
-
-/frontend/src/hooks/useDebounce.js
-
-/frontend/src/routes/AppRoutes.js
-
-/frontend/src/utils/auth/auth.js
-/frontend/src/utils/auth/roles.js
-
-
-
-----------------------------
-
-
-
-NO VA
-/frontend/src/features/auth/authSlice.js
-
-/frontend/src/components/auth/ProtectedRoute.js
-
-
-backend/app/models/customer.py
-backend/app/models/product.py
-backend/app/models/user.py
-/backend/app/models/supplier.py
-/backend/app/models/purchase_order.py
-/backend/app/models/credit_note.py
-/backend/app/models/shared.py
-backend/app/models/reception.py
-backend/app/models/movements.py
-
-
-
-/backend/app/routes/__init__.py
-/backend/app/routes/auth.py
-backend/app/routes/products.py
-/backend/app/routes/roles.py
-/backend/app/routes/users.py
-/backend/app/routes/customers.py
-/backend/app/routes/suppliers.py
-/backend/app/routes/purchase_orders.py
-
-backend/app/services/__init__.py
-backend/app/services/auth_service.py
-backend/app/services/templates/catalog_template.html
-backend/app/services/catalog_service.py
-backend/app/services/user_service.py
-backend/app/services/role_service.py
-backend/app/services/product_service.py
-
-
-/backend/app/schemas/purchase_order.py
-
-
-/frontend/src/api/axiosConfig.js
-/frontend/src/api/authAPI.js
-/frontend/src/api/adminAPI.js.
-/frontend/src/api/productsAPI.js
-/frontend/src/api/purchasingAPI.js
-/frontend/src/api/supplierAPI.js
-
--------------------------------------------
---------------------------------------------
---------------------------------------------
-
-
-/backend
-\backend\static\product_images\
-
-/app/
-
-
-
-
-/backend/app/core/
-/backend/app/core/config.py
-/backend/app/core/database.py
-/backend/app/core/secrets_manager.py
-/backend/app/core/security.py
-/backend/app/dependencies/
-/backend/app/dependencies/roles.py
-/backend/app/models/shared.py
-
-/backend/app/modules/auth/auth_routes.py
-/backend/app/modules/auth/auth_service.py
-
-
-/backend/app/modules/crm/repositories/customer_repository.py
-/backend/app/modules/crm/repositories/supplier_repository.py
-/backend/app/modules/crm/crm_service.py
-/backend/app/modules/crm/customer_models.py
-/backend/app/modules/crm/customer_routes.py
-/backend/app/modules/crm/supplier_models.py
-/backend/app/modules/crm/supplier_routes.py
-
-
-/backend/app/modules/data_management/data_management_service.py
-
-/backend/app/modules/inventory/repositories/product_repository.py
-/backend/app/modules/inventory/
-/backend/app/modules/inventory/
-/backend/app/modules/inventory/
-/backend/app/modules/inventory/
-/backend/app/modules/inventory/
-/backend/app/modules/inventory/
-/backend/app/modules/inventory/catalog_generator.py
-
-/backend/app/modules/purchasing/
-/backend/app/modules/purchasing/
-/backend/app/modules/purchasing/
-/backend/app/modules/purchasing/
-/backend/app/modules/purchasing/
-/backend/app/modules/purchasing/
-
-/backend/app/modules/roles/
-/backend/app/modules/roles/
-/backend/app/modules/roles/
-/backend/app/modules/roles/
-/backend/app/modules/roles/
-/backend/app/modules/roles/
-
-/backend/app/modules/users/
-/backend/app/modules/users/
-/backend/app/modules/users/
-/backend/app/modules/users/
-/backend/app/modules/users/
-
-
-
-/repositories/base.repository.py
-
-
-
-
-
-
-
-
-
-
-
-
-/scripts
-/secure
-/venv
-
-
-
-
-
-
-
-
-
-
-/frontend
-
-
-
-
-
-
-
-
-
-
-backend/app/repositories/base_repository.py
-
-
-
-
------------------------------------
-
-
-frontend/src/config/dataGridConfig.js.
-frontend/src/components/layout/ListPageLayout.js
-
-
-/frontend/src/features/admin/api/dataManagementAPI.js
-
-/frontend/src/features/admin/components/DataImporter.js
-
-/frontend/src/features/inventory/components/ProductGridToolbar.js
-
-
-
-
-
-
+│       ├── errorUtils.js
+│       └── formatters.js        (+) # Para formateadores de moneda, fecha, etc.
+├── .env.local
+└── package.json
 
 
 
@@ -630,12 +357,16 @@ frontend/src/features/inventory/components/InventoryLotsModal.js
 /frontend/src/features/inventory/pages/ProductListPage.js
 /frontend/src/features/inventory/pages/ProductMovementPage.js
 
+# ---------------------- Compras ----------------------
+
 /frontend/src/features/purchasing/api/purchasingAPI.js              
 /frontend/src/features/purchasing/components/PurchaseOrderForm.js
 /frontend/src/features/purchasing/components/PurchaseOrderGridToolbar.js
 /frontend/src/features/purchasing/pages/
 /frontend/src/features/purchasing/pages/
 /frontend/src/features/purchasing/components/PurchaseOrderDataGrid.js
+frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js
+
 
 # ---------------------- Reportes ----------------------
 
@@ -666,3 +397,222 @@ frontend/src/features/inventory/components/InventoryLotsModal.js
 # ---------------------- CONFIGURACIÓN DE PROYECTO ----------------------
 /frontend/package.json                                        # Dependencias y scripts
 /frontend/.env.local                                          # Variables de entorno locales
+
+
+
+
+
+# ---------------------- 
+# ---------------------- 
+# ---------------------- 
+# ---------------------- 
+
+
+/backend/.venv/...                                        # Entorno virtual
+/backend/.env.example
+/backend/pyproject.toml                                   # Configuración de herramientas
+/backend/requirements.txt                                 # Dependencias de producción/dev
+
+# --- Archivos Estáticos ---
+/backend/static/product_images/...                        # Imágenes de productos específicos
+/backend/static/logos/...                                 (+) # Logos (PNG, SVG) para reportes y otros usos del backend
+
+# --- Aplicación Principal ---
+/backend/app/__init__.py
+/backend/app/api.py                                       # Enrutador principal que agrupa todos los routers de los módulos
+/backend/app/main.py                                      # EntryPoint principal de la aplicación FastAPI
+
+# --- Núcleo (Core) de la Aplicación ---
+/backend/app/core/__init__.py
+/backend/app/core/config.py                               # Carga y validación de variables de entorno
+/backend/app/core/database.py                             # Lógica de conexión a la base de datos (MongoDB)
+/backend/app/core/security.py                             # Funciones de seguridad: JWT, hashing de contraseñas, etc.
+
+# --- Dependencias Reutilizables ---
+/backend/app/dependencies/__init__.py
+/backend/app/dependencies/roles.py                        # Middleware/Dependencia para la verificación de roles
+
+# --- Modelos Compartidos ---
+/backend/app/models/__init__.py
+/backend/app/models/shared.py                             # Clases base reutilizables (ej: PyObjectId)
+
+# --- Módulos de Negocio ---
+/backend/app/modules/__init__.py
+
+# ---------------------- AUTENTICACIÓN ----------------------
+/backend/app/modules/auth/__init__.py
+/backend/app/modules/auth/auth_routes.py
+/backend/app/modules/auth/auth_service.py
+/backend/app/modules/auth/auth_models.py
+/backend/app/modules/auth/dependencies.py
+
+# ---------------------- CRM: Clientes y Proveedores ----------------------
+/backend/app/modules/crm/__init__.py
+/backend/app/modules/crm/customer_routes.py
+/backend/app/modules/crm/supplier_routes.py
+/backend/app/modules/crm/crm_service.py
+/backend/app/modules/crm/customer_models.py
+/backend/app/modules/crm/supplier_models.py
+/backend/app/modules/crm/repositories/customer_repository.py
+/backend/app/modules/crm/repositories/supplier_repository.py
+
+# ---------------------- GESTIÓN DE DATOS (Import/Export) ----------------------
+/backend/app/modules/data_management/__init__.py
+/backend/app/modules/data_management/data_management_routes.py
+/backend/app/modules/data_management/data_management_service.py
+
+# ---------------------- INVENTARIO ----------------------
+/backend/app/modules/inventory/__init__.py
+# --- Entidad: Producto (Catálogo) ---
+/backend/app/modules/inventory/product_routes.py
+/backend/app/modules/inventory/product_service.py
+/backend/app/modules/inventory/product_models.py
+/backend/app/modules/inventory/repositories/product_repository.py
+# --- Entidad: Lotes de Inventario (Stock) ---
+/backend/app/modules/inventory/inventory_routes.py
+/backend/app/modules/inventory/inventory_service.py
+/backend/app/modules/inventory/inventory_models.py
+/backend/app/modules/inventory/repositories/inventory_lot_repository.py
+# --- Entidad: Ajustes de Inventario ---
+/backend/app/modules/inventory/adjustments_routes.py        (+) # Rutas para la nueva funcionalidad de ajustes
+/backend/app/modules/inventory/adjustments_service.py       (+) # Lógica de negocio para mermas, pérdidas, etc.
+/backend/app/modules/inventory/adjustments_models.py        (+) # Modelos Pydantic para los ajustes
+
+# ---------------------- COMPRAS (Purchasing) ----------------------
+/backend/app/modules/purchasing/__init__.py
+/backend/app/modules/purchasing/purchasing_routes.py
+/backend/app/modules/purchasing/purchasing_service.py
+/backend/app/modules/purchasing/purchasing_models.py
+/backend/app/modules/purchasing/repositories/purchase_order_repository.py (*) # Nombre explícito (antes purchase_repository.py)
+
+# ---------------------- REPORTES ----------------------
+/backend/app/modules/reports/__init__.py
+/backend/app/modules/reports/reports_routes.py
+/backend/app/modules/reports/reports_service.py
+/backend/app/modules/reports/reports_models.py
+/backend/app/modules/reports/services/catalog_service.py    # Generador específico del catálogo PDF
+
+# ---------------------- VENTAS (Sales) ----------------------
+/backend/app/modules/sales/__init__.py
+/backend/app/modules/sales/sales_routes.py
+/backend/app/modules/sales/sales_service.py
+/backend/app/modules/sales/sales_models.py
+/backend/app/modules/sales/repositories/sales_repository.py
+
+# ---------------------- ROLES Y PERMISOS ----------------------
+/backend/app/modules/roles/__init__.py
+/backend/app/modules/roles/role_routes.py
+/backend/app/modules/roles/role_service.py
+/backend/app/modules/roles/role_models.py
+/backend/app/modules/roles/repositories/role_repository.py
+
+# ---------------------- USUARIOS ----------------------
+/backend/app/modules/users/__init__.py
+/backend/app/modules/users/user_routes.py
+/backend/app/modules/users/user_service.py
+/backend/app/modules/users/user_models.py
+/backend/app/modules/users/repositories/user_repository.py
+
+
+/frontend/node_modules/...
+/frontend/package.json
+/frontend/.env.local
+
+# --- Carpeta Pública ---
+/frontend/public/index.html
+/frontend/public/favicon.ico
+/frontend/public/images/logo-full.png                     (*) # Todos los assets estáticos en carpetas dedicadas
+/frontend/public/images/logo-icon.png                     (*)
+
+# --- Entrypoint y Configuración de la App ---
+/frontend/src/App.js
+/frontend/src/index.js
+/frontend/src/app/axiosConfig.js
+/frontend/src/app/theme.js
+/frontend/src/app/contexts/AuthContext.js
+
+# --- Componentes Reutilizables ---
+/frontend/src/components/common/ConfirmationDialog.js
+/frontend/src/components/common/DataGridToolbar.js
+/frontend/src/components/common/Logo.js
+/frontend/src/components/common/PageHeader.js
+/frontend/src/components/layout/AuthLayout.js
+/frontend/src/components/layout/DashboardLayout.js
+/frontend/src/components/layout/DashboardSidebar.js
+
+# --- Constantes Globales ---
+/frontend/src/constants/crmConstants.js
+/frontend/src/constants/productConstants.js
+/frontend/src/constants/rolesAndPermissions.js
+/frontend/src/constants/validationSchemas.js
+
+# ---------------------- MÓDULOS DE NEGOCIO (FEATURES) ----------------------
+
+# --- Módulo: Administración ---
+/frontend/src/features/admin/api/dataManagementAPI.js
+/frontend/src/features/admin/components/DataImporter.js
+/frontend/src/features/admin/pages/DataManagementPage.js
+/frontend/src/features/admin/pages/UserManagementPage.js
+
+# --- Módulo: Autenticación ---
+/frontend/src/features/auth/api/authAPI.js
+/frontend/src/features/auth/pages/LoginPage.js
+
+# --- Módulo: CRM ---
+/frontend/src/features/crm/api/customersAPI.js
+/frontend/src/features/crm/api/suppliersAPI.js
+/frontend/src/features/crm/components/SupplierForm.js
+/frontend/src/features/crm/components/SupplierDataGrid.js
+/frontend/src/features/crm/pages/NewSupplierPage.js
+/frontend/src/features/crm/pages/SupplierListPage.js
+
+# --- Módulo: Inventario ---
+/frontend/src/features/inventory/api/productsAPI.js
+/frontend/src/features/inventory/mappers/productMappers.js           (*) # Mappers en su propia carpeta para mayor claridad
+/frontend/src/features/inventory/components/ProductForm.js
+/frontend/src/features/inventory/components/InventoryLotsModal.js
+/frontend/src/features/inventory/components/product/ProductPrimaryInfoSection.js
+/frontend/src/features/inventory/components/product/ProductCommercialDataSection.js
+/frontend/src/features/inventory/components/product/ProductSpecificationsSection.js
+/frontend/src/features/inventory/components/product/ProductReferenceSection.js
+/frontend/src/features/inventory/pages/ProductListPage.js
+/frontend/src/features/inventory/pages/NewProductPage.js
+/frontend/src/features/inventory/pages/EditProductPage.js
+
+# --- Módulo: Compras ---
+/frontend/src/features/purchasing/api/purchasingAPI.js
+/frontend/src/features/purchasing/components/PurchaseOrderDataGrid.js
+/frontend/src/features/purchasing/components/PurchaseOrderForm.js
+/frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
+/frontend/src/features/purchasing/pages/NewPurchaseOrderPage.js
+/frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js
+
+# --- Módulo: Reportes ---
+/frontend/src/features/reports/api/reportsAPI.js
+/frontend/src/features/reports/pages/ProductCatalogPage.js
+
+# --- Módulo: Ventas ---
+/frontend/src/features/sales/api/salesAPI.js
+/frontend/src/features/sales/components/SalesOrderDataGrid.js
+/frontend/src/features/sales/components/SalesOrderForm.js
+/frontend/src/features/sales/pages/SalesOrderListPage.js
+/frontend/src/features/sales/pages/NewSalesOrderPage.js
+
+# --- Hooks Personalizados ---
+/frontend/src/hooks/useDebounce.js
+/frontend/src/hooks/usePermissions.js
+
+# --- Rutas ---
+/frontend/src/routes/AppRoutes.js
+
+# --- Utilidades ---
+/frontend/src/utils/auth/auth.js
+/frontend/src/utils/auth/roles.js
+/frontend/src/utils/errorUtils.js
+/frontend/src/utils/formatters.js                     
+
+
+(+) # Centralizar formateadores (moneda, fecha)
+
+
+
