@@ -4,14 +4,9 @@
  * @file Componente reutilizable y profesional para el formulario de Órdenes de Compra.
  * @description Encapsula la UI y la lógica de estado del formulario utilizando Formik.
  * Es un componente de presentación que recibe todos los datos y opciones como props.
- * Este componente asume que todos los datos (initialData, suppliersOptions, productsOptions)
- * han sido pre-procesados para tener un campo 'id' consistente.
  */
 
-// ==============================================================================
 // SECCIÓN 1: IMPORTACIONES DE MÓDULOS
-// ==============================================================================
-
 import React, { useMemo } from 'react';
 import { Formik, Form, FieldArray } from 'formik';
 import {
@@ -25,24 +20,20 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { es } from 'date-fns/locale/es';
 import { purchaseOrderFormValidationSchema } from '../../../constants/validationSchemas';
 
-// ==============================================================================
-// SECCIÓN 2: SUB-COMPONENTES DE PRESENTACIÓN
-// ==============================================================================
-
-/**
- * Sub-componente que renderiza la cabecera del formulario (Proveedor y Fechas).
- */
+// SECCIÓN 2: SUB-COMPONENTES
 const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions, isLoadingSuppliers, isEditMode }) => (
     <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>Información General</Typography>
         <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
                 <Autocomplete
+                    // SOLUCIÓN AL CRASH: Usar '|| []' como fallback seguro.
                     options={suppliersOptions || []}
                     loading={isLoadingSuppliers}
                     value={values.supplier}
                     getOptionLabel={(option) => option.business_name ? `${option.business_name} (RUC: ${option.tax_id})` : ""}
-                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                    // CORRECCIÓN DE CAMPO: Usar '_id' para la comparación.
+                    isOptionEqualToValue={(option, value) => option?._id === value?._id}
                     onChange={(event, newValue) => setFieldValue('supplier', newValue)}
                     readOnly={isEditMode}
                     renderInput={(params) => (
@@ -62,9 +53,6 @@ const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions,
     </Paper>
 );
 
-/**
- * Sub-componente que renderiza el array de ítems/productos del formulario.
- */
 const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptions, isLoadingProducts }) => (
     <Paper variant="outlined" sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>Productos de la Orden</Typography>
@@ -76,11 +64,13 @@ const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptio
                             <Grid container spacing={2} alignItems="center">
                                 <Grid item xs={12} md={5}>
                                     <Autocomplete
+                                        // SOLUCIÓN AL CRASH: Usar '|| []' como fallback seguro.
                                         options={productsOptions || []}
                                         loading={isLoadingProducts}
                                         value={item.product}
                                         getOptionLabel={(option) => option.sku ? `[${option.sku}] ${option.name}` : ""}
-                                        isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                                        // CORRECCIÓN DE CAMPO: Usar '_id' para la comparación.
+                                        isOptionEqualToValue={(option, value) => option?._id === value?._id}
                                         onChange={(event, newValue) => {
                                             setFieldValue(`items.${index}.product`, newValue);
                                             setFieldValue(`items.${index}.unit_cost`, newValue?.average_cost || 0);
@@ -104,10 +94,7 @@ const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptio
     </Paper>
 );
 
-// ==============================================================================
-// SECCIÓN 3: COMPONENTE PRINCIPAL (LÓGICA Y COMPOSICIÓN)
-// ==============================================================================
-
+// SECCIÓN 3: COMPONENTE PRINCIPAL DEL FORMULARIO
 const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliersOptions, productsOptions, isLoadingSuppliers, isLoadingProducts }) => {
     const isEditMode = !!initialData.id;
 
@@ -120,11 +107,11 @@ const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliers
 
         let items = [{ product: null, quantity_ordered: 1, unit_cost: 0 }];
         
+        // Usamos 'productsOptions || []' para asegurar que no intentamos mapear sobre 'undefined'.
         if (isEditMode && initialData.items && (productsOptions || []).length > 0) {
             items = initialData.items.map(item => {
-                // LÓGICA DE HIDRATACIÓN CORREGIDA Y SIMPLIFICADA
-                // Busca en la lista de productos estandarizada usando el 'product_id' del item.
-                const foundProduct = productsOptions.find(p => p.id === item.product_id);
+                // CORRECCIÓN DE CAMPO: Usar '_id' para la comparación.
+                const foundProduct = productsOptions.find(p => p._id === item.product_id);
                 
                 return {
                     ...item,

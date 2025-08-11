@@ -4,14 +4,9 @@
  * @file Componente reutilizable y profesional para el formulario de Órdenes de Compra.
  * @description Encapsula la UI y la lógica de estado del formulario utilizando Formik.
  * Es un componente de presentación que recibe todos los datos y opciones como props.
- * Este componente asume que todos los datos (initialData, suppliersOptions, productsOptions)
- * han sido pre-procesados para tener un campo 'id' consistente.
  */
 
-// ==============================================================================
 // SECCIÓN 1: IMPORTACIONES DE MÓDULOS
-// ==============================================================================
-
 import React, { useMemo } from 'react';
 import { Formik, Form, FieldArray } from 'formik';
 import {
@@ -25,20 +20,14 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { es } from 'date-fns/locale/es';
 import { purchaseOrderFormValidationSchema } from '../../../constants/validationSchemas';
 
-// ==============================================================================
-// SECCIÓN 2: SUB-COMPONENTES DE PRESENTACIÓN
-// ==============================================================================
-
-/**
- * Sub-componente que renderiza la cabecera del formulario (Proveedor y Fechas).
- */
+// SECCIÓN 2: SUB-COMPONENTES
 const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions, isLoadingSuppliers, isEditMode }) => (
     <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>Información General</Typography>
         <Grid container spacing={3}>
             <Grid item xs={12} md={6}>
                 <Autocomplete
-                    options={suppliersOptions || []}
+                    options={suppliersOptions}
                     loading={isLoadingSuppliers}
                     value={values.supplier}
                     getOptionLabel={(option) => option.business_name ? `${option.business_name} (RUC: ${option.tax_id})` : ""}
@@ -62,9 +51,6 @@ const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions,
     </Paper>
 );
 
-/**
- * Sub-componente que renderiza el array de ítems/productos del formulario.
- */
 const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptions, isLoadingProducts }) => (
     <Paper variant="outlined" sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>Productos de la Orden</Typography>
@@ -76,7 +62,7 @@ const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptio
                             <Grid container spacing={2} alignItems="center">
                                 <Grid item xs={12} md={5}>
                                     <Autocomplete
-                                        options={productsOptions || []}
+                                        options={productsOptions}
                                         loading={isLoadingProducts}
                                         value={item.product}
                                         getOptionLabel={(option) => option.sku ? `[${option.sku}] ${option.name}` : ""}
@@ -104,14 +90,18 @@ const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptio
     </Paper>
 );
 
-// ==============================================================================
-// SECCIÓN 3: COMPONENTE PRINCIPAL (LÓGICA Y COMPOSICIÓN)
-// ==============================================================================
-
+// SECCIÓN 3: COMPONENTE PRINCIPAL DEL FORMULARIO
 const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliersOptions, productsOptions, isLoadingSuppliers, isLoadingProducts }) => {
     const isEditMode = !!initialData.id;
 
     const initialValues = useMemo(() => {
+        // --- INICIO DE LA SECCIÓN DE DEPURACIÓN ---
+        console.groupCollapsed("[DEBUG] PurchaseOrderForm - Cálculo de initialValues");
+        console.log("Modo Edición:", isEditMode);
+        console.log("Datos Iniciales (initialData):", initialData);
+        console.log("Opciones de Productos (productsOptions):", productsOptions);
+        // --- FIN DE LA SECCIÓN DE DEPURACIÓN ---
+
         const parseDate = (date) => {
             if (!date) return null;
             if (date instanceof Date) return date;
@@ -120,26 +110,42 @@ const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliers
 
         let items = [{ product: null, quantity_ordered: 1, unit_cost: 0 }];
         
-        if (isEditMode && initialData.items && (productsOptions || []).length > 0) {
-            items = initialData.items.map(item => {
-                // LÓGICA DE HIDRATACIÓN CORREGIDA Y SIMPLIFICADA
-                // Busca en la lista de productos estandarizada usando el 'product_id' del item.
+        if (isEditMode && initialData.items && productsOptions.length > 0) {
+            console.log("Hidratando productos de la orden...");
+            items = initialData.items.map((item, index) => {
                 const foundProduct = productsOptions.find(p => p.id === item.product_id);
                 
+                // Log detallado por cada item
+                console.log(`Item #${index + 1}: Buscando product_id '${item.product_id}'...`, {
+                    idBuscado: item.product_id,
+                    tipoIdBuscado: typeof item.product_id,
+                    primerIdDeOpciones: productsOptions.length > 0 ? productsOptions[0].id : "N/A",
+                    tipoPrimerId: productsOptions.length > 0 ? typeof productsOptions[0].id : "N/A",
+                    productoEncontrado: foundProduct || "¡NO ENCONTRADO!"
+                });
+
                 return {
                     ...item,
                     product: foundProduct || null
                 };
             });
+        } else if (isEditMode) {
+            console.warn("Modo edición activo, pero no se pudo hidratar la lista de productos. ¿Están llegando los `productsOptions`?");
         }
 
-        return {
+        const finalValues = {
             supplier: initialData.supplier || null,
             order_date: parseDate(initialData.order_date) || new Date(),
             expected_delivery_date: parseDate(initialData.expected_delivery_date),
             notes: initialData.notes || '',
             items: items,
         };
+        
+        console.log("Valores Iniciales Finales para Formik:", finalValues);
+        console.groupEnd();
+        
+        return finalValues;
+
     }, [initialData, isEditMode, productsOptions]);
 
     return (
@@ -168,19 +174,19 @@ const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliers
                             <Grid container justifyContent="space-between" alignItems="center">
                                 <Grid item xs={12} md={6}>
                                     <TextField fullWidth label="Notas Adicionales" name="notes" value={values.notes} onChange={(e) => setFieldValue('notes', e.target.value)} multiline rows={3} />
-                                 </Grid>
-                                 <Grid item xs={12} md={4}>
-                                     <Typography variant="h5" align="right">Total de la Orden: S/ {totalAmount.toFixed(2)}</Typography>
-                                 </Grid>
-                             </Grid>
-                             <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-                                 <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
-                                     {isSubmitting ? 'Guardando...' : (isEditMode ? 'Actualizar Orden' : 'Crear Orden de Compra')}
-                                 </Button>
-                             </Box>
-                         </Form>
-                     );
-                 }}
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                    <Typography variant="h5" align="right">Total de la Orden: S/ {totalAmount.toFixed(2)}</Typography>
+                                </Grid>
+                            </Grid>
+                            <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+                                <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
+                                    {isSubmitting ? 'Guardando...' : (isEditMode ? 'Actualizar Orden' : 'Crear Orden de Compra')}
+                                </Button>
+                            </Box>
+                        </Form>
+                    );
+                }}
             </Formik>
         </LocalizationProvider>
     );

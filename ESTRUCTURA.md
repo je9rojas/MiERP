@@ -580,7 +580,11 @@ frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js
 /frontend/src/features/inventory/pages/EditProductPage.js
 
 # --- Módulo: Compras ---
+
+
 /frontend/src/features/purchasing/api/purchasingAPI.js
+frontend/src/features/purchasing/mappers/purchaseOrderMappers.js
+
 /frontend/src/features/purchasing/components/PurchaseOrderDataGrid.js
 /frontend/src/features/purchasing/components/PurchaseOrderForm.js
 /frontend/src/features/purchasing/pages/PurchaseOrderListPage.js

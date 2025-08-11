@@ -31,7 +31,7 @@ const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions,
                     loading={isLoadingSuppliers}
                     value={values.supplier}
                     getOptionLabel={(option) => option.business_name ? `${option.business_name} (RUC: ${option.tax_id})` : ""}
-                    isOptionEqualToValue={(option, value) => option?._id === value?._id}
+                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     onChange={(event, newValue) => setFieldValue('supplier', newValue)}
                     readOnly={isEditMode}
                     renderInput={(params) => (
@@ -66,7 +66,7 @@ const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptio
                                         loading={isLoadingProducts}
                                         value={item.product}
                                         getOptionLabel={(option) => option.sku ? `[${option.sku}] ${option.name}` : ""}
-                                        isOptionEqualToValue={(option, value) => option?._id === value?._id}
+                                        isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                         onChange={(event, newValue) => {
                                             setFieldValue(`items.${index}.product`, newValue);
                                             setFieldValue(`items.${index}.unit_cost`, newValue?.average_cost || 0);
@@ -106,8 +106,8 @@ const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliers
         if (isEditMode && initialData.items && productsOptions.length > 0) {
             items = initialData.items.map(item => ({
                 ...item,
-                // CORRECCIÓN DEFINITIVA: Se compara p._id con item.product_id.
-                product: productsOptions.find(p => p._id === item.product_id) || null
+                // CORRECCIÓN DEFINITIVA: Se compara `p.id` con `item.product_id` (ambos strings).
+                product: productsOptions.find(p => p.id === item.product_id) || null
             }));
         }
 
