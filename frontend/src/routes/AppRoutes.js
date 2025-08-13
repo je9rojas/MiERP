@@ -39,8 +39,9 @@ const EditProductPage = lazy(() => import('../features/inventory/pages/EditProdu
 const PurchaseOrderListPage = lazy(() => import('../features/purchasing/pages/PurchaseOrderListPage'));
 const NewPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/NewPurchaseOrderPage'));
 const EditPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/EditPurchaseOrderPage'));
-// Se importa la nueva página para registrar la recepción de mercancía.
 const RegisterReceiptPage = lazy(() => import('../features/purchasing/pages/RegisterReceiptPage'));
+// Se importa la nueva página para listar las facturas de compra.
+const PurchaseBillListPage = lazy(() => import('../features/purchasing/pages/PurchaseBillListPage'));
 const UserManagementPage = lazy(() => import('../features/admin/pages/UserManagementPage'));
 const DataManagementPage = lazy(() => import('../features/admin/pages/DataManagementPage'));
 const SupplierListPage = lazy(() => import('../features/crm/pages/SupplierListPage'));
@@ -117,8 +118,9 @@ const AppRoutes = () => {
                         <Route path="compras/ordenes" element={<PurchaseOrderListPage />} />
                         <Route path="compras/ordenes/nueva" element={<NewPurchaseOrderPage />} />
                         <Route path="compras/ordenes/editar/:orderId" element={<EditPurchaseOrderPage />} />
-                        {/* Se añade la nueva ruta para recibir la mercancía de una orden específica. */}
                         <Route path="compras/ordenes/:orderId/recibir" element={<RegisterReceiptPage />} />
+                        {/* Se añade la nueva ruta para listar las facturas de compra. */}
+                        <Route path="compras/facturas" element={<PurchaseBillListPage />} />
                         
                         {/* Módulo de CRM */}
                         <Route path="crm/proveedores" element={<SupplierListPage />} />

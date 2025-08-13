@@ -592,9 +592,11 @@ frontend/src/features/purchasing/mappers/purchaseOrderMappers.js
 /frontend/src/features/purchasing/components/PurchaseOrderForm.js
 frontend/src/features/purchasing/components/PurchaseBillForm.js
 frontend/src/features/purchasing/components/purchaseOrderGridConfig.js
+frontend/src/features/purchasing/components/purchaseBillGridConfig.js
+frontend/src/features/purchasing/components/PurchaseBillDataGrid.js
 
+frontend/src/features/purchasing/pages/PurchaseBillListPage.js
 frontend/src/features/purchasing/pages/RegisterReceiptPage.js
-
 /frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
 /frontend/src/features/purchasing/pages/NewPurchaseOrderPage.js
 /frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js

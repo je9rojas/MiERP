@@ -71,6 +71,7 @@ export const updatePurchaseOrderAPI = async (orderId, updateData) => {
  * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra actualizada y mapeada.
  */
 export const updatePurchaseOrderStatusAPI = async (orderId, newStatus) => {
+    // CORRECCIÓN: Se utiliza el método PATCH y la URL correcta. El payload se ajusta a lo esperado por el backend.
     const response = await api.patch(`/purchasing/orders/${orderId}/status`, { new_status: newStatus });
     return mapPurchaseOrderResponse(response.data);
 };
@@ -78,17 +79,6 @@ export const updatePurchaseOrderStatusAPI = async (orderId, newStatus) => {
 // ==============================================================================
 // SECCIÓN 3: FUNCIONES DE API PARA RECEPCIÓN/FACTURA DE COMPRA (PURCHASE BILL)
 // ==============================================================================
-
-/**
- * Obtiene una lista paginada y filtrada de facturas de compra.
- * @param {object} params - Objeto con parámetros de consulta (ej. { page, pageSize, search }).
- * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada y ya mapeada.
- */
-export const getPurchaseBillsAPI = async (params) => {
-    const response = await api.get('/purchasing/bills', { params });
-    // Reutilizamos el mismo mapeador paginado, ya que estandariza la estructura 'items'.
-    return mapPaginatedResponse(response.data);
-};
 
 /**
  * Envía los datos de una nueva recepción/factura al backend para su procesamiento.

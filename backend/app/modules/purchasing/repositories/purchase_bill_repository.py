@@ -64,3 +64,27 @@ class PurchaseBillRepository:
             return await cursor.to_list(length=None)
         except InvalidId:
             return []
+
+    async def count_documents(self, query: Dict[str, Any], session: Optional[AsyncIOMotorClientSession] = None) -> int:
+        """
+        Cuenta el número total de documentos que coinciden con una consulta.
+        """
+        return await self.collection.count_documents(query, session=session)
+
+    async def find_all_paginated(
+        self,
+        query: Dict[str, Any],
+        skip: int,
+        limit: int,
+        sort_options: Optional[List] = None,
+        session: Optional[AsyncIOMotorClientSession] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Encuentra múltiples documentos con paginación y ordenamiento.
+        """
+        cursor = self.collection.find(query, session=session)
+        if sort_options:
+            cursor = cursor.sort(sort_options)
+        
+        cursor = cursor.skip(skip).limit(limit)
+        return await cursor.to_list(length=limit)

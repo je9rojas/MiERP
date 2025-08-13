@@ -33,6 +33,7 @@ import {
     ExpandLess as ExpandLessIcon, ExpandMore as ExpandMoreIcon,
     PictureAsPdf as PictureAsPdfIcon, Assessment as AssessmentIcon,
     ChevronLeft as ChevronLeftIcon, ImportExport as ImportExportIcon,
+    Article as ArticleIcon, // Se importa el icono para las facturas
 } from '@mui/icons-material';
 
 import { useAuth } from '../../app/contexts/AuthContext';
@@ -105,9 +106,10 @@ const SIDEBAR_STRUCTURE = [
             {
                 text: 'Compras', icon: <ShoppingCartIcon />, roles: CAN_ACCESS_PURCHASING_MODULE,
                 subItems: [
-                    // --- RUTA CORREGIDA ---
                     { text: 'Proveedores', icon: <LocalShippingIcon />, path: '/crm/proveedores', roles: CAN_MANAGE_SUPPLIERS },
                     { text: 'Órdenes de Compra', icon: <ReceiptLongIcon />, path: '/compras/ordenes', roles: CAN_CRUD_PURCHASE_ORDERS },
+                    // Se añade el nuevo enlace a la lista de facturas de compra.
+                    { text: 'Facturas de Compra', icon: <ArticleIcon />, path: '/compras/facturas', roles: CAN_CRUD_PURCHASE_ORDERS },
                 ],
             },
             {
@@ -158,7 +160,6 @@ const DashboardSidebar = ({ open, handleDrawerClose }) => {
     const { user } = useAuth();
     const [openCollapse, setOpenCollapse] = useState({});
 
-    // Efecto para abrir el menú padre correspondiente a la ruta activa
     useEffect(() => {
         const activeParent = SIDEBAR_STRUCTURE.flatMap(s => s.items).find(item =>
             item.subItems?.some(sub => location.pathname.startsWith(sub.path))

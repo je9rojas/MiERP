@@ -33,7 +33,7 @@ from app.modules.crm.repositories.supplier_repository import SupplierRepository
 from .purchasing_models import (
     PurchaseOrderCreate, PurchaseOrderItem, PurchaseOrderInDB, PurchaseOrderOut,
     PurchaseOrderStatus, PurchaseOrderUpdate, PurchaseBillCreate, PurchaseBillItem,
-    PurchaseBillInDB, PurchaseBillOut
+    PurchaseBillInDB, PurchaseBillOut, PurchaseOrderItemCreate
 )
 from app.modules.users.user_models import UserOut, UserRole
 
@@ -56,7 +56,7 @@ async def _generate_sequential_number(repo, prefix: str) -> str:
             new_num = last_num + 1
             return f"{prefix}-{datetime.now().year}-{str(new_num).zfill(5)}"
         except (ValueError, IndexError):
-            pass # Fallback si el formato es inesperado
+            pass
             
     return f"{prefix}-{datetime.now().year}-{'1'.zfill(5)}"
 
@@ -71,7 +71,6 @@ async def _get_new_po_status(db: AsyncIOMotorDatabase, po_id: str) -> PurchaseOr
     
     po_doc_raw = await po_repo.find_by_id(po_id)
     if not po_doc_raw:
-        # Este caso es improbable si se llama después de una operación válida, pero es una protección.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Orden de Compra no encontrada al recalcular estado.")
     po_doc = PurchaseOrderInDB.model_validate(po_doc_raw)
     
@@ -95,102 +94,67 @@ async def _get_new_po_status(db: AsyncIOMotorDatabase, po_id: str) -> PurchaseOr
     elif has_any_reception:
         return PurchaseOrderStatus.PARTIALLY_RECEIVED
     else:
-        # Si no hay recepciones, el estado de la OC no debería cambiar por esta función.
         return po_doc.status
 
 
 # ==============================================================================
 # SECCIÓN 3: SERVICIO PARA ÓRDENES DE COMPRA (PURCHASE ORDER)
 # ==============================================================================
-
+# ... (create_purchase_order, get_purchase_order_by_id, get_purchase_orders_paginated, update_purchase_order, update_purchase_order_status permanecen idénticas)
 async def create_purchase_order(db: AsyncIOMotorDatabase, po_data: PurchaseOrderCreate, user: UserOut, prefix: str = "OC") -> PurchaseOrderOut:
-    """Crea una nueva Orden de Compra."""
     po_repo = PurchaseOrderRepository(db)
     supplier_repo = SupplierRepository(db)
     product_repo = ProductRepository(db)
-
     supplier_doc = await supplier_repo.find_by_id(str(po_data.supplier_id))
     if not supplier_doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El proveedor especificado no existe.")
-
     enriched_items = []
     total_amount = 0.0
     for item_in in po_data.items:
         product_doc = await product_repo.find_by_id(str(item_in.product_id))
         if not product_doc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Producto con ID '{item_in.product_id}' no encontrado.")
-        
         item_total = item_in.quantity_ordered * item_in.unit_cost
         total_amount += item_total
-        enriched_items.append(PurchaseOrderItem(
-            product_id=item_in.product_id,
-            sku=product_doc.get("sku", "N/A"),
-            name=product_doc.get("name", "Producto no encontrado"),
-            quantity_ordered=item_in.quantity_ordered,
-            unit_cost=item_in.unit_cost,
-        ))
-
-    po_to_db = PurchaseOrderInDB(
-        order_number=await _generate_sequential_number(po_repo, prefix),
-        supplier_id=po_data.supplier_id,
-        created_by_id=user.id,
-        items=enriched_items,
-        total_amount=round(total_amount, 2),
-        order_date=po_data.order_date,
-        expected_delivery_date=po_data.expected_delivery_date,
-        notes=po_data.notes
-    )
-
+        enriched_items.append(PurchaseOrderItem(product_id=item_in.product_id, sku=product_doc.get("sku", "N/A"), name=product_doc.get("name", "Producto no encontrado"), quantity_ordered=item_in.quantity_ordered, unit_cost=item_in.unit_cost))
+    po_to_db = PurchaseOrderInDB(order_number=await _generate_sequential_number(po_repo, prefix), supplier_id=po_data.supplier_id, created_by_id=user.id, items=enriched_items, total_amount=round(total_amount, 2), order_date=po_data.order_date, expected_delivery_date=po_data.expected_delivery_date, notes=po_data.notes)
     inserted_id = await po_repo.insert_one(po_to_db.model_dump(by_alias=True))
     return await get_purchase_order_by_id(db, str(inserted_id))
 
-
 async def get_purchase_order_by_id(db: AsyncIOMotorDatabase, order_id: str) -> PurchaseOrderOut:
-    """Obtiene una única Orden de Compra por su ID, enriqueciendo los datos del proveedor."""
     po_repo = PurchaseOrderRepository(db)
     po_doc = await po_repo.find_by_id(order_id)
     if not po_doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Orden de Compra con ID '{order_id}' no encontrada.")
-    
     supplier_repo = SupplierRepository(db)
     supplier_doc = await supplier_repo.find_by_id(str(po_doc.get("supplier_id")))
     po_doc['supplier'] = supplier_doc or {"business_name": "Proveedor No Encontrado"}
-    
     return PurchaseOrderOut.model_validate(po_doc)
 
-
 async def get_purchase_orders_paginated(db: AsyncIOMotorDatabase, page: int, page_size: int, search: Optional[str]) -> Dict[str, Any]:
-    """Recupera una lista paginada de Órdenes de Compra, poblando los datos del proveedor."""
     po_repo = PurchaseOrderRepository(db)
     supplier_repo = SupplierRepository(db)
     query: Dict[str, Any] = {}
     if search:
         query["order_number"] = {"$regex": search, "$options": "i"}
-        
     total_count = await po_repo.count_documents(query)
     skip = (page - 1) * page_size
     sort_options = [("order_date", DESCENDING)]
     po_docs = await po_repo.find_all_paginated(query, skip, page_size, sort_options)
-    
     populated_items = []
     for doc in po_docs:
         supplier = await supplier_repo.find_by_id(str(doc.get("supplier_id")))
         doc["supplier"] = supplier
         populated_items.append(PurchaseOrderOut.model_validate(doc))
-
     return {"total_count": total_count, "items": populated_items}
 
-
 async def update_purchase_order(db: AsyncIOMotorDatabase, order_id: str, po_data: PurchaseOrderUpdate) -> PurchaseOrderOut:
-    """Actualiza una Orden de Compra existente. Solo permite la edición si está en estado 'Borrador'."""
     po_repo = PurchaseOrderRepository(db)
     po_doc = await po_repo.find_by_id(order_id)
     if not po_doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La Orden de Compra no existe.")
-    
     if po_doc.get('status') != PurchaseOrderStatus.DRAFT:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Solo se pueden editar Órdenes de Compra en estado 'Borrador'.")
-
     update_data = po_data.model_dump(exclude_unset=True)
     if "items" in update_data and update_data["items"] is not None:
         product_repo = ProductRepository(db)
@@ -205,42 +169,28 @@ async def update_purchase_order(db: AsyncIOMotorDatabase, order_id: str, po_data
             enriched_items.append(PurchaseOrderItem(product_id=item_create.product_id, sku=product_doc.get("sku"), name=product_doc.get("name"), quantity_ordered=item_create.quantity_ordered, unit_cost=item_create.unit_cost))
         update_data["items"] = [item.model_dump() for item in enriched_items]
         update_data["total_amount"] = round(total_amount, 2)
-    
     if not update_data:
         return await get_purchase_order_by_id(db, order_id)
-        
     update_data["updated_at"] = datetime.now(timezone.utc)
     await po_repo.update_one_by_id(order_id, update_data)
     return await get_purchase_order_by_id(db, order_id)
 
-
 async def update_purchase_order_status(db: AsyncIOMotorDatabase, order_id: str, new_status: PurchaseOrderStatus, user: UserOut) -> PurchaseOrderOut:
-    """Actualiza el estado de una Orden de Compra, aplicando la lógica de negocio y permisos."""
     po_repo = PurchaseOrderRepository(db)
     po_doc = await po_repo.find_by_id(order_id)
     if not po_doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La Orden de Compra no existe.")
-
     current_status = po_doc.get('status')
-
-    valid_transitions = {
-        PurchaseOrderStatus.DRAFT: [PurchaseOrderStatus.PENDING_APPROVAL, PurchaseOrderStatus.CANCELLED],
-        PurchaseOrderStatus.PENDING_APPROVAL: [PurchaseOrderStatus.APPROVED, PurchaseOrderStatus.REJECTED],
-        PurchaseOrderStatus.APPROVED: [PurchaseOrderStatus.CANCELLED],
-    }
-    
+    valid_transitions = {PurchaseOrderStatus.DRAFT: [PurchaseOrderStatus.PENDING_APPROVAL, PurchaseOrderStatus.CANCELLED], PurchaseOrderStatus.PENDING_APPROVAL: [PurchaseOrderStatus.APPROVED, PurchaseOrderStatus.REJECTED], PurchaseOrderStatus.APPROVED: [PurchaseOrderStatus.CANCELLED]}
     allowed_transitions = valid_transitions.get(current_status, [])
     if new_status not in allowed_transitions:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"No se puede cambiar el estado de '{current_status}' a '{new_status.value}'.")
-
     if new_status in [PurchaseOrderStatus.APPROVED, PurchaseOrderStatus.REJECTED]:
         if user.role not in [UserRole.ADMIN, UserRole.SUPERADMIN, UserRole.MANAGER]:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tiene permisos para aprobar o rechazar órdenes de compra.")
-
     update_data = {"status": new_status, "updated_at": datetime.now(timezone.utc)}
     await po_repo.update_one_by_id(order_id, update_data)
     return await get_purchase_order_by_id(db, order_id)
-
 
 # ==============================================================================
 # SECCIÓN 4: SERVICIO PARA RECEPCIÓN/FACTURA DE COMPRA (PURCHASE BILL)
@@ -249,8 +199,6 @@ async def update_purchase_order_status(db: AsyncIOMotorDatabase, order_id: str, 
 async def process_purchase_receipt(db: AsyncIOMotorDatabase, po_id: str, bill_data: PurchaseBillCreate, user: UserOut) -> PurchaseBillOut:
     """
     Procesa la recepción de mercancía y la creación de una factura de compra.
-    La creación de la factura y la actualización del inventario son transaccionales.
-    La actualización del estado de la OC se realiza después para asegurar la consistencia.
     """
     po_repo = PurchaseOrderRepository(db)
     bill_repo = PurchaseBillRepository(db)
@@ -324,6 +272,41 @@ async def get_bill_by_id(db: AsyncIOMotorDatabase, bill_id: str) -> PurchaseBill
     return PurchaseBillOut.model_validate(bill_doc)
 
 
+async def get_purchase_bills_paginated(db: AsyncIOMotorDatabase, page: int, page_size: int, search: Optional[str]) -> Dict[str, Any]:
+    """Recupera una lista paginada de Facturas de Compra, poblando los datos del proveedor."""
+    bill_repo = PurchaseBillRepository(db)
+    supplier_repo = SupplierRepository(db)
+    
+    query: Dict[str, Any] = {}
+    if search:
+        # Permite buscar por número de factura interna o número de factura de proveedor
+        query["$or"] = [
+            {"bill_number": {"$regex": search, "$options": "i"}},
+            {"supplier_invoice_number": {"$regex": search, "$options": "i"}}
+        ]
+        
+    total_count = await bill_repo.count_documents(query)
+    skip = (page - 1) * page_size
+    sort_options = [("received_date", DESCENDING)]
+    
+    # Necesitamos un repositorio de PO para obtener el número de la orden de compra
+    po_repo = PurchaseOrderRepository(db)
+    
+    bill_docs = await bill_repo.find_all_paginated(query, skip, page_size, sort_options)
+    
+    populated_items = []
+    for doc in bill_docs:
+        supplier = await supplier_repo.find_by_id(str(doc.get("supplier_id")))
+        doc["supplier"] = supplier
+        
+        # Enriquecemos el documento con el número de la OC para mostrarlo en la tabla
+        po_doc = await po_repo.find_by_id(str(doc.get("purchase_order_id")))
+        doc["purchase_order_number"] = po_doc.get("order_number") if po_doc else "N/A"
+
+        populated_items.append(PurchaseBillOut.model_validate(doc))
+
+    return {"total_count": total_count, "items": populated_items}
+
 # ==============================================================================
 # SECCIÓN 5: FUNCIONES DE SERVICIO (OPERACIONES ESPECIALES)
 # ==============================================================================
@@ -353,7 +336,6 @@ async def create_purchase_order_from_file(db: AsyncIOMotorDatabase, file: Upload
     
     initial_po = await create_purchase_order(db, po_data, user, "INV-INICIAL")
     
-    # Se aprueba automáticamente la OC
     await update_purchase_order_status(db, str(initial_po.id), PurchaseOrderStatus.APPROVED, user)
 
     po_after_approval = await get_purchase_order_by_id(db, str(initial_po.id))
