@@ -49,8 +49,78 @@ export const productFormValidationSchema = yup.object({
     sku: yup.string().trim().required('El SKU es obligatorio.').matches(/^[^/]*$/, 'El SKU no puede contener el carácter "/"'),
     name: yup.string().trim().required('El nombre es obligatorio.'),
     brand: yup.string().trim().required('La marca es obligatoria.'),
-    // (Resto del esquema de producto, sin cambios)
-});
+    category: yup.string().required('La categoría es obligatoria.'),
+    product_type: yup.string().when('category', {
+        is: 'filter',
+        then: (schema) => schema.required('El tipo de filtro es obligatorio cuando la categoría es "Filtro".'),
+        otherwise: (schema) => schema.notRequired(),
+    }),
+    
+    stock_quantity: yup.number()
+        .transform(transformToNumberOrNull)
+        .typeError('El stock debe ser un número.')
+        .integer('El stock debe ser un número entero.')
+        .min(0, 'El stock no puede ser negativo.')
+        .nullable(),
+
+    average_cost: yup.number()
+        .transform(transformToNumberOrNull)
+        .typeError('El costo debe ser un número.')
+        .min(0, 'El costo no puede ser negativo.')
+        .nullable(),
+
+    price: yup.number().transform(transformToNumberOrNull).typeError('El precio debe ser un número.').min(0, 'El precio no puede ser negativo.').required('El precio de venta es obligatorio.'),
+    weight_g: yup.number().transform(transformToNumberOrNull).typeError('El peso debe ser un número.').min(0, 'El peso no puede ser negativo.').nullable(),
+    main_image_url: yup.string().trim().url('Debe ser una URL válida (ej. https://...).').nullable(),
+    
+    dimensions: yup.object().shape({
+        a: yup.number().transform(transformToNumberOrNull).typeError('Debe ser un número.').nullable().min(0, 'No puede ser negativo.'),
+        b: yup.number().transform(transformToNumberOrNull).typeError('Debe ser un número.').nullable().min(0, 'No puede ser negativo.'),
+        c: yup.number().transform(transformToNumberOrNull).typeError('Debe ser un número.').nullable().min(0, 'No puede ser negativo.'),
+        h: yup.number().transform(transformToNumberOrNull).typeError('Debe ser un número.').nullable().min(0, 'No puede ser negativo.'),
+        f: yup.number().transform(transformToNumberOrNull).typeError('Debe ser un número.').nullable().min(0, 'No puede ser negativo.'),
+        g: yup.mixed().nullable().test('is-valid-thread-format', 'Debe ser un número o un formato de rosca válido (ej. M20x1.5 o 3/4-16 UNF)', (value) => {
+            if (value == null || String(value).trim() === '') return true;
+            const isNumeric = !isNaN(Number(value));
+            const isThreadFormat = THREAD_FORMAT_REGEX.test(String(value).trim());
+            return isNumeric || isThreadFormat;
+        }),
+    }).nullable(),
+    
+    oem_codes: yup.array().of(yup.object().shape({
+        brand: yup.string().trim(),
+        code: yup.string().trim()
+    }).test('brand-and-code-are-required-together', 'La marca y el código son obligatorios si se completa uno de ellos.', (value) => {
+        const { brand, code } = value || {};
+        return !((brand && !code) || (!brand && code));
+    })),
+    
+    cross_references: yup.array().of(yup.object().shape({
+        brand: yup.string().trim(),
+        code: yup.string().trim()
+    }).test('brand-and-code-are-required-together', 'La marca y el código son obligatorios si se completa uno de ellos.', (value) => {
+        const { brand, code } = value || {};
+        return !((brand && !code) || (!brand && code));
+    })),
+    
+    applications: yup.array().of(yup.object().shape({
+        brand: yup.string().when(['model', 'engine'], {
+            is: (model, engine) => Boolean((model && model.trim()) || (engine && engine.trim())),
+            then: (schema) => schema.required('La marca es obligatoria si se ingresan otros datos.'),
+        }),
+        model: yup.string().nullable(),
+        engine: yup.string().nullable(),
+    })),
+}).test(
+    'stock-and-cost-required-together',
+    'Si se ingresa un stock inicial, el costo es requerido (y viceversa).',
+    (value) => {
+        const { stock_quantity, average_cost } = value || {};
+        const stockExists = stock_quantity !== null && stock_quantity > 0;
+        const costExists = average_cost !== null && average_cost >= 0;
+        return !((stockExists && !costExists) || (!stockExists && costExists));
+    }
+);
 
 // ==============================================================================
 // SECCIÓN 4: ESQUEMAS DEL MÓDULO DE CRM
@@ -95,14 +165,8 @@ export const purchaseOrderFormValidationSchema = yup.object().shape({
 export const salesOrderFormValidationSchema = yup.object().shape({
     customer_id: yup.object().nullable().required('Debe seleccionar un cliente.'),
     order_date: yup.date().required('La fecha de la orden es requerida.').typeError('Formato de fecha inválido.'),
-    items: yup.array()
-        .of(yup.object().shape({
-            product: yup.object().nullable().required('Debe seleccionar un producto.'),
-            quantity: yup.number()
-                .min(1, 'La cantidad debe ser al menos 1.')
-                .typeError('La cantidad debe ser un número.')
-                .required('La cantidad es requerida.'),
-            // Nota: El 'unit_price' no se valida aquí porque se obtiene del backend, no del input del usuario.
-        }))
-        .min(1, 'La orden debe contener al menos un producto.'),
+    items: yup.array().of(yup.object().shape({
+        product: yup.object().nullable().required('Debe seleccionar un producto.'),
+        quantity: yup.number().min(1, 'La cantidad debe ser al menos 1.').typeError('La cantidad debe ser un número.').required('La cantidad es requerida.'),
+    })).min(1, 'La orden debe contener al menos un producto.'),
 });

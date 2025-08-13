@@ -7,8 +7,8 @@
  * Sus responsabilidades son:
  * 1. Obtener todos los datos necesarios para el formulario de forma paralela y eficiente.
  * 2. Renderizar el formulario, habilitando la edición solo si el estado es 'borrador'.
- * 3. Determinar qué acciones están permitidas para el usuario actual y pasarlas a los
- *    sub-componentes, manteniendo la lógica de permisos centralizada en la página.
+ * 3. Mostrar y manejar los botones de acción del flujo de aprobación (Enviar, Aprobar, Rechazar)
+ *    basándose en el estado actual de la OC y los permisos del usuario.
  * 4. Manejar las mutaciones para actualizar la OC o cambiar su estado.
  */
 
@@ -40,31 +40,50 @@ import PageHeader from '../../../components/common/PageHeader';
 // SECCIÓN 2: SUB-COMPONENTE DE ACCIONES DE APROBACIÓN
 // ==============================================================================
 
-// Este componente ahora es más "tonto". Solo renderiza lo que la página le dice que renderice.
-const ActionButtons = ({ showSend, showApproval, onSend, onApprove, onReject, isSubmitting }) => {
-    if (showSend) {
+const ActionButtons = ({ orderStatus, user, onSend, onApprove, onReject, isSubmitting }) => {
+    const canApprove = checkUserRole(user?.role, ['manager', 'admin', 'superadmin']);
+
+    if (orderStatus === 'draft') {
         return (
-            <Button variant="contained" startIcon={<SendIcon />} onClick={onSend} disabled={isSubmitting}>
+            <Button
+                variant="contained"
+                startIcon={<SendIcon />}
+                onClick={onSend}
+                disabled={isSubmitting}
+            >
                 Enviar para Aprobación
             </Button>
         );
     }
 
-    if (showApproval) {
+    if (orderStatus === 'pending_approval' && canApprove) {
         return (
             <Stack direction="row" spacing={2}>
-                <Button variant="contained" color="success" startIcon={<ThumbUpIcon />} onClick={onApprove} disabled={isSubmitting}>
+                <Button
+                    variant="contained"
+                    color="success"
+                    startIcon={<ThumbUpIcon />}
+                    onClick={onApprove}
+                    disabled={isSubmitting}
+                >
                     Aprobar
                 </Button>
-                <Button variant="outlined" color="error" startIcon={<ThumbDownIcon />} onClick={onReject} disabled={isSubmitting}>
+                <Button
+                    variant="outlined"
+                    color="error"
+                    startIcon={<ThumbDownIcon />}
+                    onClick={onReject}
+                    disabled={isSubmitting}
+                >
                     Rechazar
                 </Button>
             </Stack>
         );
     }
 
-    return null;
+    return null; // No se muestran botones de acción para otros estados
 };
+
 
 // ==============================================================================
 // SECCIÓN 3: COMPONENTE PRINCIPAL DE LA PÁGINA
@@ -76,7 +95,7 @@ const EditPurchaseOrderPage = () => {
     const navigate = useNavigate();
     const { enqueueSnackbar } = useSnackbar();
     const queryClient = useQueryClient();
-    const { user } = useAuth(); // Se obtiene el usuario del contexto
+    const { user } = useAuth();
 
     // Sub-sección 3.2: Lógica de Obtención de Datos
     const [orderQuery, suppliersQuery, productsQuery] = useQueries({
@@ -96,7 +115,9 @@ const EditPurchaseOrderPage = () => {
         mutationFn: (payload) => updatePurchaseOrderAPI(orderId, payload),
         onSuccess: (data) => {
             enqueueSnackbar(`Orden de Compra ${data?.order_number || ''} actualizada exitosamente.`, { variant: 'success' });
+            queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
             queryClient.invalidateQueries({ queryKey: ['purchaseOrder', orderId] });
+            // No se navega para que el usuario pueda seguir interactuando (ej. enviar a aprobación)
         },
         onError: (err) => enqueueSnackbar(formatApiError(err), { variant: 'error', persist: true }),
     });
@@ -107,6 +128,7 @@ const EditPurchaseOrderPage = () => {
             enqueueSnackbar(`Estado de la Orden de Compra actualizado a: ${data.status.replace('_', ' ').toUpperCase()}`, { variant: 'success' });
             queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
             queryClient.invalidateQueries({ queryKey: ['purchaseOrder', orderId] });
+            // Si la acción fue final (aprobada/rechazada), se redirige a la lista.
             if (['approved', 'rejected', 'cancelled'].includes(data.status)) {
                 navigate('/compras/ordenes');
             }
@@ -117,35 +139,34 @@ const EditPurchaseOrderPage = () => {
     const isSubmitting = isUpdating || isUpdatingStatus;
 
     // Sub-sección 3.4: Manejadores de Eventos
-    const handleUpdatePurchaseOrder = useCallback((formValues) => updatePurchaseOrder(mapFormValuesToUpdatePayload(formValues)), [updatePurchaseOrder]);
+    const handleUpdatePurchaseOrder = useCallback((formValues) => {
+        const payload = mapFormValuesToUpdatePayload(formValues);
+        updatePurchaseOrder(payload);
+    }, [updatePurchaseOrder]);
+
     const handleSendForApproval = useCallback(() => updateStatus('pending_approval'), [updateStatus]);
     const handleApprove = useCallback(() => updateStatus('approved'), [updateStatus]);
     const handleReject = useCallback(() => updateStatus('rejected'), [updateStatus]);
 
-    // Sub-sección 3.5: Lógica de Permisos de UI
-    const purchaseOrder = orderQuery.data;
-    const isReadOnly = purchaseOrder?.status !== 'draft';
-    
-    // La lógica de permisos ahora vive en la página, que es la que tiene todo el contexto.
-    const canApprove = checkUserRole(user?.role, ['manager', 'admin', 'superadmin']);
-    const showSendButton = purchaseOrder?.status === 'draft';
-    const showApprovalButtons = purchaseOrder?.status === 'pending_approval' && canApprove;
-
-    // Sub-sección 3.6: Renderizado
+    // Sub-sección 3.5: Renderizado
     if (isLoading) {
         return (
             <Container maxWidth="md">
                 <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
                     <CircularProgress size={40} />
+                    <Typography sx={{ ml: 2 }}>Cargando datos de la orden...</Typography>
                 </Box>
             </Container>
         );
     }
 
     if (isError) {
-        return <Container maxWidth="md" sx={{ mt: 4 }}><Alert severity="error">{formatApiError(error)}</Alert></Container>;
+        return <Container maxWidth="md" sx={{ mt: 4 }}><Alert severity="error">{`Error al cargar los datos: ${formatApiError(error)}`}</Alert></Container>;
     }
     
+    const purchaseOrder = orderQuery.data;
+    const isReadOnly = purchaseOrder?.status !== 'draft';
+
     return (
         <Container maxWidth="xl" sx={{ my: 4 }}>
             <Paper sx={{ p: { xs: 2, md: 4 }, borderRadius: 2 }}>
@@ -156,8 +177,8 @@ const EditPurchaseOrderPage = () => {
                 />
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', my: 2 }}>
                     <ActionButtons
-                        showSend={showSendButton}
-                        showApproval={showApprovalButtons}
+                        orderStatus={purchaseOrder?.status}
+                        user={user}
                         onSend={handleSendForApproval}
                         onApprove={handleApprove}
                         onReject={handleReject}
@@ -171,7 +192,7 @@ const EditPurchaseOrderPage = () => {
                             initialData={purchaseOrder}
                             onSubmit={handleUpdatePurchaseOrder}
                             isSubmitting={isUpdating}
-                            isReadOnly={isReadOnly}
+                            isReadOnly={isReadOnly} // Se pasa prop para deshabilitar el formulario
                             suppliersOptions={suppliersQuery.data}
                             productsOptions={productsQuery.data}
                             isLoadingSuppliers={suppliersQuery.isLoading}

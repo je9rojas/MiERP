@@ -10,13 +10,13 @@
  */
 
 // ==============================================================================
-// SECCIÓN 1: IMPORTACIONES DE MÓDULOS
+// SECCIÓN 1: IMPORTACIONES DE MÓDUTO
 // ==============================================================================
 
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Container, Paper, Alert } from '@mui/material';
+import { Container, Paper, Alert, Box } from '@mui/material';
 
 import { getPurchaseOrdersAPI } from '../api/purchasingAPI';
 import useDebounce from '../../../hooks/useDebounce';
@@ -57,6 +57,7 @@ const PurchaseOrderListPage = () => {
         navigate('/compras/ordenes/nueva');
     }, [navigate]);
 
+    // Renombramos la función para mayor claridad semántica: ahora "ve los detalles".
     const handleViewDetails = useCallback((orderId) => {
         navigate(`/compras/ordenes/editar/${orderId}`);
     }, [navigate]);
@@ -75,37 +76,36 @@ const PurchaseOrderListPage = () => {
                 onAddClick={handleAddOrder}
             />
             
-            {/* El Paper es ahora el contenedor principal del DataGrid y le proporciona la altura necesaria. */}
+            {/* El Paper ahora define una altura explícita para su contenido. */}
             <Paper sx={{
-                height: 700, // Se recomienda una altura fija en 'px' para el contenedor del DataGrid.
+                height: 700, // Altura fija para el contenedor del DataGrid
                 width: '100%',
                 borderRadius: 2,
                 boxShadow: 3,
-                // No se necesita padding aquí, ya que el DataGrid no lo necesita.
-                // El Paper en sí mismo actúa como el contenedor.
+                p: 2, // Se añade un padding para que el DataGrid no toque los bordes del Paper
+                display: 'flex',
+                flexDirection: 'column',
             }}>
                 {isError && (
-                    <Alert severity="error" sx={{ m: 2 }}>
+                    <Alert severity="error" sx={{ mb: 2 }}>
                         {`Error al cargar las órdenes de compra: ${formatApiError(error)}`}
                     </Alert>
                 )}
                 
-                {/* 
-                  El DataGrid ahora se coloca directamente dentro del Paper. 
-                  Como Paper tiene una altura definida, el DataGrid se expandirá para llenarla,
-                  solucionando la advertencia de MUI.
-                */}
-                <PurchaseOrderDataGrid
-                    orders={data?.items || []}
-                    rowCount={data?.total_count || 0}
-                    isLoading={isLoading}
-                    paginationModel={paginationModel}
-                    onPaginationModelChange={setPaginationModel}
-                    onEditOrder={handleViewDetails}
-                    onRegisterReceipt={handleRegisterReceipt}
-                    searchTerm={searchTerm}
-                    onSearchChange={(event) => setSearchTerm(event.target.value)}
-                />
+                {/* Usamos un Box con flex-grow para que el DataGrid ocupe todo el espacio disponible. */}
+                <Box sx={{ flexGrow: 1 }}>
+                    <PurchaseOrderDataGrid
+                        orders={data?.items || []}
+                        rowCount={data?.total_count || 0}
+                        isLoading={isLoading}
+                        paginationModel={paginationModel}
+                        onPaginationModelChange={setPaginationModel}
+                        onEditOrder={handleViewDetails} // Se pasa el callback renombrado
+                        onRegisterReceipt={handleRegisterReceipt}
+                        searchTerm={searchTerm}
+                        onSearchChange={(event) => setSearchTerm(event.target.value)}
+                    />
+                </Box>
             </Paper>
         </Container>
     );

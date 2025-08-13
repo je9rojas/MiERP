@@ -158,6 +158,29 @@ export const purchaseOrderFormValidationSchema = yup.object().shape({
     })).min(1, 'Debe añadir al menos un producto a la orden.'),
 });
 
+export const purchaseBillFormValidationSchema = yup.object().shape({
+    supplier_invoice_number: yup.string().trim().required('El número de factura del proveedor es obligatorio.'),
+    received_date: yup.date().required('La fecha de recepción es requerida.').typeError('Formato de fecha inválido.'),
+    items: yup.array().of(yup.object().shape({
+        quantity_received: yup.number()
+            .min(0, 'La cantidad no puede ser negativa.')
+            .typeError('La cantidad debe ser un número.')
+            .required('La cantidad recibida es requerida.')
+            .test(
+                'is-less-than-or-equal-to-ordered',
+                'No puede recibir más de lo que se ordenó.',
+                function(value) {
+                    // 'this.parent' se refiere al objeto item actual (ej. { quantity_ordered: 10, quantity_received: 12 })
+                    return value <= this.parent.quantity_ordered;
+                }
+            ),
+        unit_cost: yup.number()
+            .min(0, 'El costo no puede ser negativo.')
+            .typeError('El costo debe ser un número.')
+            .required('El costo real es requerido.'),
+    })).min(1, 'La recepción debe contener al menos un ítem.'),
+});
+
 // ==============================================================================
 // SECCIÓN 6: ESQUEMAS DEL MÓDULO DE VENTAS
 // ==============================================================================

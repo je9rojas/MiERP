@@ -3,9 +3,8 @@
 /**
  * @file Componente reutilizable y profesional para el formulario de Órdenes de Compra.
  * @description Encapsula la UI y la lógica de estado del formulario utilizando Formik.
- * Es un componente de presentación que recibe todos los datos y opciones como props.
- * Este componente asume que todos los datos (initialData, suppliersOptions, productsOptions)
- * han sido pre-procesados para tener un campo 'id' consistente.
+ * Es un componente de presentación que puede operar en modo de edición o de solo lectura
+ * basado en las props que recibe.
  */
 
 // ==============================================================================
@@ -29,10 +28,7 @@ import { purchaseOrderFormValidationSchema } from '../../../constants/validation
 // SECCIÓN 2: SUB-COMPONENTES DE PRESENTACIÓN
 // ==============================================================================
 
-/**
- * Sub-componente que renderiza la cabecera del formulario (Proveedor y Fechas).
- */
-const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions, isLoadingSuppliers, isEditMode }) => (
+const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions, isLoadingSuppliers, isReadOnly }) => (
     <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" gutterBottom>Información General</Typography>
         <Grid container spacing={3}>
@@ -44,7 +40,7 @@ const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions,
                     getOptionLabel={(option) => option.business_name ? `${option.business_name} (RUC: ${option.tax_id})` : ""}
                     isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     onChange={(event, newValue) => setFieldValue('supplier', newValue)}
-                    readOnly={isEditMode}
+                    readOnly={isReadOnly} // El modo edición ya se maneja con isReadOnly
                     renderInput={(params) => (
                         <TextField {...params} label="Proveedor" required error={touched.supplier && Boolean(errors.supplier)} helperText={touched.supplier && errors.supplier}
                             InputProps={{ ...params.InputProps, endAdornment: (<>{isLoadingSuppliers ? <CircularProgress color="inherit" size={20} /> : null}{params.InputProps.endAdornment}</>),}}
@@ -53,19 +49,16 @@ const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions,
                 />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-                <DatePicker label="Fecha de Emisión" value={values.order_date} onChange={(newValue) => setFieldValue('order_date', newValue)} slotProps={{ textField: { fullWidth: true, required: true } }} />
+                <DatePicker label="Fecha de Emisión" value={values.order_date} readOnly={isReadOnly} onChange={(newValue) => setFieldValue('order_date', newValue)} slotProps={{ textField: { fullWidth: true, required: true } }} />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-                <DatePicker label="Entrega Esperada" value={values.expected_delivery_date} onChange={(newValue) => setFieldValue('expected_delivery_date', newValue)} slotProps={{ textField: { fullWidth: true } }} />
+                <DatePicker label="Entrega Esperada" value={values.expected_delivery_date} readOnly={isReadOnly} onChange={(newValue) => setFieldValue('expected_delivery_date', newValue)} slotProps={{ textField: { fullWidth: true } }} />
             </Grid>
         </Grid>
     </Paper>
 );
 
-/**
- * Sub-componente que renderiza el array de ítems/productos del formulario.
- */
-const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptions, isLoadingProducts }) => (
+const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptions, isLoadingProducts, isReadOnly }) => (
     <Paper variant="outlined" sx={{ p: 3 }}>
         <Typography variant="h6" gutterBottom>Productos de la Orden</Typography>
         <FieldArray name="items">
@@ -85,19 +78,28 @@ const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptio
                                             setFieldValue(`items.${index}.product`, newValue);
                                             setFieldValue(`items.${index}.unit_cost`, newValue?.average_cost || 0);
                                         }}
+                                        readOnly={isReadOnly}
                                         renderInput={(params) => <TextField {...params} label="Producto" required error={touched.items?.[index]?.product && Boolean(errors.items?.[index]?.product)} InputProps={{ ...params.InputProps, endAdornment: (<>{isLoadingProducts ? <CircularProgress color="inherit" size={20} /> : null}{params.InputProps.endAdornment}</>),}}/>}
                                     />
                                 </Grid>
-                                <Grid item xs={6} md={2}><TextField fullWidth label="Cantidad" type="number" name={`items.${index}.quantity_ordered`} value={item.quantity_ordered} onChange={(e) => setFieldValue(`items.${index}.quantity_ordered`, Number(e.target.value))} required error={touched.items?.[index]?.quantity_ordered && Boolean(errors.items?.[index]?.quantity_ordered)} inputProps={{ min: 1 }} /></Grid>
-                                <Grid item xs={6} md={2}><TextField fullWidth label="Costo Unitario" type="number" name={`items.${index}.unit_cost`} value={item.unit_cost} onChange={(e) => setFieldValue(`items.${index}.unit_cost`, Number(e.target.value))} required error={touched.items?.[index]?.unit_cost && Boolean(errors.items?.[index]?.unit_cost)} inputProps={{ min: 0 }} /></Grid>
+                                <Grid item xs={6} md={2}><TextField fullWidth label="Cantidad" type="number" name={`items.${index}.quantity_ordered`} value={item.quantity_ordered} onChange={(e) => setFieldValue(`items.${index}.quantity_ordered`, Number(e.target.value))} required error={touched.items?.[index]?.quantity_ordered && Boolean(errors.items?.[index]?.quantity_ordered)} inputProps={{ min: 1, readOnly: isReadOnly }} /></Grid>
+                                <Grid item xs={6} md={2}><TextField fullWidth label="Costo Unitario" type="number" name={`items.${index}.unit_cost`} value={item.unit_cost} onChange={(e) => setFieldValue(`items.${index}.unit_cost`, Number(e.target.value))} required error={touched.items?.[index]?.unit_cost && Boolean(errors.items?.[index]?.unit_cost)} inputProps={{ min: 0, readOnly: isReadOnly }} /></Grid>
                                 <Grid item xs={10} md={2}><Typography align="right" variant="h6">S/ {(Number(item.quantity_ordered) * Number(item.unit_cost)).toFixed(2)}</Typography></Grid>
-                                <Grid item xs={2} md={1}><IconButton disabled={values.items.length <= 1} onClick={() => remove(index)} color="error"><RemoveCircleOutlineIcon /></IconButton></Grid>
+                                {!isReadOnly && (
+                                    <Grid item xs={2} md={1}>
+                                        <IconButton disabled={values.items.length <= 1} onClick={() => remove(index)} color="error">
+                                            <RemoveCircleOutlineIcon />
+                                        </IconButton>
+                                    </Grid>
+                                )}
                             </Grid>
                         </Box>
                     ))}
-                    <Button startIcon={<AddCircleOutlineIcon />} onClick={() => push({ product: null, quantity_ordered: 1, unit_cost: 0 })}>
-                        Adicionar Producto
-                    </Button>
+                    {!isReadOnly && (
+                        <Button startIcon={<AddCircleOutlineIcon />} onClick={() => push({ product: null, quantity_ordered: 1, unit_cost: 0 })}>
+                            Adicionar Producto
+                        </Button>
+                    )}
                 </Box>
             )}
         </FieldArray>
@@ -108,7 +110,7 @@ const OrderItemsArray = ({ values, errors, touched, setFieldValue, productsOptio
 // SECCIÓN 3: COMPONENTE PRINCIPAL (LÓGICA Y COMPOSICIÓN)
 // ==============================================================================
 
-const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliersOptions, productsOptions, isLoadingSuppliers, isLoadingProducts }) => {
+const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliersOptions, productsOptions, isLoadingSuppliers, isLoadingProducts, isReadOnly = false }) => {
     const isEditMode = !!initialData.id;
 
     const initialValues = useMemo(() => {
@@ -122,14 +124,8 @@ const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliers
         
         if (isEditMode && initialData.items && (productsOptions || []).length > 0) {
             items = initialData.items.map(item => {
-                // LÓGICA DE HIDRATACIÓN CORREGIDA Y SIMPLIFICADA
-                // Busca en la lista de productos estandarizada usando el 'product_id' del item.
                 const foundProduct = productsOptions.find(p => p.id === item.product_id);
-                
-                return {
-                    ...item,
-                    product: foundProduct || null
-                };
+                return { ...item, product: foundProduct || null };
             });
         }
 
@@ -158,29 +154,32 @@ const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliers
                             <OrderHeader
                                 values={values} errors={errors} touched={touched} setFieldValue={setFieldValue}
                                 suppliersOptions={suppliersOptions} isLoadingSuppliers={isLoadingSuppliers}
-                                isEditMode={isEditMode}
+                                isReadOnly={isReadOnly}
                             />
                             <OrderItemsArray
                                 values={values} errors={errors} touched={touched} setFieldValue={setFieldValue}
                                 productsOptions={productsOptions} isLoadingProducts={isLoadingProducts}
+                                isReadOnly={isReadOnly}
                             />
                             <Divider sx={{ my: 4 }} />
                             <Grid container justifyContent="space-between" alignItems="center">
                                 <Grid item xs={12} md={6}>
-                                    <TextField fullWidth label="Notas Adicionales" name="notes" value={values.notes} onChange={(e) => setFieldValue('notes', e.target.value)} multiline rows={3} />
-                                 </Grid>
-                                 <Grid item xs={12} md={4}>
-                                     <Typography variant="h5" align="right">Total de la Orden: S/ {totalAmount.toFixed(2)}</Typography>
-                                 </Grid>
-                             </Grid>
-                             <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-                                 <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
-                                     {isSubmitting ? 'Guardando...' : (isEditMode ? 'Actualizar Orden' : 'Crear Orden de Compra')}
-                                 </Button>
-                             </Box>
-                         </Form>
-                     );
-                 }}
+                                    <TextField fullWidth label="Notas Adicionales" name="notes" value={values.notes} onChange={(e) => setFieldValue('notes', e.target.value)} multiline rows={3} InputProps={{ readOnly: isReadOnly }} />
+                                </Grid>
+                                <Grid item xs={12} md={4}>
+                                    <Typography variant="h5" align="right">Total de la Orden: S/ {totalAmount.toFixed(2)}</Typography>
+                                </Grid>
+                            </Grid>
+                            {!isReadOnly && (
+                                <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+                                    <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
+                                        {isSubmitting ? 'Guardando...' : (isEditMode ? 'Actualizar Orden' : 'Crear Orden de Compra')}
+                                    </Button>
+                                </Box>
+                            )}
+                        </Form>
+                    );
+                }}
             </Formik>
         </LocalizationProvider>
     );

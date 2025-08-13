@@ -1,11 +1,11 @@
 // frontend/src/features/purchasing/api/purchasingAPI.js
 
 /**
- * @file Contiene todas las funciones para interactuar con los endpoints de Órdenes de Compra del backend.
+ * @file Contiene todas las funciones para interactuar con los endpoints del Módulo de Compras.
  *
- * Este módulo actúa como una capa de abstracción sobre las llamadas de red (Axios).
- * Centraliza la lógica de comunicación con la API de compras, garantizando que
- * los componentes no necesiten conocer los detalles de la implementación.
+ * Este módulo actúa como una capa de abstracción sobre las llamadas de red (Axios),
+ * centralizando la lógica de comunicación para las Órdenes de Compra y las
+ * Recepciones/Facturas de Compra.
  *
  * Se aplica una capa de mapeo a las respuestas para estandarizar el modelo de datos
  * (ej. '_id' a 'id') antes de ser entregado a la aplicación, lo que asegura
@@ -17,43 +17,39 @@
 // ==============================================================================
 
 import api from '../../../app/axiosConfig';
-// Se importan los mapeadores para transformar las respuestas complejas de las órdenes de compra.
 import { mapPaginatedResponse, mapPurchaseOrderResponse } from '../mappers/purchaseOrderMappers';
 
 // ==============================================================================
-// SECCIÓN 2: FUNCIONES DE LA API
+// SECCIÓN 2: FUNCIONES DE API PARA ÓRDENES DE COMPRA (PURCHASE ORDERS)
 // ==============================================================================
 
 /**
  * Obtiene una lista paginada y filtrada de órdenes de compra.
- * @param {object} params - Objeto con parámetros de consulta (ej. { page, pageSize, search }).
- * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada y ya mapeada.
+ * @param {object} params - Objeto con parámetros de consulta.
+ * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada y mapeada.
  */
 export const getPurchaseOrdersAPI = async (params) => {
-    const response = await api.get('/purchase-orders', { params });
-    // Se aplica el mapeador a la respuesta paginada para estandarizar los IDs.
+    const response = await api.get('/purchasing/orders', { params });
     return mapPaginatedResponse(response.data);
 };
 
 /**
  * Obtiene los datos detallados de una única orden de compra por su ID.
  * @param {string} orderId - El ID de la orden de compra a obtener.
- * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra, ya mapeados.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra mapeados.
  */
 export const getPurchaseOrderByIdAPI = async (orderId) => {
-    const response = await api.get(`/purchase-orders/${orderId}`);
-    // Se usa el mapeador específico para la estructura compleja de una orden de compra.
+    const response = await api.get(`/purchasing/orders/${orderId}`);
     return mapPurchaseOrderResponse(response.data);
 };
 
 /**
  * Envía los datos de una nueva orden de compra al backend para su creación.
- * @param {object} purchaseOrderData - El payload con los datos de la orden de compra desde el formulario.
- * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra recién creada y ya mapeada.
+ * @param {object} purchaseOrderData - El payload de la orden de compra desde el formulario.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra creada y mapeada.
  */
 export const createPurchaseOrderAPI = async (purchaseOrderData) => {
-    const response = await api.post('/purchase-orders', purchaseOrderData);
-    // Se mapea la respuesta para asegurar consistencia desde el momento de la creación.
+    const response = await api.post('/purchasing/orders', purchaseOrderData);
     return mapPurchaseOrderResponse(response.data);
 };
 
@@ -64,19 +60,43 @@ export const createPurchaseOrderAPI = async (purchaseOrderData) => {
  * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra actualizada y mapeada.
  */
 export const updatePurchaseOrderAPI = async (orderId, updateData) => {
-    const response = await api.patch(`/purchase-orders/${orderId}`, updateData);
-    // Se mapea la respuesta para asegurar que la UI reciba los datos actualizados de forma consistente.
+    const response = await api.patch(`/purchasing/orders/${orderId}`, updateData);
     return mapPurchaseOrderResponse(response.data);
 };
 
 /**
- * Envía una petición para cambiar el estado de una orden de compra (ej. aprobar, cancelar).
+ * Envía una petición para cambiar el estado de una orden de compra.
  * @param {string} orderId - El ID de la orden de compra.
- * @param {string} action - La acción a realizar (ej. 'approve', 'cancel').
+ * @param {string} newStatus - El nuevo estado al que se debe transicionar la orden (ej. 'pending_approval', 'approved').
  * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de compra actualizada y mapeada.
  */
-export const updatePurchaseOrderStatusAPI = async (orderId, action) => {
-    const response = await api.post(`/purchase-orders/${orderId}/status`, { action });
-    // Se mapea la respuesta para mantener la consistencia de los datos.
+export const updatePurchaseOrderStatusAPI = async (orderId, newStatus) => {
+    // CORRECCIÓN: Se utiliza el método PATCH y la URL correcta. El payload se ajusta a lo esperado por el backend.
+    const response = await api.patch(`/purchasing/orders/${orderId}/status`, { new_status: newStatus });
+    return mapPurchaseOrderResponse(response.data);
+};
+
+// ==============================================================================
+// SECCIÓN 3: FUNCIONES DE API PARA RECEPCIÓN/FACTURA DE COMPRA (PURCHASE BILL)
+// ==============================================================================
+
+/**
+ * Envía los datos de una nueva recepción/factura al backend para su procesamiento.
+ * @param {string} orderId - El ID de la Orden de Compra de origen.
+ * @param {object} billData - El payload con los datos de la recepción.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la factura de compra creada y mapeada.
+ */
+export const registerReceiptAPI = async (orderId, billData) => {
+    const response = await api.post(`/purchasing/orders/${orderId}/register-receipt`, billData);
+    return mapPurchaseOrderResponse(response.data);
+};
+
+/**
+ * Obtiene los datos detallados de una única factura de compra por su ID.
+ * @param {string} billId - El ID de la factura de compra a obtener.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la factura de compra mapeados.
+ */
+export const getPurchaseBillByIdAPI = async (billId) => {
+    const response = await api.get(`/purchasing/bills/${billId}`);
     return mapPurchaseOrderResponse(response.data);
 };

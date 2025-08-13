@@ -67,4 +67,5 @@ Paso C (Primer Archivo Completo): Luego, te presentaré el código completo y fi
 Paso D (Punto de Control): Después de mostrarte el primer archivo, me detendré y te haré una pregunta directa, como: "¿Quieres ver el código del segundo archivo?" o "¿Estás listo para continuar con el siguiente archivo?".
 Paso E (Iteración): Solo cuando me des tu confirmación, procederé a mostrarte el código completo del siguiente archivo de la lista, repitiendo el proceso hasta que hayamos revisado todos los archivos necesarios.
 
+Para cada archivo que necesitemos modificar, primero te pediré que me lo muestres.
 

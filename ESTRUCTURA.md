@@ -483,7 +483,10 @@ frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js
 /backend/app/modules/purchasing/purchasing_routes.py
 /backend/app/modules/purchasing/purchasing_service.py
 /backend/app/modules/purchasing/purchasing_models.py
-/backend/app/modules/purchasing/repositories/purchase_order_repository.py (*) # Nombre explícito (antes purchase_repository.py)
+backend/app/modules/purchasing/purchasing_service.py
+
+backend/app/modules/purchasing/repositories/purchase_bill_repository.py
+/backend/app/modules/purchasing/repositories/purchase_order_repository.py
 
 # ---------------------- REPORTES ----------------------
 /backend/app/modules/reports/__init__.py
@@ -587,9 +590,16 @@ frontend/src/features/purchasing/mappers/purchaseOrderMappers.js
 
 /frontend/src/features/purchasing/components/PurchaseOrderDataGrid.js
 /frontend/src/features/purchasing/components/PurchaseOrderForm.js
+frontend/src/features/purchasing/components/PurchaseBillForm.js
+frontend/src/features/purchasing/components/purchaseOrderGridConfig.js
+
+frontend/src/features/purchasing/pages/RegisterReceiptPage.js
+
 /frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
 /frontend/src/features/purchasing/pages/NewPurchaseOrderPage.js
 /frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js
+frontend/src/features/purchasing/pages/RegisterReceiptPage.js
+
 
 # --- Módulo: Reportes ---
 /frontend/src/features/reports/api/reportsAPI.js

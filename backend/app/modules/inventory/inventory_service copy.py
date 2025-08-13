@@ -1,4 +1,4 @@
-# /backend/app/modules/inventory/inventory_service.py
+# backend/app/modules/inventory/inventory_service.py
 
 """
 Capa de Servicio para las operaciones transaccionales del Inventario.
@@ -15,12 +15,12 @@ la lógica de despacho de mercancía para las ventas (PEPS/FIFO).
 from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClientSession
 from datetime import datetime, timezone
 from bson import ObjectId
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from fastapi import HTTPException, status
 from pymongo import ASCENDING
 
 # Modelos
-from .inventory_models import InventoryLotOut
+from .inventory_models import InventoryLotInDB, InventoryLotOut
 from app.modules.sales.sales_models import SalesOrderItem
 
 # Repositorios
@@ -28,7 +28,56 @@ from .repositories.product_repository import ProductRepository
 from .repositories.inventory_lot_repository import InventoryLotRepository
 
 # ==============================================================================
-# SECCIÓN 2: LÓGICA DE SALIDA DE STOCK (DESPACHO)
+# SECCIÓN 2: LÓGICA DE ENTRADA DE STOCK (ADQUISICIÓN)
+# ==============================================================================
+
+async def create_initial_lot_for_product(
+    db: AsyncIOMotorDatabase,
+    product_id: str,
+    product_sku: str,
+    quantity: int,
+    cost: float,
+    session: Optional[AsyncIOMotorClientSession] = None
+) -> None:
+    """
+    Crea el lote de inventario inicial para un producto recién registrado.
+    Esta función es llamada después de que el producto maestro ha sido creado.
+
+    Args:
+        db: La instancia de la base de datos.
+        product_id: El ID del producto maestro al que pertenece este lote.
+        product_sku: El SKU del producto, usado para generar un número de lote descriptivo.
+        quantity: La cantidad de unidades en este lote inicial.
+        cost: El costo de adquisición por unidad para este lote.
+        session: Una sesión de MongoDB opcional para transacciones.
+    """
+    if quantity <= 0:
+        return
+
+    lot_repo = InventoryLotRepository(db)
+    
+    # NOTA A FUTURO: El ID del almacén debe ser dinámico o venir de la configuración.
+    # Por ahora, se usa un valor placeholder.
+    warehouse_id_placeholder = ObjectId("60d5ec49e7e2d2001e4a0000")
+
+    initial_lot = InventoryLotInDB(
+        product_id=ObjectId(product_id),
+        warehouse_id=warehouse_id_placeholder,
+        lot_number=f"INICIAL-{product_sku}",
+        acquisition_cost=cost,
+        initial_quantity=quantity,
+        current_quantity=quantity,
+        received_on=datetime.now(timezone.utc)
+    )
+    
+    await lot_repo.insert_one(initial_lot.model_dump(by_alias=True), session=session)
+    
+    # Después de crear el lote, se actualiza el resumen del producto.
+    await update_product_summary_from_lots(db, product_id, session=session)
+
+
+# ==============================================================================
+# SECCIÓN 3: LÓGICA DE SALIDA DE STOCK (DESPACHO)
 # ==============================================================================
 
 async def dispatch_stock_for_sale(
@@ -42,7 +91,7 @@ async def dispatch_stock_for_sale(
     Args:
         db: La instancia de la base de datos.
         items_sold: Una lista de objetos `SalesOrderItem` que representan la venta.
-        session: Una sesión de MongoDB opcional para ejecutar la operación dentro de una transacción.
+        session: Una sesión de MongoDB opcional para transacciones.
 
     Returns:
         El costo total de la mercancía vendida (CMV) para esta venta específica.
@@ -94,16 +143,17 @@ async def dispatch_stock_for_sale(
     return total_cost_of_goods_sold
 
 # ==============================================================================
-# SECCIÓN 3: LÓGICA DE ACTUALIZACIÓN DE STOCK
+# SECCIÓN 4: LÓGICA DE ACTUALIZACIÓN DE STOCK
 # ==============================================================================
 
 async def update_product_summary_from_lots(
     db: AsyncIOMotorDatabase,
     product_id: str,
     session: Optional[AsyncIOMotorClientSession] = None
-):
+) -> None:
     """
     Recalcula y actualiza el stock total y el costo promedio de un producto maestro.
+    Esta función es la única fuente de verdad para los totales de un producto.
     """
     lot_repo = InventoryLotRepository(db)
     product_repo = ProductRepository(db)
@@ -134,7 +184,7 @@ async def update_product_summary_from_lots(
     await product_repo.update_one_by_id(product_id, update_data, session=session)
 
 # ==============================================================================
-# SECCIÓN 4: LÓGICA DE CONSULTA DE LOTES
+# SECCIÓN 5: LÓGICA DE CONSULTA DE LOTES
 # ==============================================================================
 
 async def get_lots_by_product_id(db: AsyncIOMotorDatabase, product_id: str) -> List[InventoryLotOut]:
@@ -150,6 +200,7 @@ async def get_lots_by_product_id(db: AsyncIOMotorDatabase, product_id: str) -> L
 
     lot_docs = await lot_repo.find_by_product_id(product_id)
 
+    # El enriquecimiento podría optimizarse si fuera necesario en el futuro.
     enriched_lots = []
     for doc in lot_docs:
         doc["product_sku"] = product_doc.get("sku")

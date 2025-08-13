@@ -80,3 +80,10 @@ export const mapPaginatedResponse = (paginatedResponse) => {
         items: mapArrayToId(paginatedResponse.items),
     };
 };
+
+// ==============================================================================
+// SECCIÓN DE EXPORTACIÓN ADICIONAL
+// ==============================================================================
+// CORRECCIÓN: Exportamos 'mapArrayToId' para que pueda ser usado directamente
+// por otros módulos cuando la respuesta de la API es un array simple.
+export { mapArrayToId };
