@@ -16,6 +16,10 @@ import { SnackbarProvider } from 'notistack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { LocalizationProvider } from '@mui/x-date-pickers';
+
+// --- ¡CORRECCIÓN CRÍTICA! ---
+// Se importa el adaptador y el locale correctos para la versión 3 de date-fns,
+// que es la que está definida en package.json.
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { es } from 'date-fns/locale/es';
 
@@ -27,8 +31,7 @@ import './index.css';
 
 // --- SECCIÓN 2: INICIALIZACIÓN DE CLIENTES Y CONFIGURACIONES ---
 
-console.log("[DEBUG] index.js: Archivo cargado. Iniciando configuración de la aplicación.");
-
+// Se crea una única instancia del cliente de React Query para toda la aplicación.
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -37,21 +40,30 @@ const queryClient = new QueryClient({
     },
   },
 });
-console.log("[DEBUG] index.js: Cliente de React Query inicializado.");
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  console.error("[CRITICAL ERROR] index.js: No se pudo encontrar el elemento raíz '#root' en el DOM.");
   throw new Error('Error Crítico: No se pudo encontrar el elemento raíz con id "root" en el DOM.');
 }
-console.log("[DEBUG] index.js: Elemento raíz del DOM encontrado.");
-
 const root = ReactDOM.createRoot(rootElement);
 
 
 // --- SECCIÓN 3: RENDERIZADO DE LA APLICACIÓN ---
-console.log("[DEBUG] index.js: Iniciando renderizado de la aplicación React...");
 
+/**
+ * Renderiza la aplicación, envolviendo el componente App en todos los proveedores
+ * de contexto globales necesarios. El orden jerárquico es importante para que las
+ * dependencias se inyecten correctamente en los componentes hijos.
+ * 
+ * Jerarquía de Providers:
+ * 1. React.StrictMode: Activa verificaciones y advertencias adicionales en desarrollo.
+ * 2. BrowserRouter: Habilita el enrutamiento de la aplicación.
+ * 3. QueryClientProvider: Proporciona el cliente de React Query para la gestión de datos del servidor.
+ * 4. ThemeProvider: Proporciona el tema de Material-UI a todos los componentes.
+ * 5. AuthProvider: Gestiona el estado de autenticación global.
+ * 6. SnackbarProvider: Habilita el sistema de notificaciones (snackbars).
+ * 7. LocalizationProvider: Configura el adaptador de fechas y el idioma para los componentes de calendario.
+ */
 root.render(
   <React.StrictMode>
     <BrowserRouter>
@@ -74,5 +86,3 @@ root.render(
     </BrowserRouter>
   </React.StrictMode>
 );
-
-console.log("[DEBUG] index.js: Renderizado de la aplicación completado.");

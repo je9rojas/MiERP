@@ -24,6 +24,9 @@ import { setAuthToken, getAuthToken, removeAuthToken } from '../../utils/auth/au
 const AuthContext = createContext(null);
 
 const authReducer = (state, action) => {
+    // LOG EXHAUSTIVO: Muestra cada acción que se despacha al reducer.
+    console.log(`[AuthReducer] Acción despachada: ${action.type}`, { payload: action.payload, estadoAnterior: state });
+    
     switch (action.type) {
         case 'INITIALIZE':
             return {
@@ -50,7 +53,7 @@ const authReducer = (state, action) => {
                 ...state,
                 isAuthenticated: false,
                 user: null,
-                isInitialized: true, // El logout también es un estado inicializado
+                isInitialized: true,
             };
         default:
             return state;
@@ -72,26 +75,34 @@ const initialState = {
 export const AuthProvider = ({ children }) => {
     const [state, dispatch] = useReducer(authReducer, initialState);
 
+    console.log("[DEBUG] AuthProvider: Renderizando componente proveedor.");
+
     useEffect(() => {
+        console.log("[DEBUG] AuthProvider: useEffect de inicialización se ha disparado.");
         const controller = new AbortController();
 
         const initializeAuth = async () => {
+            console.log("[DEBUG] AuthProvider: Iniciando la función `initializeAuth`...");
             const token = getAuthToken();
+
             if (!token) {
+                console.log("[DEBUG] AuthProvider: No se encontró token. Inicializando como no autenticado.");
                 dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: false, user: null } });
                 return;
             }
-
+            
+            console.log("[DEBUG] AuthProvider: Token encontrado. Intentando verificar con la API.");
             try {
                 const user = await verifyTokenAPI(controller.signal);
+                console.log("[DEBUG] AuthProvider: Verificación de token exitosa. Usuario recibido:", user);
                 dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: true, user } });
             } catch (error) {
+                console.error("[DEBUG] AuthProvider: Error durante la verificación del token.", error);
                 if (error.name === 'CanceledError') {
-                    // Este error es esperado cuando el componente se desmonta en StrictMode.
-                    // No se realiza ninguna acción de estado, ya que una nueva inicialización está en camino.
+                    console.log("[DEBUG] AuthProvider: La petición de verificación fue cancelada (comportamiento normal en StrictMode).");
                     return;
                 }
-                // Para cualquier otro error (ej. 401 Unauthorized), se limpia la sesión.
+                console.warn("[DEBUG] AuthProvider: Token inválido o error de red. Limpiando sesión.");
                 removeAuthToken();
                 dispatch({ type: 'INITIALIZE', payload: { isAuthenticated: false, user: null } });
             }
@@ -99,8 +110,8 @@ export const AuthProvider = ({ children }) => {
 
         initializeAuth();
 
-        // Esta función de limpieza se ejecuta cuando el componente se desmonta.
         return () => {
+            console.log("[DEBUG] AuthProvider: Ejecutando limpieza de useEffect (abortando petición).");
             controller.abort();
         };
     }, []);
@@ -114,7 +125,6 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
             const errorMessage = error.message || 'Credenciales incorrectas o error de red.';
             dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
-            // Se relanza el error para que el componente del formulario pueda atraparlo también.
             throw new Error(errorMessage);
         }
     }, []);

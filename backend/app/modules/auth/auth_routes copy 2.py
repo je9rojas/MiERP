@@ -27,10 +27,14 @@ from . import auth_service
 # SECCIÓN 2: CONFIGURACIÓN DE SEGURIDAD Y ROUTER
 # ==============================================================================
 
+# Se define el esquema de seguridad OAuth2. Al definirlo aquí, rompemos el
+# ciclo de importación con el módulo de dependencias. FastAPI lo utiliza para
+# la documentación de la API y para extraer el token 'Bearer'.
 reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl="/api/v1/auth/login"
+    tokenUrl="/api/v1/auth/login" # Se usa la ruta completa para mayor claridad
 )
 
+# Se importa la dependencia DESPUÉS de definir el esquema que necesita.
 from .dependencies import get_current_active_user
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -44,15 +48,6 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
-
-class VerifyTokenResponse(BaseModel):
-    """
-    Define la estructura de la respuesta para el endpoint de verificación de token.
-    Al ser explícito, garantiza que Pydantic serialice correctamente el objeto anidado 'user'.
-    """
-    status: str
-    user: UserOut
-
 
 # ==============================================================================
 # SECCIÓN 4: ENDPOINTS DE LA API
@@ -97,11 +92,7 @@ async def get_user_profile(current_user: UserOut = Depends(get_current_active_us
     """
     return current_user
 
-@router.get(
-    "/verify-token",
-    response_model=VerifyTokenResponse,
-    summary="Verificar Token de Sesión"
-)
+@router.get("/verify-token", response_model=Dict[str, Any], summary="Verificar Token de Sesión")
 async def verify_token_route(current_user: UserOut = Depends(get_current_active_user)):
     """
     Endpoint para que el frontend verifique si un token almacenado es válido.

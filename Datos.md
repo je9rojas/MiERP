@@ -69,3 +69,6 @@ Paso E (Iteración): Solo cuando me des tu confirmación, procederé a mostrarte
 
 Para cada archivo que necesitemos modificar, primero pideme que te lo muestre, a menos que sea nuevo.
 
+Los logs relacionados al arranque del sistema no los borres en ningun momento
+
+

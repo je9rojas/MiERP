@@ -20,23 +20,16 @@ import { getAuthToken, removeAuthToken } from '../utils/auth/auth';
 // SECCIÓN 2: CONFIGURACIÓN DINÁMICA DE LA URL BASE
 // ==============================================================================
 
-console.log("[DEBUG] Leyendo variables de entorno en axiosConfig.js...");
-const apiURL = process.env.REACT_APP_API_URL;
-
-// LOG EXHAUSTIVO: Muestra el valor crudo de la variable de entorno.
-console.log(`[DEBUG] Valor de process.env.REACT_APP_API_URL: "${apiURL}" (Tipo: ${typeof apiURL})`);
-
-// VALIDACIÓN CRÍTICA: Se asegura de que la URL de la API esté definida y no sea una cadena vacía.
-if (!apiURL || typeof apiURL !== 'string' || apiURL.trim() === '') {
-  console.error("[CRITICAL ERROR] La URL de la API es inválida. La aplicación no puede iniciarse.");
-  throw new Error(
-    "Error Crítico: REACT_APP_API_URL no está definida o está vacía. " +
-    "Asegúrate de que tienes un archivo .env.local en el directorio /frontend con el formato REACT_APP_API_URL=http://... " +
-    "y de que el servidor de desarrollo fue reiniciado."
-  );
-}
+// Lee la URL de la API desde las variables de entorno de React.
+// Se asegura de que si la variable está definida pero vacía, se use el fallback.
+const apiURL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
 
 console.log(`[Axios] Instancia creada. Conectando a la API en: ${apiURL}`);
+
+// Validador para prevenir errores críticos en tiempo de ejecución.
+if (!apiURL) {
+  throw new Error("Error Crítico: La URL de la API no está definida. Verifica tus variables de entorno.");
+}
 
 // ==============================================================================
 // SECCIÓN 3: CREACIÓN DE LA INSTANCIA DE AXIOS
@@ -50,55 +43,42 @@ const api = axios.create({
   }
 });
 
-console.log("[DEBUG] Instancia de Axios creada exitosamente.");
-
 // ==============================================================================
 // SECCIÓN 4: INTERCEPTORES
 // ==============================================================================
 
 api.interceptors.request.use(
   (config) => {
-    console.log(`[Interceptor Request] Preparando petición a: ${config.method.toUpperCase()} ${config.url}`);
     const token = getAuthToken();
     if (token) {
-      console.log("[Interceptor Request] Token encontrado. Añadiendo cabecera de Autorización.");
       config.headers.Authorization = `Bearer ${token}`;
-    } else {
-      console.log("[Interceptor Request] No se encontró token.");
     }
     return config;
   },
   (error) => {
-    console.error("[Interceptor Request] Error:", error);
     return Promise.reject(error);
   }
 );
 
 api.interceptors.response.use(
   (response) => {
-    console.log(`[Interceptor Response] Respuesta recibida de ${response.config.url} con estado: ${response.status}`);
     return response;
   },
   (error) => {
     if (error.response) {
-      const { status, config, data } = error.response;
-      console.error(`[Interceptor Response] Error de respuesta de ${config.url}. Estado: ${status}`, { data });
-      if (status === 401 && !config.url?.endsWith('/auth/login')) {
+      const { status, config } = error.response;
+      // El interceptor de 401 Unauthorized redirige al login.
+      if (status === 401 && !config.url.endsWith('/auth/login')) {
         console.warn('[Interceptor 401] Token inválido o expirado. Forzando cierre de sesión.');
         removeAuthToken();
+        // Usar `window.location.replace` es a veces más robusto que `.href`
         window.location.replace('/login');
         return Promise.reject(new Error("Sesión inválida. Por favor, inicie sesión de nuevo."));
       }
-    } else if (error.request) {
-        console.error("[Interceptor Response] No se recibió respuesta del servidor. Error de red o servidor caído.", error.request);
-    } else {
-        console.error("[Interceptor Response] Error al configurar la petición.", error.message);
     }
     return Promise.reject(error);
   }
 );
-
-console.log("[DEBUG] Interceptores de Axios configurados.");
 
 // ==============================================================================
 // SECCIÓN 5: EXPORTACIÓN
