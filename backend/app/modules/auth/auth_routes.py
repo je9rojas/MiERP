@@ -6,14 +6,13 @@ verificación de tokens. Este módulo es el punto de entrada para todas las
 operaciones relacionadas con la sesión del usuario.
 """
 
-# ==============================================================================
+# =-============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
-from typing import Dict, Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
@@ -22,16 +21,11 @@ from app.core.config import settings
 from app.core.security import create_access_token
 from app.modules.users.user_models import UserOut
 from . import auth_service
+from .dependencies import get_current_active_user, reusable_oauth2 # <- CORRECCIÓN: Se importa reusable_oauth2
 
 # ==============================================================================
-# SECCIÓN 2: CONFIGURACIÓN DE SEGURIDAD Y ROUTER
+# SECCIÓN 2: CONFIGURACIÓN DEL ROUTER
 # ==============================================================================
-
-reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl="/api/v1/auth/login"
-)
-
-from .dependencies import get_current_active_user
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
@@ -52,7 +46,6 @@ class VerifyTokenResponse(BaseModel):
     """
     status: str
     user: UserOut
-
 
 # ==============================================================================
 # SECCIÓN 4: ENDPOINTS DE LA API
@@ -107,6 +100,6 @@ async def verify_token_route(current_user: UserOut = Depends(get_current_active_
     Endpoint para que el frontend verifique si un token almacenado es válido.
 
     La validación ocurre implícitamente en la dependencia `get_current_active_user`.
-    Si la dependencia se resuelve, el token es válido.
+    Si la dependencia se resuelve, el token es válido y se devuelve el usuario.
     """
     return {"status": "ok", "user": current_user}

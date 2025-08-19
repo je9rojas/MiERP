@@ -1,39 +1,40 @@
-# backend/app/modules/inventory/product_routes.py
+# /backend/app/modules/inventory/product_routes.py
 
 """
-Define los endpoints de la API para la gestión del Catálogo de Productos.
+Define los endpoints de la API REST para la gestión del Catálogo de Productos.
 
-Este router expone las operaciones CRUD (Crear, Leer, Actualizar, Borrar)
-para los productos maestros. Delega la lógica de negocio a los servicios
-apropiados y actúa como orquestador para flujos que involucran múltiples servicios.
+Este router es la interfaz pública para las operaciones CRUD sobre los productos.
+Su responsabilidad es validar los datos de entrada a través de modelos Pydantic,
+invocar a la capa de servicio apropiada para ejecutar la lógica de negocio, y
+formatear las respuestas para el cliente. Mantiene una lógica mínima, delegando
+todas las operaciones complejas al `product_service`.
 """
 
 # ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
-from typing import List, Optional
-from pydantic import BaseModel
-from motor.motor_asyncio import AsyncIOMotorDatabase
+# --- Importaciones de la Librería Estándar y Terceros ---
+from typing import Any, Dict, List, Optional
 
+from fastapi import APIRouter, Depends, Query, Response, status
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from pydantic import BaseModel, Field
+
+# --- Importaciones de la Aplicación ---
 from app.core.database import get_db
 from app.dependencies.roles import role_checker
-from app.modules.users.user_models import UserRole, UserOut
-from . import product_service
-from . import inventory_service # <--- IMPORTACIÓN AÑADIDA
+from app.modules.auth.dependencies import get_current_active_user
+from app.modules.inventory import product_service
+from app.modules.users.user_models import UserOut, UserRole
+
 from .product_models import (
-    ProductCreate,
-    ProductOut,
-    ProductOutDetail,
-    ProductUpdate,
-    ProductCategory,
-    FilterType,
-    ProductShape
+    FilterType, ProductCategory, ProductCreate, ProductOut, ProductShape,
+    ProductUpdate
 )
 
 # ==============================================================================
-# SECCIÓN 2: DEFINICIÓN DEL ROUTER Y MODELOS DE RESPUESTA
+# SECCIÓN 2: DEFINICIÓN DEL ROUTER Y MODELOS DE PAYLOAD/RESPUESTA
 # ==============================================================================
 
 router = APIRouter(
@@ -41,134 +42,121 @@ router = APIRouter(
     tags=["Inventario - Productos"]
 )
 
+class ProductCreatePayload(ProductCreate):
+    """
+    Define el cuerpo de la solicitud para crear un producto.
+    Hereda todos los campos de catálogo de `ProductCreate` y añade campos opcionales
+    para registrar el inventario inicial en la misma operación.
+    """
+    initial_quantity: int = Field(
+        default=0,
+        ge=0,
+        description="Cantidad de stock inicial para el producto."
+    )
+    initial_cost: float = Field(
+        default=0.0,
+        ge=0,
+        description="Costo de adquisición para el lote inicial."
+    )
+
 class PaginatedProductsResponse(BaseModel):
     """Modelo de respuesta para una lista paginada de productos."""
     total_count: int
     items: List[ProductOut]
 
 # ==============================================================================
-# SECCIÓN 3: ENDPOINTS DE LA API
+# SECCIÓN 3: ENDPOINTS DE LA API PARA PRODUCTOS
 # ==============================================================================
 
 @router.post(
     "",
-    response_model=ProductOutDetail,
+    response_model=ProductOut,
     status_code=status.HTTP_201_CREATED,
-    summary="Crear un nuevo producto y su lote inicial",
-    description="Orquesta la creación de un producto maestro y, si aplica, su lote de inventario inicial."
+    summary="Crear un nuevo producto y su lote inicial opcional",
+    dependencies=[Depends(role_checker([UserRole.ADMIN, UserRole.MANAGER]))]
 )
 async def create_new_product(
-    product_data: ProductCreate,
-    db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER]))
-):
+    payload: ProductCreatePayload,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+) -> ProductOut:
     """
-    Endpoint para crear un nuevo producto. Actúa como un orquestador:
-    1. Llama al servicio de productos para crear el registro maestro.
-    2. Si se proporciona stock inicial, llama al servicio de inventario para crear el lote.
-    3. Devuelve el producto final, ya actualizado con su stock.
+    Endpoint para crear un nuevo producto.
+
+    Recibe un payload con datos de catálogo y, opcionalmente, de inventario inicial.
+    Delega toda la lógica de creación y orquestación al `product_service`.
     """
-    # Se guardan los datos del lote inicial antes de que sean modificados.
-    initial_stock = product_data.stock_quantity
-    initial_cost = product_data.average_cost
+    # Se extraen los datos de catálogo para pasarlos al servicio.
+    # Esto respeta el contrato definido por la capa de servicio.
+    catalog_data = ProductCreate.model_validate(payload)
 
-    # Paso 1: Crear el producto maestro en el catálogo.
-    created_product = await product_service.create_product(db, product_data)
-
-    # Paso 2: Si hay stock inicial, crear el lote de inventario correspondiente.
-    if initial_stock > 0:
-        await inventory_service.create_initial_lot_for_product(
-            db=db,
-            product_id=str(created_product.id),
-            product_sku=created_product.sku,
-            quantity=initial_stock,
-            cost=initial_cost
-        )
-        # Se vuelve a obtener el producto para devolverlo con el stock actualizado.
-        final_product = await product_service.get_product_by_id(db, str(created_product.id))
-        return final_product
-    
-    # Si no hay lote inicial, el producto creado es la respuesta final.
-    return created_product
-
+    return await product_service.create_product(
+        database=database,
+        product_data=catalog_data,
+        initial_quantity=payload.initial_quantity,
+        initial_cost=payload.initial_cost
+    )
 
 @router.get(
     "",
     response_model=PaginatedProductsResponse,
-    summary="Obtener lista paginada de productos",
-    description="Recupera una lista paginada de productos activos, con opciones de búsqueda y filtrado."
+    summary="Obtener lista paginada y filtrada de productos"
 )
-async def get_products_paginated(
-    db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: UserOut = Depends(role_checker(UserRole.all_roles())),
-    search: Optional[str] = Query(None, description="Término de búsqueda por SKU, nombre o descripción."),
-    brand: Optional[str] = Query(None, description="Filtrar por marca exacta."),
-    product_category: Optional[ProductCategory] = Query(None, description="Filtrar por categoría."),
-    product_type: Optional[FilterType] = Query(None, description="Filtrar por tipo de filtro."),
-    shape: Optional[ProductShape] = Query(None, description="Filtrar por forma."),
-    page: int = Query(1, ge=1, description="Número de página a recuperar."),
-    page_size: int = Query(25, ge=1, le=1000, description="Número de productos por página.")
-):
-    """Endpoint para obtener una lista paginada y filtrada de productos."""
-    result = await product_service.get_products_paginated(
-        db=db, search=search, brand=brand, category=product_category,
-        product_type=product_type, shape=shape, page=page, page_size=page_size
+async def get_products_paginated_route(
+    search: Optional[str] = Query(None, description="Buscar por SKU, nombre o marca."),
+    brand: Optional[str] = Query(None, description="Filtrar por marca."),
+    category: Optional[ProductCategory] = Query(None, alias="productCategory"),
+    product_type: Optional[FilterType] = Query(None, alias="productType"),
+    shape: Optional[ProductShape] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=1000),
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    """Obtiene una lista de productos con filtros y paginación."""
+    return await product_service.get_products_paginated(
+        database, page, page_size, search, brand, category, product_type, shape
     )
-    return result
-
 
 @router.get(
     "/{sku:path}",
-    response_model=ProductOutDetail,
-    summary="Obtener un producto por SKU",
-    description="Obtiene los detalles completos de un producto por su SKU.",
-    responses={404: {"description": "Producto no encontrado"}}
+    response_model=ProductOut,
+    summary="Obtener un producto por su SKU"
 )
 async def get_product_by_sku_route(
     sku: str,
-    db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: UserOut = Depends(role_checker(UserRole.all_roles()))
-):
-    """Obtiene los detalles completos de un producto específico por su SKU."""
-    product = await product_service.get_product_by_sku(db, sku)
-    return product # La validación de existencia se maneja en el servicio.
-
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+) -> ProductOut:
+    """Obtiene los detalles completos de un único producto identificado por su SKU."""
+    return await product_service.get_product_by_sku(database, sku)
 
 @router.patch(
     "/{sku:path}",
-    response_model=ProductOutDetail,
-    summary="Actualizar un producto (parcial)",
-    description="Actualiza la información de catálogo de un producto. No afecta al stock.",
-    responses={404: {"description": "Producto no encontrado para actualizar"}}
+    response_model=ProductOut,
+    summary="Actualizar la información de catálogo de un producto",
+    dependencies=[Depends(role_checker([UserRole.ADMIN, UserRole.MANAGER]))]
 )
 async def update_product_route(
     sku: str,
     product_data: ProductUpdate,
-    db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER]))
-):
-    """Actualiza la información de un producto y devuelve el objeto completo y actualizado."""
-    updated_product = await product_service.update_product_by_sku(db, sku, product_data)
-    return updated_product # La validación de existencia se maneja en el servicio.
-
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+) -> ProductOut:
+    """Actualiza parcialmente los datos de catálogo de un producto."""
+    return await product_service.update_product_by_sku(database, sku, product_data)
 
 @router.delete(
     "/{sku:path}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Desactivar un producto (borrado lógico)",
-    description="Realiza un borrado lógico de un producto marcándolo como inactivo.",
-    responses={404: {"description": "Producto no encontrado para desactivar"}}
+    dependencies=[Depends(role_checker([UserRole.ADMIN]))]
 )
 async def deactivate_product_route(
     sku: str,
-    db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN]))
-):
-    """Desactiva un producto (soft delete)."""
-    success = await product_service.deactivate_product_by_sku(db, sku)
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Producto con SKU '{sku}' no encontrado para desactivar."
-        )
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+) -> Response:
+    """Desactiva un producto, impidiendo que aparezca en listados y operaciones futuras."""
+    await product_service.deactivate_product_by_sku(database, sku)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

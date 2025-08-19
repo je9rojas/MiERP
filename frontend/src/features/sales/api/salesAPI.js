@@ -1,12 +1,11 @@
 // /frontend/src/features/sales/api/salesAPI.js
 
 /**
- * @file Contiene todas las funciones para interactuar con los endpoints de Órdenes de Venta del backend.
+ * @file Contiene todas las funciones para interactuar con los endpoints del Módulo de Ventas.
  *
- * Este módulo actúa como una capa de abstracción sobre las llamadas de red (Axios),
- * proporcionando un conjunto de funciones claras y reutilizables para que los
- * componentes y hooks del módulo de ventas puedan solicitar o enviar datos
- * sin conocer los detalles de la implementación de la API.
+ * Este módulo actúa como una capa de abstracción sobre las llamadas de red (Axios) para
+ * las entidades del flujo "Order-to-Cash": Órdenes de Venta y Despachos.
+ * Aplica una capa de mapeo a las respuestas para estandarizar el modelo de datos.
  */
 
 // ==============================================================================
@@ -14,42 +13,75 @@
 // ==============================================================================
 
 import api from '../../../app/axiosConfig';
+// Se importan los mapeadores genéricos desde la ubicación centralizada.
+import { mapPaginatedResponse, mapItemToId } from '../../../utils/dataMappers';
 
 // ==============================================================================
-// SECCIÓN 2: FUNCIONES DE LA API
+// SECCIÓN 2: FUNCIONES DE API PARA ÓRDENES DE VENTA (SALES ORDERS)
 // ==============================================================================
 
 /**
  * Envía los datos de una nueva orden de venta al backend para su creación.
  * @param {object} salesOrderData - El payload con los datos de la orden de venta desde el formulario.
- * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de venta recién creada.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de venta creada y mapeada.
  */
 export const createSalesOrderAPI = async (salesOrderData) => {
-    const response = await api.post('/sales-orders', salesOrderData);
-    return response.data;
+  const response = await api.post('/sales/orders', salesOrderData);
+  return mapItemToId(response.data);
 };
 
 /**
  * Obtiene una lista paginada y filtrada de órdenes de venta.
- * (Implementación futura)
  * @param {object} params - Objeto con parámetros de consulta (ej. { page, pageSize, search, status }).
- * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada.
+ * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada y mapeada.
  */
 export const getSalesOrdersAPI = async (params) => {
-    const response = await api.get('/sales-orders', { params });
-    return response.data;
+  const response = await api.get('/sales/orders', { params });
+  return mapPaginatedResponse(response.data);
 };
 
 /**
  * Obtiene los datos detallados de una única orden de venta por su ID.
- * (Implementación futura)
  * @param {string} orderId - El ID de la orden de venta a obtener.
- * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de venta.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de venta mapeados.
  */
 export const getSalesOrderByIdAPI = async (orderId) => {
-    const response = await api.get(`/sales-orders/${orderId}`);
-    return response.data;
+  const response = await api.get(`/sales/orders/${orderId}`);
+  return mapItemToId(response.data);
 };
 
-// En el futuro, podrías añadir más funciones aquí, como:
-// export const updateSalesOrderStatusAPI = (orderId, status) => api.post(...);
+/**
+ * Envía los datos actualizados de una orden de venta para su modificación.
+ * @param {string} orderId - El ID de la orden de venta a actualizar.
+ * @param {object} updateData - El payload con los campos a actualizar.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de venta actualizada y mapeada.
+ */
+export const updateSalesOrderAPI = async (orderId, updateData) => {
+  const response = await api.patch(`/sales/orders/${orderId}`, updateData);
+  return mapItemToId(response.data);
+};
+
+/**
+ * Envía una petición para confirmar una orden de venta.
+ * @param {string} orderId - El ID de la orden de venta a confirmar.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de venta actualizada y mapeada.
+ */
+export const confirmSalesOrderAPI = async (orderId) => {
+  const response = await api.patch(`/sales/orders/${orderId}/confirm`);
+  return mapItemToId(response.data);
+};
+
+// ==============================================================================
+// SECCIÓN 3: FUNCIONES DE API PARA DESPACHOS (SHIPMENTS)
+// ==============================================================================
+
+/**
+ * Envía los datos de un nuevo despacho al backend para su procesamiento.
+ * @param {string} orderId - El ID de la Orden de Venta de origen.
+ * @param {object} shipmentData - El payload con los datos del despacho.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos del despacho recién creado y mapeado.
+ */
+export const createShipmentAPI = async (orderId, shipmentData) => {
+  const response = await api.post(`/sales/orders/${orderId}/shipments`, shipmentData);
+  return mapItemToId(response.data);
+};

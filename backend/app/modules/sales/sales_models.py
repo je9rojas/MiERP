@@ -1,11 +1,15 @@
 # /backend/app/modules/sales/sales_models.py
 
 """
-Define los modelos de datos de Pydantic para la entidad 'Orden de Venta' (Sales Order).
+Define los modelos de datos de Pydantic para el Módulo de Ventas.
 
-Este módulo sigue una arquitectura DTO (Data Transfer Object) rigurosa para separar
-las responsabilidades y asegurar un flujo de datos seguro y predecible entre el
-cliente, la lógica de negocio y la base de datos.
+Este módulo contiene los modelos para tres entidades principales del flujo "Order-to-Cash":
+1.  **Orden de Venta (SalesOrder):** El acuerdo inicial con el cliente.
+2.  **Despacho (Shipment):** El registro del movimiento físico de mercancía fuera del almacén.
+3.  **Factura de Venta (SalesInvoice):** El documento financiero para el cobro al cliente.
+
+La arquitectura DTO (Data Transfer Object) separa las responsabilidades y asegura
+un flujo de datos seguro y predecible.
 """
 
 # ==============================================================================
@@ -18,74 +22,74 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from app.models.shared import PyObjectId
-from app.modules.crm.customer_models import CustomerOut # Asumiendo que tendrás un CustomerOut
+from app.modules.crm.customer_models import CustomerOut
 
 # ==============================================================================
-# SECCIÓN 2: ENUMS Y MODELOS DE SOPORTE
+# SECCIÓN 2: ENUMS PARA ESTADOS
 # ==============================================================================
 
 class SalesOrderStatus(str, Enum):
-    """Define los posibles estados de una Orden de Venta."""
-    PENDING_PAYMENT = "pending_payment"
-    PAID = "paid"
-    SHIPPED = "shipped"
-    COMPLETED = "completed"
+    """Define los posibles estados de una Orden de Venta a lo largo de su ciclo de vida."""
+    DRAFT = "draft"
+    CONFIRMED = "confirmed"
+    PARTIALLY_SHIPPED = "partially_shipped"
+    SHIPPED = "shipped"  # CORRECCIÓN: Renombrado de 'FULLY_SHIPPED' a 'SHIPPED' para consistencia.
+    INVOICED = "invoiced"
     CANCELLED = "cancelled"
 
-# --- Modelo de Entrada para un Ítem de Venta ---
-class SalesOrderItemCreate(BaseModel):
-    """Define los datos mínimos que el cliente debe enviar para añadir un ítem a una venta."""
-    product_id: PyObjectId
-    quantity: int = Field(..., gt=0, description="Cantidad de unidades vendidas del producto.")
+# ==============================================================================
+# SECCIÓN 3: MODELOS PARA LA ORDEN DE VENTA (SALES ORDER)
+# ==============================================================================
 
-# --- Modelo Completo para un Ítem de Venta ---
+class SalesOrderItemCreate(BaseModel):
+    """DTO para añadir un ítem al crear una Orden de Venta."""
+    product_id: PyObjectId
+    quantity: int = Field(..., gt=0)
+    unit_price: float = Field(..., ge=0)
+
 class SalesOrderItem(BaseModel):
-    """Representa un ítem completo dentro de una orden de venta, con todos los datos calculados."""
+    """Representa un ítem completo dentro de una Orden de Venta."""
     product_id: PyObjectId
     sku: str
     name: str
     quantity: int
-    unit_price: float # El precio se "congela" en el momento de la venta
+    unit_price: float
     subtotal: float
+    @field_serializer('product_id')
+    def serialize_product_id(self, v, _info): return str(v)
+    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
-    model_config = ConfigDict(from_attributes=True)
-
-# ==============================================================================
-# SECCIÓN 3: MODELOS PRINCIPALES DE LA ORDEN DE VENTA (DTOS)
-# ==============================================================================
-
-class SalesOrderBase(BaseModel):
-    """Modelo base con los campos comunes de una orden de venta."""
+class SalesOrderCreate(BaseModel):
+    """DTO para la creación de una nueva Orden de Venta."""
     customer_id: PyObjectId
+    order_date: datetime = Field(default_factory=datetime.now)
+    notes: Optional[str] = None
+    shipping_address: Optional[str] = None
+    items: List[SalesOrderItemCreate] = Field(..., min_length=1)
+
+class SalesOrderInDB(BaseModel):
+    """Representa el documento completo de la OV en MongoDB."""
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    order_number: str
+    customer_id: PyObjectId
+    created_by_id: PyObjectId
     order_date: datetime
     notes: Optional[str] = None
     shipping_address: Optional[str] = None
-
-# --- Modelo de Entrada (Lo que el frontend envía para crear) ---
-class SalesOrderCreate(SalesOrderBase):
-    """DTO para la creación de una nueva Orden de Venta."""
-    items: List[SalesOrderItemCreate] = Field(..., min_length=1)
-
-# --- Modelo de Base de Datos (La estructura completa en MongoDB) ---
-class SalesOrderInDB(SalesOrderBase):
-    """Representa el documento completo de la OV tal como se almacena en la base de datos."""
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    order_number: str # Se genera en la capa de servicio
-    created_by_id: PyObjectId
     items: List[SalesOrderItem]
-    total_amount: float # Se calcula en la capa de servicio
-    status: SalesOrderStatus = SalesOrderStatus.PENDING_PAYMENT
+    total_amount: float
+    status: SalesOrderStatus = SalesOrderStatus.DRAFT
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    shipment_ids: List[PyObjectId] = []
+    invoice_ids: List[PyObjectId] = []
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
 
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
-
-# --- Modelo de Salida (Lo que la API devuelve al frontend) ---
 class SalesOrderOut(BaseModel):
     """DTO para exponer los datos de una Orden de Venta a través de la API."""
     id: PyObjectId = Field(alias="_id")
     order_number: str
-    customer: CustomerOut # Embebe los datos del cliente
+    customer: CustomerOut
     order_date: datetime
     notes: Optional[str] = None
     shipping_address: Optional[str] = None
@@ -94,9 +98,109 @@ class SalesOrderOut(BaseModel):
     status: SalesOrderStatus
     created_at: datetime
     updated_at: datetime
+    shipment_ids: List[PyObjectId] = []
+    invoice_ids: List[PyObjectId] = []
+    @field_serializer('id', 'shipment_ids', 'invoice_ids')
+    def serialize_ids(self, ids, _info):
+        return [str(id_obj) for id_obj in ids] if isinstance(ids, list) else str(ids)
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, arbitrary_types_allowed=True)
 
-    @field_serializer('id')
-    def serialize_id(self, id_obj: PyObjectId, _info):
-        return str(id_obj)
+# ==============================================================================
+# SECCIÓN 4: MODELOS PARA EL DESPACHO (SHIPMENT)
+# ==============================================================================
 
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, from_attributes=True)
+class ShipmentItem(BaseModel):
+    """Representa un ítem dentro de un despacho."""
+    product_id: PyObjectId
+    sku: str
+    name: str
+    quantity_ordered: int
+    quantity_shipped: int = Field(..., gt=0)
+    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
+
+class ShipmentCreate(BaseModel):
+    """DTO para crear un nuevo Despacho a partir de una Orden de Venta."""
+    shipping_date: datetime = Field(default_factory=datetime.now)
+    notes: Optional[str] = None
+    items: List[ShipmentItem] = Field(..., min_length=1)
+
+class ShipmentInDB(BaseModel):
+    """Representa el documento completo del Despacho en MongoDB."""
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    shipment_number: str
+    sales_order_id: PyObjectId
+    customer_id: PyObjectId
+    created_by_id: PyObjectId
+    shipping_date: datetime
+    notes: Optional[str] = None
+    items: List[ShipmentItem]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
+
+class ShipmentOut(BaseModel):
+    """DTO para exponer los datos de un Despacho a través de la API."""
+    id: PyObjectId = Field(alias="_id")
+    shipment_number: str
+    sales_order_id: PyObjectId
+    customer: CustomerOut
+    shipping_date: datetime
+    notes: Optional[str] = None
+    items: List[ShipmentItem]
+    created_at: datetime
+    @field_serializer('id', 'sales_order_id')
+    def serialize_ids(self, v, _info): return str(v)
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, arbitrary_types_allowed=True)
+
+# ==============================================================================
+# SECCIÓN 5: MODELOS PARA LA FACTURA DE VENTA (SALES INVOICE)
+# ==============================================================================
+
+class SalesInvoiceItem(BaseModel):
+    """Representa un ítem dentro de una Factura de Venta."""
+    product_id: PyObjectId
+    sku: str
+    name: str
+    quantity: int
+    unit_price: float
+    subtotal: float
+    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
+
+class SalesInvoiceCreate(BaseModel):
+    """DTO para crear una nueva Factura de Venta."""
+    invoice_date: datetime = Field(default_factory=datetime.now)
+    due_date: datetime
+    notes: Optional[str] = None
+    # Los items se calcularán en el servicio a partir de los despachos.
+
+class SalesInvoiceInDB(BaseModel):
+    """Representa el documento completo de la Factura de Venta en MongoDB."""
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    invoice_number: str
+    sales_order_id: PyObjectId
+    customer_id: PyObjectId
+    created_by_id: PyObjectId
+    invoice_date: datetime
+    due_date: datetime
+    notes: Optional[str] = None
+    items: List[SalesInvoiceItem]
+    total_amount: float
+    status: str = "unpaid" # Podría ser un Enum: unpaid, paid, partially_paid
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
+
+class SalesInvoiceOut(BaseModel):
+    """DTO para exponer los datos de una Factura de Venta a través de la API."""
+    id: PyObjectId = Field(alias="_id")
+    invoice_number: str
+    sales_order_id: PyObjectId
+    customer: CustomerOut
+    invoice_date: datetime
+    due_date: datetime
+    notes: Optional[str] = None
+    items: List[SalesInvoiceItem]
+    total_amount: float
+    status: str
+    created_at: datetime
+    @field_serializer('id', 'sales_order_id')
+    def serialize_ids(self, v, _info): return str(v)
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, arbitrary_types_allowed=True)

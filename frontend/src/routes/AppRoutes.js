@@ -1,11 +1,7 @@
 // frontend/src/routes/AppRoutes.js
 
 /**
- * @file Gestor principal de rutas de la aplicación.
- *
- * Este componente define toda la navegación de la aplicación utilizando React Router.
- * Implementa características avanzadas como Carga Perezosa (Lazy Loading) y Guardianes
- * de Ruta para un rendimiento y seguridad óptimos.
+ * @file [VERSIÓN DE DEPURACIÓN] Gestor principal de rutas de la aplicación.
  */
 
 // ==============================================================================
@@ -14,73 +10,95 @@
 
 import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, Outlet } from 'react-router-dom';
-import { useAuth } from '../app/contexts/AuthContext';
-import { checkUserRole } from '../utils/auth/roles';
 import { Box, CircularProgress, Typography } from '@mui/material';
+
+import { useAuth } from '../app/contexts/AuthContext';
+import { hasPermission, PERMISSIONS } from '../utils/auth/roles';
 
 // --- 1.1: Componentes de Carga y Layouts (Importación Estática) ---
 import DashboardLayout from '../components/layout/DashboardLayout';
 import AuthLayout from '../components/layout/AuthLayout';
 
 const FullScreenLoader = () => (
-    <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" height="100vh">
-        <CircularProgress size={50} />
-        <Typography sx={{ mt: 2 }}>Cargando Módulo...</Typography>
-    </Box>
+  <Box display="flex" flexDirection="column" justifyContent="center" alignItems="center" height="100vh">
+    <CircularProgress size={50} />
+    <Typography sx={{ mt: 2 }}>Cargando Módulo...</Typography>
+  </Box>
 );
 
 // --- 1.2: Importaciones Dinámicas de Páginas (Lazy Loading) ---
 const HomePage = lazy(() => import('../features/home/pages/HomePage'));
 const LoginPage = lazy(() => import('../features/auth/pages/LoginPage'));
 const DashboardPage = lazy(() => import('../features/dashboard/pages/DashboardPage'));
-const ProductListPage = lazy(() => import('../features/inventory/pages/ProductListPage'));
-const NewProductPage = lazy(() => import('../features/inventory/pages/NewProductPage'));
-const EditProductPage = lazy(() => import('../features/inventory/pages/EditProductPage'));
+const SupplierListPage = lazy(() => import('../features/crm/pages/SupplierListPage'));
+const NewSupplierPage = lazy(() => import('../features/crm/pages/NewSupplierPage'));
+const CustomerListPage = lazy(() => import('../features/crm/pages/CustomerListPage'));
+const NewCustomerPage = lazy(() => import('../features/crm/pages/NewCustomerPage'));
+const SalesOrderListPage = lazy(() => import('../features/sales/pages/SalesOrderListPage'));
+const NewSalesOrderPage = lazy(() => import('../features/sales/pages/NewSalesOrderPage'));
+const EditSalesOrderPage = lazy(() => import('../features/sales/pages/EditSalesOrderPage'));
+const CreateShipmentPage = lazy(() => import('../features/sales/pages/CreateShipmentPage'));
 const PurchaseOrderListPage = lazy(() => import('../features/purchasing/pages/PurchaseOrderListPage'));
 const NewPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/NewPurchaseOrderPage'));
 const EditPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/EditPurchaseOrderPage'));
-const RegisterReceiptPage = lazy(() => import('../features/purchasing/pages/RegisterReceiptPage'));
-// Se importa la nueva página para listar las facturas de compra.
+const CreateReceiptPage = lazy(() => import('../features/purchasing/pages/CreateReceiptPage'));
+const GoodsReceiptListPage = lazy(() => import('../features/purchasing/pages/GoodsReceiptListPage'));
+const GoodsReceiptDetailsPage = lazy(() => import('../features/purchasing/pages/GoodsReceiptDetailsPage'));
 const PurchaseBillListPage = lazy(() => import('../features/purchasing/pages/PurchaseBillListPage'));
+const PurchaseBillDetailsPage = lazy(() => import('../features/purchasing/pages/PurchaseBillDetailsPage'));
+const CreatePurchaseBillPage = lazy(() => import('../features/purchasing/pages/CreatePurchaseBillPage'));
+const ProductListPage = lazy(() => import('../features/inventory/pages/ProductListPage'));
+const NewProductPage = lazy(() => import('../features/inventory/pages/NewProductPage'));
+const EditProductPage = lazy(() => import('../features/inventory/pages/EditProductPage'));
+const ProductCatalogPage = lazy(() => import('../features/reports/pages/ProductCatalogPage'));
 const UserManagementPage = lazy(() => import('../features/admin/pages/UserManagementPage'));
 const DataManagementPage = lazy(() => import('../features/admin/pages/DataManagementPage'));
-const SupplierListPage = lazy(() => import('../features/crm/pages/SupplierListPage'));
-const NewSupplierPage = lazy(() => import('../features/crm/pages/NewSupplierPage'));
-const ProductCatalogPage = lazy(() => import('../features/reports/pages/ProductCatalogPage'));
-const SalesOrderListPage = lazy(() => import('../features/sales/pages/SalesOrderListPage'));
-const NewSalesOrderPage = lazy(() => import('../features/sales/pages/NewSalesOrderPage'));
 
 // ==============================================================================
-// SECCIÓN 2: COMPONENTES GUARDIANES DE RUTAS (ROUTE GUARDS)
+// SECCIÓN 2: GUARDIANES DE RUTAS (CON LOGS DE DEPURACIÓN)
 // ==============================================================================
 
-const PrivateRoutesGuard = ({ allowedRoles }) => {
-    const { isAuthenticated, user, isInitialized } = useAuth();
-    const location = useLocation();
+const PermissionGuard = ({ requiredPermission }) => {
+  const { isAuthenticated, user, isInitialized } = useAuth();
+  const location = useLocation();
 
-    if (!isInitialized) {
-        return <FullScreenLoader />;
-    }
+  // --- LOG DE DEPURACIÓN ---
+  console.log(`[APP_ROUTES_DEBUG] PermissionGuard (ruta protegida): isInitialized=${isInitialized}, isAuthenticated=${isAuthenticated}`);
 
-    if (!isAuthenticated) {
-        return <Navigate to="/login" state={{ from: location }} replace />;
-    }
+  if (!isInitialized) {
+    console.log("[APP_ROUTES_DEBUG] PermissionGuard -> MOSTRANDO LOADER (no inicializado)");
+    return <FullScreenLoader />;
+  }
+  if (!isAuthenticated) {
+    console.log("[APP_ROUTES_DEBUG] PermissionGuard -> REDIRIGIENDO A /login (no autenticado)");
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  if (requiredPermission && !hasPermission(user?.role, requiredPermission)) {
+    console.log(`[APP_ROUTES_DEBUG] PermissionGuard -> REDIRIGIENDO A /unauthorized (sin permiso: ${requiredPermission})`);
+    return <Navigate to="/unauthorized" replace />;
+  }
 
-    if (allowedRoles && !checkUserRole(user?.role, allowedRoles)) {
-        return <Navigate to="/unauthorized" replace />;
-    }
-
-    return <Outlet />;
+  console.log("[APP_ROUTES_DEBUG] PermissionGuard -> RENDERIZANDO CONTENIDO (acceso concedido)");
+  return <Outlet />;
 };
 
 const PublicRouteGuard = () => {
-    const { isAuthenticated, isInitialized } = useAuth();
+  const { isAuthenticated, isInitialized } = useAuth();
 
-    if (!isInitialized) {
-        return <FullScreenLoader />;
-    }
+  // --- LOG DE DEPURACIÓN ---
+  console.log(`[APP_ROUTES_DEBUG] PublicRouteGuard (ruta pública): isInitialized=${isInitialized}, isAuthenticated=${isAuthenticated}`);
 
-    return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Outlet />;
+  if (!isInitialized) {
+    console.log("[APP_ROUTES_DEBUG] PublicRouteGuard -> MOSTRANDO LOADER (no inicializado)");
+    return <FullScreenLoader />;
+  }
+  if (isAuthenticated) {
+    console.log("[APP_ROUTES_DEBUG] PublicRouteGuard -> REDIRIGIENDO A /dashboard (ya autenticado)");
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  console.log("[APP_ROUTES_DEBUG] PublicRouteGuard -> RENDERIZANDO CONTENIDO (acceso concedido)");
+  return <Outlet />;
 };
 
 // ==============================================================================
@@ -88,71 +106,74 @@ const PublicRouteGuard = () => {
 // ==============================================================================
 
 const AppRoutes = () => {
-    return (
-        <Suspense fallback={<FullScreenLoader />}>
-            <Routes>
-                {/* --- Grupo de Rutas Públicas --- */}
-                <Route element={<PublicRouteGuard />}>
-                    <Route path="/" element={<HomePage />} />
-                    <Route element={<AuthLayout />}>
-                        <Route path="login" element={<LoginPage />} />
-                    </Route>
-                </Route>
+  // --- LOG DE DEPURACIÓN ---
+  console.log("[APP_ROUTES_DEBUG] AppRoutes RENDERIZADO.");
 
-                {/* --- Grupo de Rutas Privadas --- */}
-                <Route element={<PrivateRoutesGuard />}>
-                    <Route element={<DashboardLayout />}>
-                        <Route path="/dashboard" element={<DashboardPage />} />
-                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+  return (
+    <Suspense fallback={<FullScreenLoader />}>
+      <Routes>
+        {/* --- Rutas Públicas --- */}
+        <Route element={<PublicRouteGuard />}>
+          <Route path="/" element={<HomePage />} />
+          <Route element={<AuthLayout />}>
+            <Route path="login" element={<LoginPage />} />
+          </Route>
+        </Route>
 
-                        {/* Módulo de Ventas */}
-                        <Route path="ventas/ordenes" element={<SalesOrderListPage />} />
-                        <Route path="ventas/ordenes/nueva" element={<NewSalesOrderPage />} />
+        {/* --- Rutas Privadas --- */}
+        <Route element={<PermissionGuard />}>
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-                        {/* Módulo de Inventario */}
-                        <Route path="inventario/productos" element={<ProductListPage />} />
-                        <Route path="inventario/productos/nuevo" element={<NewProductPage />} />
-                        <Route path="inventario/productos/editar/:sku" element={<EditProductPage />} />
-                        
-                        {/* Módulo de Compras */}
-                        <Route path="compras/ordenes" element={<PurchaseOrderListPage />} />
-                        <Route path="compras/ordenes/nueva" element={<NewPurchaseOrderPage />} />
-                        <Route path="compras/ordenes/editar/:orderId" element={<EditPurchaseOrderPage />} />
-                        <Route path="compras/ordenes/:orderId/recibir" element={<RegisterReceiptPage />} />
-                        {/* Se añade la nueva ruta para listar las facturas de compra. */}
-                        <Route path="compras/facturas" element={<PurchaseBillListPage />} />
-                        
-                        {/* Módulo de CRM */}
-                        <Route path="crm/proveedores" element={<SupplierListPage />} />
-                        <Route path="crm/proveedores/nuevo" element={<NewSupplierPage />} />
-                        
-                        {/* Módulo de Reportes */}
-                        <Route path="reportes/catalogo" element={<ProductCatalogPage />} />
-                        
-                        {/* Módulo de Administración */}
-                        <Route element={<PrivateRoutesGuard allowedRoles={['superadmin', 'admin']} />}>
-                            <Route path="admin/usuarios" element={<UserManagementPage />} />
-                            <Route path="admin/gestion-datos" element={<DataManagementPage />} />
-                        </Route>
-                    </Route>
-                </Route>
-                
-                {/* --- Rutas de Error y Fallback --- */}
-                <Route path="/unauthorized" element={
-                    <Box sx={{ p: 4, textAlign: 'center' }}>
-                        <Typography variant="h3" component="h1" gutterBottom>403 - Acceso Denegado</Typography>
-                        <Typography>No tienes los permisos necesarios para acceder a este recurso.</Typography>
-                    </Box>
-                }/>
-                <Route path="*" element={
-                    <Box sx={{ p: 4, textAlign: 'center' }}>
-                        <Typography variant="h3" component="h1" gutterBottom>404 - Página no Encontrada</Typography>
-                        <Typography>La página que buscas no existe o ha sido movida.</Typography>
-                    </Box>
-                }/>
-            </Routes>
-        </Suspense>
-    );
+            {/* Módulo de CRM */}
+            <Route path="crm/proveedores" element={<SupplierListPage />} />
+            <Route path="crm/proveedores/nuevo" element={<NewSupplierPage />} />
+            <Route path="crm/clientes" element={<CustomerListPage />} />
+            <Route path="crm/clientes/nuevo" element={<NewCustomerPage />} />
+            {/* <Route path="crm/clientes/editar/:customerId" element={<EditCustomerPage />} /> */}
+
+            {/* Módulo de Ventas */}
+            <Route path="ventas/ordenes" element={<SalesOrderListPage />} />
+            <Route path="ventas/ordenes/nueva" element={<NewSalesOrderPage />} />
+            <Route path="ventas/ordenes/:orderId" element={<EditSalesOrderPage />} />
+            <Route path="ventas/ordenes/:orderId/despachar" element={<CreateShipmentPage />} />
+
+            {/* Módulo de Compras */}
+            <Route path="compras/ordenes" element={<PurchaseOrderListPage />} />
+            <Route path="compras/ordenes/nueva" element={<NewPurchaseOrderPage />} />
+            <Route path="compras/ordenes/editar/:orderId" element={<EditPurchaseOrderPage />} />
+            <Route path="compras/ordenes/:orderId/recepciones/nueva" element={<CreateReceiptPage />} />
+            <Route path="compras/ordenes/:orderId/facturar" element={<CreatePurchaseBillPage />} />
+            <Route path="compras/recepciones" element={<GoodsReceiptListPage />} />
+            <Route path="compras/recepciones/:receiptId" element={<GoodsReceiptDetailsPage />} />
+            <Route path="compras/facturas" element={<PurchaseBillListPage />} />
+            <Route path="compras/facturas/:billId" element={<PurchaseBillDetailsPage />} />
+
+            {/* Módulo de Inventario */}
+            <Route path="inventario/productos" element={<ProductListPage />} />
+            <Route path="inventario/productos/nuevo" element={<NewProductPage />} />
+            <Route path="inventario/productos/editar/:sku" element={<EditProductPage />} />
+
+            {/* Módulo de Reportes */}
+            <Route path="reportes/catalogo" element={<ProductCatalogPage />} />
+
+            {/* Rutas de Administración */}
+            <Route element={<PermissionGuard requiredPermission={PERMISSIONS.ADMIN_VIEW_USER_MANAGEMENT} />}>
+              <Route path="admin/usuarios" element={<UserManagementPage />} />
+            </Route>
+            <Route element={<PermissionGuard requiredPermission={PERMISSIONS.ADMIN_VIEW_DATA_MANAGEMENT} />}>
+              <Route path="admin/gestion-datos" element={<DataManagementPage />} />
+            </Route>
+          </Route>
+        </Route>
+
+        {/* --- Rutas de Error y Fallback --- */}
+        <Route path="/unauthorized" element={<Box sx={{ p: 4, textAlign: 'center' }}><Typography variant="h3">403 - Acceso Denegado</Typography></Box>} />
+        <Route path="*" element={<Box sx={{ p: 4, textAlign: 'center' }}><Typography variant="h3">404 - Página no Encontrada</Typography></Box>} />
+      </Routes>
+    </Suspense>
+  );
 };
 
 export default AppRoutes;

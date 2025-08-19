@@ -14,6 +14,7 @@ reutilizables y seguros para proteger los endpoints de la API.
 # ==============================================================================
 
 from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import ValidationError
@@ -21,12 +22,22 @@ from pydantic import ValidationError
 from app.core.config import settings
 from app.core.database import get_db
 from app.modules.users.user_models import UserInDB, UserOut
-from app.modules.auth import auth_service
-from app.modules.auth.auth_models import TokenPayload
-from app.modules.auth.auth_routes import reusable_oauth2
+from . import auth_service
+from .auth_models import TokenPayload
 
 # ==============================================================================
-# SECCIÓN 2: DEPENDENCIAS DE AUTENTICACIÓN
+# SECCIÓN 2: DEFINICIÓN DEL ESQUEMA DE SEGURIDAD
+# ==============================================================================
+
+# Se define el esquema OAuth2 aquí, ya que es la dependencia fundamental.
+# Las rutas y otras dependencias lo importarán desde este único lugar,
+# rompiendo así la importación circular.
+reusable_oauth2 = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_PREFIX}/auth/login"
+)
+
+# ==============================================================================
+# SECCIÓN 3: DEPENDENCIAS DE AUTENTICACIÓN
 # ==============================================================================
 
 async def get_current_user(
@@ -34,7 +45,8 @@ async def get_current_user(
     token: str = Depends(reusable_oauth2)
 ) -> UserInDB:
     """
-    Dependencia de bajo nivel que valida el token JWT y recupera al usuario.
+    Dependencia de bajo nivel que valida el token JWT y recupera el usuario
+    completo de la base de datos (modelo InDB).
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -45,6 +57,7 @@ async def get_current_user(
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
+        # Se añade validación explícita del esquema del payload del token.
         token_data = TokenPayload.model_validate(payload)
     except (JWTError, ValidationError):
         raise credentials_exception
@@ -62,17 +75,14 @@ async def get_current_active_user(
     current_user: UserInDB = Depends(get_current_user)
 ) -> UserOut:
     """
-    Dependencia de alto nivel para proteger endpoints, asegurando que el
-    usuario del token esté activo y devolviendo un modelo seguro (UserOut).
+    Dependencia de alto nivel para proteger endpoints.
+    
+    Verifica que el usuario obtenido del token esté activo y devuelve un
+    modelo seguro (UserOut), listo para ser usado en las rutas.
     """
     if current_user.status != "active":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El usuario está inactivo.")
     
-    # --- CORRECCIÓN CLAVE ---
-    # Se convierte explícitamente el objeto `current_user` (de tipo UserInDB) a un diccionario
-    # antes de pasarlo a `UserOut.model_validate`. Pydantic v2 requiere este paso para
-    # poder validar y crear una instancia de un modelo a partir de los datos de otro.
-    
-    return UserOut.model_validate(current_user.model_dump())
-
-
+    # Pydantic v2 con `from_attributes=True` en el modelo `UserOut` puede
+    # crear una instancia directamente desde otro modelo Pydantic (UserInDB).
+    return UserOut.model_validate(current_user)

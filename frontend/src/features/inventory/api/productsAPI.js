@@ -16,8 +16,8 @@
 // ==============================================================================
 
 import api from '../../../app/axiosConfig';
-// Se importan los mapeadores para transformar las respuestas de la API.
-import { mapPaginatedResponse, mapPurchaseOrderResponse as mapItemToId, mapArrayToId } from '../../purchasing/mappers/purchaseOrderMappers';
+// Se importan los mapeadores genéricos desde la nueva ubicación centralizada.
+import { mapPaginatedResponse, mapItemToId, mapArrayToId } from '../../../utils/dataMappers';
 
 // ==============================================================================
 // SECCIÓN 2: FUNCIONES DE API PARA EL CATÁLOGO DE PRODUCTOS

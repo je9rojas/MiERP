@@ -5,24 +5,27 @@
  *
  * Este componente actúa como el "cerebro" de la página, orquestando la
  * obtención de datos desde la API y gestionando el estado de la interfaz de
- * usuario. Utiliza React Query para una gestión de datos eficiente y declarativa,
- * implementando paginación y búsqueda del lado del servidor.
+ * usuario. Utiliza React Query para una gestión de datos eficiente,
+ * implementando paginación, búsqueda y mutaciones para actualizar el estado
+ * de las órdenes.
  */
 
 // ==============================================================================
-// SECCIÓN 1: IMPORTACIONES DE MÓDULOS
+// SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Container, Paper, Alert } from '@mui/material';
 
-import { getPurchaseOrdersAPI } from '../api/purchasingAPI';
+import { getPurchaseOrdersAPI, updatePurchaseOrderStatusAPI } from '../api/purchasingAPI';
 import useDebounce from '../../../hooks/useDebounce';
 import PurchaseOrderDataGrid from '../components/PurchaseOrderDataGrid';
 import PageHeader from '../../../components/common/PageHeader';
 import { formatApiError } from '../../../utils/errorUtils';
+import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
+// import { useSnackbar } from 'notistack'; // Descomentar para usar notificaciones avanzadas
 
 // ==============================================================================
 // SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
@@ -31,17 +34,15 @@ import { formatApiError } from '../../../utils/errorUtils';
 const PurchaseOrderListPage = () => {
     // Sub-sección 2.1: Hooks y Estado
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    // const { enqueueSnackbar } = useSnackbar();
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
+    const [confirmationDialog, setConfirmationDialog] = useState({ isOpen: false, title: '', content: '', onConfirm: () => {} });
 
     // Sub-sección 2.2: Lógica de Obtención de Datos con React Query
-    const {
-        data,
-        isLoading,
-        isError,
-        error
-    } = useQuery({
+    const { data, isLoading, isError, error } = useQuery({
         queryKey: ['purchaseOrders', paginationModel, debouncedSearchTerm],
         queryFn: () => getPurchaseOrdersAPI({
             page: paginationModel.page + 1,
@@ -49,64 +50,95 @@ const PurchaseOrderListPage = () => {
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
-        staleTime: 5000,
+        staleTime: 30000,
     });
 
-    // Sub-sección 2.3: Manejadores de Eventos (Callbacks)
+    // Sub-sección 2.3: Lógica de Mutación de Datos (Actualización de Estado)
+    const { mutate: updateOrderStatus, isPending: isUpdatingStatus } = useMutation({
+        mutationFn: ({ orderId, newStatus }) => updatePurchaseOrderStatusAPI(orderId, newStatus),
+        onSuccess: (updatedOrder) => {
+            // enqueueSnackbar(`Orden de Compra #${updatedOrder.order_number} confirmada.`, { variant: 'success' });
+            alert(`Orden de Compra #${updatedOrder.order_number} confirmada exitosamente.`);
+            queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
+        },
+        onError: (mutationError) => {
+            const errorMessage = formatApiError(mutationError);
+            // enqueueSnackbar(`Error al confirmar la orden: ${errorMessage}`, { variant: 'error' });
+            alert(`Error al confirmar la orden: ${errorMessage}`);
+        },
+        onSettled: () => {
+            setConfirmationDialog({ isOpen: false, title: '', content: '', onConfirm: () => {} });
+        }
+    });
+
+    // Sub-sección 2.4: Manejadores de Eventos (Callbacks)
     const handleAddOrder = useCallback(() => {
         navigate('/compras/ordenes/nueva');
     }, [navigate]);
 
-    const handleViewDetails = useCallback((orderId) => {
+    const handleEditOrder = useCallback((orderId) => {
         navigate(`/compras/ordenes/editar/${orderId}`);
     }, [navigate]);
 
     const handleRegisterReceipt = useCallback((orderId) => {
-        navigate(`/compras/ordenes/${orderId}/recibir`);
+        navigate(`/compras/ordenes/${orderId}/recepciones/nueva`);
+    }, [navigate]);
+    
+    // --- NUEVO MANEJADOR ---
+    // Navega a la página de creación de facturas, pasando el ID de la orden de compra.
+    const handleRegisterBill = useCallback((orderId) => {
+        navigate(`/compras/ordenes/${orderId}/facturar`);
     }, [navigate]);
 
-    // Sub-sección 2.4: Renderizado de la Interfaz de Usuario
+    const handleConfirmOrder = useCallback((order) => {
+        setConfirmationDialog({
+            isOpen: true,
+            title: 'Confirmar Orden de Compra',
+            content: `¿Está seguro de que desea confirmar la Orden de Compra #${order.order_number}? Esta acción no se puede deshacer.`,
+            onConfirm: () => updateOrderStatus({ orderId: order.id, newStatus: 'confirmed' })
+        });
+    }, [updateOrderStatus]);
+
+    // Sub-sección 2.5: Renderizado de la Interfaz de Usuario
     return (
         <Container maxWidth="xl" sx={{ my: 4 }}>
             <PageHeader
                 title="Gestión de Órdenes de Compra"
-                subtitle="Cree y administre las órdenes de compra para sus proveedores."
+                subtitle="Cree, confirme, reciba y facture las órdenes de compra para sus proveedores."
                 addButtonText="Nueva Orden de Compra"
                 onAddClick={handleAddOrder}
             />
             
-            {/* El Paper es ahora el contenedor principal del DataGrid y le proporciona la altura necesaria. */}
-            <Paper sx={{
-                height: 700, // Se recomienda una altura fija en 'px' para el contenedor del DataGrid.
-                width: '100%',
-                borderRadius: 2,
-                boxShadow: 3,
-                // No se necesita padding aquí, ya que el DataGrid no lo necesita.
-                // El Paper en sí mismo actúa como el contenedor.
-            }}>
+            <Paper sx={{ height: 700, width: '100%', borderRadius: 2, boxShadow: 3 }}>
                 {isError && (
                     <Alert severity="error" sx={{ m: 2 }}>
                         {`Error al cargar las órdenes de compra: ${formatApiError(error)}`}
                     </Alert>
                 )}
                 
-                {/* 
-                  El DataGrid ahora se coloca directamente dentro del Paper. 
-                  Como Paper tiene una altura definida, el DataGrid se expandirá para llenarla,
-                  solucionando la advertencia de MUI.
-                */}
                 <PurchaseOrderDataGrid
                     orders={data?.items || []}
                     rowCount={data?.total_count || 0}
-                    isLoading={isLoading}
+                    isLoading={isLoading || isUpdatingStatus}
                     paginationModel={paginationModel}
                     onPaginationModelChange={setPaginationModel}
-                    onEditOrder={handleViewDetails}
+                    onEditOrder={handleEditOrder}
+                    onConfirmOrder={handleConfirmOrder}
                     onRegisterReceipt={handleRegisterReceipt}
+                    onRegisterBill={handleRegisterBill} // <- Se pasa la nueva prop
                     searchTerm={searchTerm}
                     onSearchChange={(event) => setSearchTerm(event.target.value)}
                 />
             </Paper>
+
+            <ConfirmationDialog
+                isOpen={confirmationDialog.isOpen}
+                onClose={() => setConfirmationDialog({ ...confirmationDialog, isOpen: false })}
+                onConfirm={confirmationDialog.onConfirm}
+                title={confirmationDialog.title}
+                content={confirmationDialog.content}
+                isLoading={isUpdatingStatus}
+            />
         </Container>
     );
 };

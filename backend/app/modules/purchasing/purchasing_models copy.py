@@ -1,24 +1,31 @@
 # backend/app/modules/purchasing/purchasing_models.py
 
 """
-Define los modelos de datos de Pydantic para el Módulo de Compras.
+Define los modelos de datos de Pydantic para el Módulo de Compras (Purchasing).
 
-Este módulo contiene los modelos para dos entidades principales:
-1.  **Orden de Compra (PurchaseOrder):** Representa la solicitud inicial de productos a un proveedor.
-2.  **Recepción/Factura de Compra (PurchaseBill):** Representa la recepción física y la
-    factura real de los productos, registrando cantidades y costos reales.
+Este módulo implementa el flujo "Procure-to-Pay" con tres entidades principales
+que siguen el principio de Separación de Concerns:
 
-Se sigue una arquitectura DTO (Data Transfer Object) rigurosa para separar
-responsabilidades y asegurar un flujo de datos seguro y predecible.
+1.  **Orden de Compra (Purchase Order):**
+    Representa el documento de acuerdo con un proveedor sobre los productos,
+    cantidades y precios. Es el documento que inicia el proceso de compra.
+
+2.  **Recepción de Mercancía (Goods Receipt):**
+    Registra el movimiento físico de entrada de productos al inventario. Este
+    documento está vinculado a una Orden de Compra y confirma qué se recibió
+    y en qué cantidad.
+
+3.  **Factura de Compra (Purchase Bill):**
+    Es el documento financiero que formaliza la deuda con el proveedor. Se genera
+    a partir de las recepciones y sirve como base para el módulo de Cuentas por Pagar.
 """
 
 # ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
-
-from pydantic import BaseModel, Field, ConfigDict, field_serializer, validator
-from typing import List, Optional
-from datetime import datetime, timezone
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from typing import List, Optional, Any
+from datetime import datetime, date, timezone
 from enum import Enum
 
 from app.models.shared import PyObjectId
@@ -29,59 +36,76 @@ from app.modules.crm.supplier_models import SupplierOut
 # ==============================================================================
 
 class PurchaseOrderStatus(str, Enum):
-    """Define los posibles estados de una Orden de Compra."""
+    """Define los estados del ciclo de vida de una Orden de Compra."""
     DRAFT = "draft"
-    PENDING_APPROVAL = "pending_approval"
-    APPROVED = "approved"
-    REJECTED = "rejected"
+    CONFIRMED = "confirmed"
     PARTIALLY_RECEIVED = "partially_received"
-    COMPLETED = "completed"
+    FULLY_RECEIVED = "fully_received"
+    BILLED = "billed"
     CANCELLED = "cancelled"
 
-# ==============================================================================
-# SECCIÓN 3: MODELOS PARA LA ORDEN DE COMPRA (PURCHASE ORDER)
-# ==============================================================================
+class PurchaseBillStatus(str, Enum):
+    """Define los estados financieros de una Factura de Compra."""
+    UNPAID = "unpaid"
+    PARTIALLY_PAID = "partially_paid"
+    PAID = "paid"
 
-# ------------------- SUB-MODELOS DE ÍTEMS (PURCHASE ORDER) --------------------
+# ==============================================================================
+# SECCIÓN 3: MODELOS PARA ITEMS (Sub-documentos)
+# ==============================================================================
 
 class PurchaseOrderItemCreate(BaseModel):
-    """Define los datos mínimos para añadir un ítem a una OC al crearla."""
+    """Ítem para el payload de creación de una Orden de Compra. Contiene solo lo
+    esencial que envía el cliente."""
     product_id: PyObjectId
-    quantity_ordered: int = Field(..., gt=0, description="Cantidad de unidades solicitadas del producto.")
-    unit_cost: float = Field(..., ge=0, description="Costo unitario esperado del producto.")
+    quantity_ordered: int = Field(..., gt=0)
+    unit_cost: float = Field(..., ge=0)
+    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
-class PurchaseOrderItem(BaseModel):
-    """Representa un ítem completo dentro de una orden de compra."""
+class PurchaseOrderItem(PurchaseOrderItemCreate):
+    """Ítem completo dentro de una Orden de Compra, enriquecido con datos del producto."""
+    sku: str
+    name: str
+
+class GoodsReceiptItem(BaseModel):
+    """Ítem dentro de una Recepción de Mercancía."""
     product_id: PyObjectId
     sku: str
     name: str
     quantity_ordered: int
-    unit_cost: float
-
-    @field_serializer('product_id')
-    def serialize_product_id(self, product_id_obj: PyObjectId, _info):
-        return str(product_id_obj)
-
+    quantity_received: int = Field(..., ge=0)
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
-# ------------------- MODELOS PRINCIPALES DTO (PURCHASE ORDER) -----------------
+class PurchaseBillItem(BaseModel):
+    """Ítem dentro de una Factura de Compra."""
+    product_id: PyObjectId
+    sku: str
+    name: str
+    quantity_billed: int = Field(..., gt=0)
+    unit_cost: float = Field(..., ge=0)
+    subtotal: float
+    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
+
+# ==============================================================================
+# SECCIÓN 4: MODELOS PARA LA ORDEN DE COMPRA (PURCHASE ORDER)
+# ==============================================================================
 
 class PurchaseOrderCreate(BaseModel):
-    """DTO para la creación de una nueva Orden de Compra."""
+    """Modelo para crear una nueva Orden de Compra."""
     supplier_id: PyObjectId
-    order_date: datetime
-    expected_delivery_date: Optional[datetime] = None
+    order_date: date
+    expected_delivery_date: Optional[date] = None
     notes: Optional[str] = None
-    items: List[PurchaseOrderItemCreate] = Field(..., min_length=1)
+    items: List[PurchaseOrderItemCreate] # Usa el modelo específico para la creación
 
 class PurchaseOrderUpdate(BaseModel):
-    """DTO para actualizar una Orden de Compra (solo en estado 'draft')."""
-    expected_delivery_date: Optional[datetime] = None
+    """Modelo para actualizar una Orden de Compra existente."""
+    expected_delivery_date: Optional[date] = None
     notes: Optional[str] = None
-    items: Optional[List[PurchaseOrderItemCreate]] = Field(None, min_length=1)
+    items: Optional[List[PurchaseOrderItemCreate]] = None # También usa el modelo de creación
 
 class PurchaseOrderInDB(BaseModel):
-    """Representa el documento completo de la OC tal como se almacena en MongoDB."""
+    """Modelo de la Orden de Compra tal como se almacena en la BD."""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     order_number: str
     supplier_id: PyObjectId
@@ -89,20 +113,21 @@ class PurchaseOrderInDB(BaseModel):
     order_date: datetime
     expected_delivery_date: Optional[datetime] = None
     notes: Optional[str] = None
-    items: List[PurchaseOrderItem]
+    items: List[PurchaseOrderItem] # En la BD, los ítems están enriquecidos
     total_amount: float
     status: PurchaseOrderStatus = PurchaseOrderStatus.DRAFT
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    related_bill_ids: List[PyObjectId] = []
-
+    receipt_ids: List[PyObjectId] = []
+    bill_ids: List[PyObjectId] = []
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
 
 class PurchaseOrderOut(BaseModel):
-    """DTO para exponer los datos de una Orden de Compra a través de la API."""
-    id: PyObjectId = Field(..., alias="_id")
+    """Modelo de la Orden de Compra para respuestas de la API."""
+    id: PyObjectId
     order_number: str
     supplier: SupplierOut
+    created_by_id: PyObjectId
     order_date: datetime
     expected_delivery_date: Optional[datetime] = None
     notes: Optional[str] = None
@@ -111,88 +136,109 @@ class PurchaseOrderOut(BaseModel):
     status: PurchaseOrderStatus
     created_at: datetime
     updated_at: datetime
-    related_bill_ids: List[PyObjectId] = []
+    receipt_ids: List[PyObjectId] = []
+    bill_ids: List[PyObjectId] = []
 
-    @field_serializer('id', 'related_bill_ids')
-    def serialize_object_ids(self, ids, _info):
-        if isinstance(ids, list):
-            return [str(id_obj) for id_obj in ids]
-        return str(ids)
+    @field_serializer('id', 'created_by_id', 'receipt_ids', 'bill_ids')
+    def serialize_object_ids(self, value: Any, _info):
+        if isinstance(value, list):
+            return [str(item) for item in value]
+        return str(value)
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True, arbitrary_types_allowed=True)
 
 # ==============================================================================
-# SECCIÓN 4: MODELOS PARA LA RECEPCIÓN/FACTURA DE COMPRA (PURCHASE BILL)
+# SECCIÓN 5: MODELOS PARA LA RECEPCIÓN DE MERCANCÍA (GOODS RECEIPT)
 # ==============================================================================
 
-# ------------------- SUB-MODELOS DE ÍTEMS (PURCHASE BILL) ---------------------
-
-class PurchaseBillItem(BaseModel):
-    """Representa un ítem dentro de una factura de compra, con cantidades y costos reales."""
-    product_id: PyObjectId
-    sku: str
-    name: str
-    quantity_ordered: int = Field(..., description="Cantidad que se pidió originalmente en la OC.")
-    quantity_received: int = Field(..., ge=0, description="Cantidad que se está recibiendo físicamente.")
-    unit_cost: float = Field(..., ge=0, description="Costo unitario real facturado por el proveedor.")
-
-    @field_serializer('product_id')
-    def serialize_product_id(self, product_id_obj: PyObjectId, _info):
-        return str(product_id_obj)
-
-    @validator('quantity_received')
-    def received_cannot_be_more_than_ordered(cls, v, values):
-        if 'quantity_ordered' in values and v > values['quantity_ordered']:
-            raise ValueError('La cantidad recibida no puede ser mayor que la cantidad ordenada.')
-        return v
-    
-    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
-
-# ----------------- MODELOS PRINCIPALES DTO (PURCHASE BILL) ------------------
-
-class PurchaseBillCreate(BaseModel):
-    """DTO para la creación de una nueva Factura de Compra, desde el frontend."""
-    supplier_invoice_number: str = Field(..., description="Número de factura del proveedor.")
-    received_date: datetime
+class GoodsReceiptCreate(BaseModel):
+    """Modelo para crear una nueva Recepción de Mercancía."""
+    purchase_order_id: PyObjectId
+    received_date: date
     notes: Optional[str] = None
-    items: List[PurchaseBillItem] = Field(..., min_length=1)
+    items: List[GoodsReceiptItem]
 
-class PurchaseBillInDB(BaseModel):
-    """Representa el documento completo de la Factura de Compra en MongoDB."""
+class GoodsReceiptInDB(BaseModel):
+    """Modelo de la Recepción de Mercancía tal como se almacena en la BD."""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    receipt_number: str
     purchase_order_id: PyObjectId
     supplier_id: PyObjectId
     created_by_id: PyObjectId
-    bill_number: str
-    supplier_invoice_number: str
     received_date: datetime
     notes: Optional[str] = None
-    items: List[PurchaseBillItem]
-    total_amount: float
+    items: List[GoodsReceiptItem]
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
 
-class PurchaseBillOut(BaseModel):
-    """DTO para exponer los datos de una Factura de Compra a través de la API."""
-    id: PyObjectId = Field(..., alias="_id")
+class GoodsReceiptOut(BaseModel):
+    """Modelo de la Recepción de Mercancía para respuestas de la API."""
+    id: PyObjectId
+    receipt_number: str
     purchase_order_id: PyObjectId
-    bill_number: str
-    supplier_invoice_number: str
     supplier: SupplierOut
+    created_by_id: PyObjectId
     received_date: datetime
     notes: Optional[str] = None
-    items: List[PurchaseBillItem]
-    total_amount: float
+    items: List[GoodsReceiptItem]
     created_at: datetime
 
-    @field_serializer('id', 'purchase_order_id')
-    def serialize_ids(self, id_obj: PyObjectId, _info):
-        return str(id_obj)
+    @field_serializer('id', 'purchase_order_id', 'created_by_id')
+    def serialize_object_ids(self, value: PyObjectId, _info):
+        return str(value)
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True, arbitrary_types_allowed=True)
 
-class PaginatedPurchaseBillsResponse(BaseModel):
-    """Modelo de respuesta para una lista paginada de facturas de compra."""
-    total_count: int
-    items: List[PurchaseBillOut]
+# ==============================================================================
+# SECCIÓN 6: MODELOS PARA LA FACTURA DE COMPRA (PURCHASE BILL)
+# ==============================================================================
+
+class PurchaseBillCreate(BaseModel):
+    """Modelo para crear una nueva Factura de Compra."""
+    purchase_order_id: PyObjectId
+    supplier_invoice_number: str
+    invoice_date: date
+    due_date: date
+    notes: Optional[str] = None
+    items: List[PurchaseBillItem]
+
+class PurchaseBillInDB(BaseModel):
+    """Modelo de la Factura de Compra tal como se almacena en la BD."""
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    bill_number: str
+    purchase_order_id: PyObjectId
+    supplier_id: PyObjectId
+    created_by_id: PyObjectId
+    supplier_invoice_number: str
+    invoice_date: datetime
+    due_date: datetime
+    notes: Optional[str] = None
+    items: List[PurchaseBillItem]
+    total_amount: float
+    paid_amount: float = 0.0
+    status: PurchaseBillStatus = PurchaseBillStatus.UNPAID
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
+
+class PurchaseBillOut(BaseModel):
+    """Modelo de la Factura de Compra para respuestas de la API."""
+    id: PyObjectId
+    bill_number: str
+    purchase_order_id: PyObjectId
+    supplier: SupplierOut
+    created_by_id: PyObjectId
+    supplier_invoice_number: str
+    invoice_date: datetime
+    due_date: datetime
+    notes: Optional[str] = None
+    items: List[PurchaseBillItem]
+    total_amount: float
+    paid_amount: float
+    status: PurchaseBillStatus
+    created_at: datetime
+
+    @field_serializer('id', 'purchase_order_id', 'created_by_id')
+    def serialize_object_ids(self, value: PyObjectId, _info):
+        return str(value)
+
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, arbitrary_types_allowed=True)

@@ -1,39 +1,42 @@
-# backend/app/modules/purchasing/purchasing_routes.py
+# /backend/app/modules/purchasing/purchasing_routes.py
 
 """
-Define los endpoints de la API para el Módulo de Compras.
+Define los endpoints de la API REST para el Módulo de Compras (Purchasing).
 
-Este router expone operaciones para dos entidades principales:
-1. Órdenes de Compra (Purchase Orders)
-2. Recepciones/Facturas de Compra (Purchase Bills)
+Este router expone operaciones para las tres entidades principales del flujo
+"Procure-to-Pay":
+1.  Órdenes de Compra (Purchase Orders): /orders
+2.  Recepciones de Mercancía (Goods Receipts): /receipts
+3.  Facturas de Compra (Purchase Bills): /bills
 
-Aplica seguridad basada en roles y delega toda la lógica de negocio a la
-capa de servicio (`purchasing_service`), manteniendo el controlador limpio
-y enfocado en la gestión de la API.
+La responsabilidad de este módulo es exclusivamente definir las rutas, validar
+los datos de entrada y salida, y delegar toda la lógica de negocio a la capa de servicio.
 """
 
 # ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
-from fastapi import APIRouter, Depends, Query, status, UploadFile, File
-from typing import List, Optional
+from fastapi import APIRouter, Depends, Query, status
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.database import get_db
 from app.dependencies.roles import role_checker
 from app.modules.users.user_models import UserRole, UserOut
-from . import purchasing_service
-from .purchasing_models import (
-    PurchaseOrderCreate, PurchaseOrderOut, PurchaseOrderUpdate,
-    PurchaseBillCreate, PurchaseBillOut, PurchaseOrderStatus,
-    PaginatedPurchaseBillsResponse # Se añade el nuevo modelo de respuesta
-)
 from app.modules.auth.dependencies import get_current_active_user
+from app.modules.purchasing import purchasing_service
+from app.models.shared import PyObjectId
+
+from .purchasing_models import (
+    PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderOut, PurchaseOrderStatus,
+    GoodsReceiptCreate, GoodsReceiptOut,
+    PurchaseBillCreate, PurchaseBillOut
+)
 
 # ==============================================================================
-# SECCIÓN 2: DEFINICIÓN DEL ROUTER Y MODELOS DE RESPUESTA/PAYLOAD
+# SECCIÓN 2: DEFINICIÓN DEL ROUTER Y MODELOS DE RESPUESTA
 # ==============================================================================
 
 router = APIRouter(
@@ -42,81 +45,169 @@ router = APIRouter(
 )
 
 class PaginatedPurchaseOrdersResponse(BaseModel):
-    """Modelo de respuesta para una lista paginada de órdenes de compra."""
     total_count: int
     items: List[PurchaseOrderOut]
 
-# Se define el nuevo modelo de respuesta para la lista de facturas.
-class PaginatedBillsResponse(BaseModel):
+class PaginatedGoodsReceiptsResponse(BaseModel):
+    total_count: int
+    items: List[GoodsReceiptOut]
+
+class PaginatedPurchaseBillsResponse(BaseModel):
     total_count: int
     items: List[PurchaseBillOut]
 
 class UpdateStatusPayload(BaseModel):
-    """Define el cuerpo de la petición para actualizar el estado de una OC."""
     new_status: PurchaseOrderStatus
 
 # ==============================================================================
-# SECCIÓN 3: ENDPOINTS PARA ÓRDENES DE COMPRA (PURCHASE ORDERS)
-# ==============================================================================
-# ... (Endpoints de Órdenes de Compra permanecen idénticos)
-@router.post("/orders", response_model=PurchaseOrderOut, status_code=status.HTTP_201_CREATED, summary="Crear una nueva Orden de Compra")
-async def create_new_purchase_order(po_data: PurchaseOrderCreate, db: AsyncIOMotorDatabase = Depends(get_db), current_user: UserOut = Depends(get_current_active_user)):
-    return await purchasing_service.create_purchase_order(db, po_data, current_user)
-
-@router.get("/orders", response_model=PaginatedPurchaseOrdersResponse, summary="Obtener lista paginada de Órdenes de Compra")
-async def get_all_purchase_orders(db: AsyncIOMotorDatabase = Depends(get_db), _user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE, UserRole.ACCOUNTANT])), search: Optional[str] = Query(None, description="Término de búsqueda por número de orden."), page: int = Query(1, ge=1, description="Número de página."), page_size: int = Query(10, ge=1, le=100, description="Tamaño de la página.")):
-    result = await purchasing_service.get_purchase_orders_paginated(db=db, search=search, page=page, page_size=page_size)
-    return result
-
-@router.get("/orders/{order_id}", response_model=PurchaseOrderOut, summary="Obtener una Orden de Compra por ID", responses={404: {"description": "Orden de Compra no encontrada"}})
-async def get_purchase_order_by_id_route(order_id: str, db: AsyncIOMotorDatabase = Depends(get_db), _user: UserOut = Depends(get_current_active_user)):
-    order = await purchasing_service.get_purchase_order_by_id(db, order_id)
-    return order
-
-@router.patch("/orders/{order_id}", response_model=PurchaseOrderOut, summary="Actualizar una Orden de Compra", responses={404: {"description": "Orden de Compra no encontrada o no editable"}})
-async def update_purchase_order_route(order_id: str, order_data: PurchaseOrderUpdate, db: AsyncIOMotorDatabase = Depends(get_db), _user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER]))):
-    updated_order = await purchasing_service.update_purchase_order(db, order_id, order_data)
-    return updated_order
-
-@router.patch("/orders/{order_id}/status", response_model=PurchaseOrderOut, summary="Actualizar el estado de una Orden de Compra (Aprobación/Rechazo)")
-async def update_order_status_route(order_id: str, payload: UpdateStatusPayload, db: AsyncIOMotorDatabase = Depends(get_db), current_user: UserOut = Depends(get_current_active_user)):
-    updated_order = await purchasing_service.update_purchase_order_status(db, order_id, payload.new_status, current_user)
-    return updated_order
-
-@router.post("/orders/upload-initial-inventory", response_model=PurchaseOrderOut, status_code=status.HTTP_201_CREATED, summary="Importar Inventario Inicial desde CSV")
-async def upload_initial_inventory_file(file: UploadFile = File(..., description="Archivo CSV con columnas: sku, quantity, cost"), db: AsyncIOMotorDatabase = Depends(get_db), current_user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN]))):
-    return await purchasing_service.create_purchase_order_from_file(db, file, current_user)
-
-# ==============================================================================
-# SECCIÓN 4: ENDPOINTS PARA RECEPCIÓN/FACTURA DE COMPRA (PURCHASE BILL)
+# SECCIÓN 3: ENDPOINTS PARA ÓRDENES DE COMPRA (PURCHASE ORDER)
 # ==============================================================================
 
-@router.post("/orders/{order_id}/register-receipt", response_model=PurchaseBillOut, status_code=status.HTTP_201_CREATED, summary="Registrar Recepción y Factura de una Orden de Compra")
-async def register_purchase_receipt(order_id: str, bill_data: PurchaseBillCreate, db: AsyncIOMotorDatabase = Depends(get_db), current_user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WAREHOUSE]))):
-    created_bill = await purchasing_service.process_purchase_receipt(db, order_id, bill_data, current_user)
-    return created_bill
+@router.post(
+    "/orders",
+    response_model=PurchaseOrderOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear una nueva Orden de Compra",
+    dependencies=[Depends(role_checker([UserRole.ADMIN, UserRole.MANAGER]))]
+)
+async def create_new_purchase_order(
+    order_data: PurchaseOrderCreate,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+):
+    return await purchasing_service.create_purchase_order(database, order_data, current_user)
 
+@router.get(
+    "/orders",
+    response_model=PaginatedPurchaseOrdersResponse,
+    summary="Listar Órdenes de Compra"
+)
+async def get_all_purchase_orders(
+    search: Optional[str] = Query(None, description="Buscar por N° de orden o nombre de proveedor."),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    return await purchasing_service.get_purchase_orders_paginated(database, page, page_size, search)
+
+@router.get(
+    "/orders/{order_id}",
+    response_model=PurchaseOrderOut,
+    summary="Obtener una Orden de Compra por ID"
+)
+async def get_purchase_order_by_id_route(
+    order_id: str,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+):
+    return await purchasing_service.get_purchase_order_by_id(database, order_id)
+
+@router.patch(
+    "/orders/{order_id}/status",
+    response_model=PurchaseOrderOut,
+    summary="Actualizar el estado de una OC",
+    dependencies=[Depends(role_checker([UserRole.ADMIN, UserRole.MANAGER]))]
+)
+async def update_order_status_route(
+    order_id: str,
+    payload: UpdateStatusPayload,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+):
+    return await purchasing_service.update_purchase_order_status(database, order_id, payload.new_status)
+
+# ==============================================================================
+# SECCIÓN 4: ENDPOINTS PARA RECEPCIÓN DE MERCANCÍA (GOODS RECEIPT)
+# ==============================================================================
+
+@router.post(
+    "/orders/{order_id}/receipts",  # <-- CORRECCIÓN: La ruta ahora está anidada y es consistente.
+    response_model=GoodsReceiptOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Registrar una Recepción de Mercancía para una OC",
+    dependencies=[Depends(role_checker([UserRole.ADMIN, UserRole.WAREHOUSE]))]
+)
+async def register_goods_receipt(
+    order_id: str,  # <-- CORRECCIÓN: Se acepta el ID de la orden desde la URL.
+    receipt_data: GoodsReceiptCreate,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+):
+    """
+    Crea una recepción de mercancía (Goods Receipt) vinculada a una OC.
+    Esta operación afecta directamente al stock del inventario.
+    """
+    # Se asigna el ID de la OC desde el parámetro de la URL para asegurar la consistencia.
+    receipt_data.purchase_order_id = PyObjectId(order_id)
+    return await purchasing_service.create_goods_receipt(database, receipt_data, current_user)
+
+@router.get(
+    "/receipts",
+    response_model=PaginatedGoodsReceiptsResponse,
+    summary="Listar todas las Recepciones de Mercancía"
+)
+async def get_all_goods_receipts(
+    search: Optional[str] = Query(None, description="Buscar por número de recepción."),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    return await purchasing_service.get_goods_receipts_paginated(database, page, page_size, search)
+
+@router.get(
+    "/receipts/{receipt_id}",
+    response_model=GoodsReceiptOut,
+    summary="Obtener una Recepción de Mercancía por ID"
+)
+async def get_goods_receipt_by_id_route(
+    receipt_id: str,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+):
+    return await purchasing_service.get_goods_receipt_by_id(database, receipt_id)
+
+# ==============================================================================
+# SECCIÓN 5: ENDPOINTS PARA FACTURAS DE COMPRA (PURCHASE BILL)
+# ==============================================================================
+
+@router.post(
+    "/bills",
+    response_model=PurchaseBillOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear una nueva Factura de Compra",
+    dependencies=[Depends(role_checker([UserRole.ADMIN, UserRole.ACCOUNTANT]))]
+)
+async def create_new_purchase_bill(
+    bill_data: PurchaseBillCreate,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+):
+    return await purchasing_service.create_purchase_bill(database, bill_data, current_user)
 
 @router.get(
     "/bills",
-    response_model=PaginatedBillsResponse,
-    summary="Obtener lista paginada de Facturas de Compra"
+    response_model=PaginatedPurchaseBillsResponse,
+    summary="Listar Facturas de Compra"
 )
 async def get_all_purchase_bills(
-    db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.ACCOUNTANT])),
-    search: Optional[str] = Query(None, description="Término de búsqueda por N° de factura (interna o de proveedor)."),
-    page: int = Query(1, ge=1, description="Número de página."),
-    page_size: int = Query(10, ge=1, le=100, description="Tamaño de la página.")
+    search: Optional[str] = Query(None, description="Buscar por N° de factura."),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+) -> Dict[str, Any]:
+    return await purchasing_service.get_purchase_bills_paginated(database, page, page_size, search)
+
+@router.get(
+    "/bills/{bill_id}",
+    response_model=PurchaseBillOut,
+    summary="Obtener una Factura de Compra por ID"
+)
+async def get_bill_by_id_route(
+    bill_id: str,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
 ):
-    """
-    Recupera una lista paginada de todas las facturas de compra registradas.
-    """
-    result = await purchasing_service.get_purchase_bills_paginated(db=db, search=search, page=page, page_size=page_size)
-    return result
-
-
-@router.get("/bills/{bill_id}", response_model=PurchaseBillOut, summary="Obtener una Factura de Compra por ID", responses={404: {"description": "Factura de Compra no encontrada"}})
-async def get_bill_by_id_route(bill_id: str, db: AsyncIOMotorDatabase = Depends(get_db), _user: UserOut = Depends(get_current_active_user)):
-    bill = await purchasing_service.get_bill_by_id(db, bill_id)
-    return bill
+    return await purchasing_service.get_purchase_bill_by_id(database, bill_id)

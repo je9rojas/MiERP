@@ -35,24 +35,6 @@ async def get_current_user(
 ) -> UserInDB:
     """
     Dependencia de bajo nivel que valida el token JWT y recupera al usuario.
-
-    Esta función es el núcleo de la seguridad basada en tokens. Realiza los siguientes pasos:
-    1. Decodifica el token JWT.
-    2. Valida la estructura del payload del token.
-    3. Extrae el nombre de usuario ('sub').
-    4. Busca al usuario en la base de datos.
-    5. Retorna el modelo completo del usuario desde la base de datos (`UserInDB`).
-
-    Args:
-        db: Dependencia para obtener la sesión de la base de datos.
-        token: Dependencia para extraer el token 'Bearer' de la cabecera 'Authorization'.
-
-    Returns:
-        Una instancia del modelo Pydantic `UserInDB` con todos los datos del usuario.
-
-    Raises:
-        HTTPException(401): Si el token es inválido, ha expirado, tiene un formato
-                             incorrecto, o si el usuario no se encuentra.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -80,23 +62,17 @@ async def get_current_active_user(
     current_user: UserInDB = Depends(get_current_user)
 ) -> UserOut:
     """
-    Dependencia de alto nivel, diseñada para ser usada directamente en los endpoints.
-
-    Esta función se apoya en `get_current_user` y añade una capa de lógica de negocio:
-    1. Verifica que el usuario autenticado tenga el estado "active".
-    2. Convierte el modelo interno `UserInDB` a un modelo seguro `UserOut`,
-       eliminando campos sensibles como el hash de la contraseña.
-
-    Args:
-        current_user: El resultado de la dependencia `get_current_user`.
-
-    Returns:
-        Un objeto `UserOut`, seguro para ser expuesto y enviado como respuesta de la API.
-
-    Raises:
-        HTTPException(403): Si el usuario recuperado del token no está activo.
+    Dependencia de alto nivel para proteger endpoints, asegurando que el
+    usuario del token esté activo y devolviendo un modelo seguro (UserOut).
     """
     if current_user.status != "active":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="El usuario está inactivo.")
     
-    return UserOut.model_validate(current_user)
+    # --- CORRECCIÓN CLAVE ---
+    # Se convierte explícitamente el objeto `current_user` (de tipo UserInDB) a un diccionario
+    # antes de pasarlo a `UserOut.model_validate`. Pydantic v2 requiere este paso para
+    # poder validar y crear una instancia de un modelo a partir de los datos de otro.
+    
+    return UserOut.model_validate(current_user.model_dump())
+
+

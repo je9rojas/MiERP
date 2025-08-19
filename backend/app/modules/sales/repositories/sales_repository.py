@@ -1,11 +1,9 @@
-# /backend/app/modules/sales/repositories/sales_repository.py
-
 """
 Capa de Repositorio para la entidad 'Orden de Venta' (Sales Order).
 
 Este módulo proporciona una interfaz de bajo nivel para interactuar directamente
 con la colección de 'sales_orders' en MongoDB. Abstrae las operaciones de la
-base de datos y está diseñado para operar dentro de transacciones de MongoDB.
+base de datos (CRUD) y está diseñado para ser utilizado por la capa de servicio.
 """
 
 # ==============================================================================
@@ -26,31 +24,31 @@ class SalesOrderRepository:
     Gestiona las operaciones de base de datos para la colección de órdenes de venta.
     """
 
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, database: AsyncIOMotorDatabase):
         """
         Inicializa el repositorio con una instancia de la base de datos.
 
         Args:
-            db: La instancia de la base de datos asíncrona (Motor).
+            database: Una instancia de AsyncIOMotorDatabase para interactuar con MongoDB.
         """
-        self.collection = db.sales_orders
+        self.collection = database.sales_orders
 
     async def insert_one(
         self,
-        order_doc: Dict[str, Any],
+        order_document: Dict[str, Any],
         session: Optional[AsyncIOMotorClientSession] = None
     ) -> ObjectId:
         """
-        Inserta un nuevo documento de orden de venta.
+        Inserta un nuevo documento de orden de venta en la colección.
 
         Args:
-            order_doc: Un diccionario que representa la orden a crear.
+            order_document: El diccionario que representa la orden de venta a insertar.
             session: Una sesión de cliente de MongoDB opcional para transacciones.
 
         Returns:
             El ObjectId del documento recién insertado.
         """
-        result = await self.collection.insert_one(order_doc, session=session)
+        result = await self.collection.insert_one(order_document, session=session)
         return result.inserted_id
 
     async def find_by_id(
@@ -59,23 +57,24 @@ class SalesOrderRepository:
         session: Optional[AsyncIOMotorClientSession] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Busca una única orden de venta por su ObjectId.
+        Busca una única orden de venta por su ID de documento (_id).
 
         Args:
-            order_id: El ID (en formato string) de la orden a buscar.
-            session: Una sesión de cliente de MongoDB opcional para transacciones.
+            order_id: El ID de la orden de venta en formato de cadena.
+            session: Una sesión de cliente de MongoDB opcional.
 
         Returns:
-            Un diccionario representando el documento si se encuentra, de lo contrario None.
+            Un diccionario con los datos de la orden si se encuentra, de lo contrario None.
         """
         try:
-            return await self.collection.find_one({"_id": ObjectId(order_id)}, session=session)
+            object_id = ObjectId(order_id)
+            return await self.collection.find_one({"_id": object_id}, session=session)
         except InvalidId:
             return None
 
     async def find_all_paginated(
         self,
-        query: Dict[str, Any],
+        query_filter: Dict[str, Any],
         skip: int,
         limit: int,
         sort_options: Optional[List] = None,
@@ -85,36 +84,111 @@ class SalesOrderRepository:
         Encuentra múltiples órdenes de venta con paginación y ordenamiento.
 
         Args:
-            query: El diccionario de consulta de MongoDB.
-            skip: El número de documentos a omitir.
+            query_filter: El filtro de consulta de MongoDB.
+            skip: El número de documentos a omitir (para paginación).
             limit: El número máximo de documentos a devolver.
             sort_options: Opciones de ordenamiento para la consulta.
-            session: Una sesión de cliente de MongoDB opcional para transacciones.
+            session: Una sesión de cliente de MongoDB opcional.
 
         Returns:
             Una lista de diccionarios, cada uno representando una orden de venta.
         """
-        cursor = self.collection.find(query, session=session)
+        cursor = self.collection.find(query_filter, session=session)
         if sort_options:
             cursor = cursor.sort(sort_options)
+        
         cursor = cursor.skip(skip).limit(limit)
         return await cursor.to_list(length=limit)
 
     async def count_documents(
         self,
-        query: Dict[str, Any],
+        query_filter: Dict[str, Any],
         session: Optional[AsyncIOMotorClientSession] = None
     ) -> int:
         """
-        Cuenta el número total de documentos que coinciden con una consulta.
+        Cuenta el número total de documentos que coinciden con un filtro de consulta.
 
         Args:
-            query: El diccionario de consulta de MongoDB.
-            session: Una sesión de cliente de MongoDB opcional para transacciones.
+            query_filter: El filtro de consulta de MongoDB.
+            session: Una sesión de cliente de MongoDB opcional.
 
         Returns:
-            El número total de documentos coincidentes.
+            El número total de documentos que coinciden.
         """
-        return await self.collection.count_documents(query, session=session)
+        return await self.collection.count_documents(query_filter, session=session)
 
-    # Aquí puedes añadir futuros métodos como update_one_by_id.
+    async def find_one_sorted(
+        self, 
+        sort_options: List, 
+        session: Optional[AsyncIOMotorClientSession] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Encuentra el primer documento de la colección según un criterio de ordenamiento.
+        
+        Args:
+            sort_options: Una lista de tuplas para el ordenamiento, ej: [("field", 1)].
+            session: Una sesión de cliente de MongoDB opcional.
+
+        Returns:
+            El documento encontrado o None.
+        """
+        return await self.collection.find_one(sort=sort_options, session=session)
+        
+    async def update_one_by_id(
+        self, 
+        order_id: str, 
+        fields_to_update: Dict[str, Any], 
+        session: Optional[AsyncIOMotorClientSession] = None
+    ) -> int:
+        """
+        Actualiza campos específicos de un documento usando el operador $set.
+        Este método es ideal para actualizaciones parciales simples.
+
+        Args:
+            order_id: El ID del documento a actualizar.
+            fields_to_update: Un diccionario con los campos y nuevos valores a establecer.
+            session: Una sesión de cliente de MongoDB opcional.
+
+        Returns:
+            El número de documentos que coincidieron con el filtro (0 o 1).
+        """
+        try:
+            object_id = ObjectId(order_id)
+            result = await self.collection.update_one(
+                {"_id": object_id},
+                {"$set": fields_to_update},
+                session=session
+            )
+            return result.matched_count
+        except InvalidId:
+            return 0
+    
+    async def execute_update_one_by_id(
+        self,
+        order_id: str,
+        update_operation: Dict[str, Any],
+        session: Optional[AsyncIOMotorClientSession] = None
+    ) -> int:
+        """
+        Ejecuta una operación de actualización completa en un documento.
+        Este método es flexible y permite el uso de cualquier operador de MongoDB
+        (ej: $set, $push, $inc), ya que no añade el $set automáticamente.
+
+        Args:
+            order_id: El ID del documento a actualizar.
+            update_operation: El documento completo de la operación de actualización de MongoDB.
+            session: Una sesión de cliente de MongoDB opcional.
+
+        Returns:
+            El número de documentos que coincidieron con el filtro (0 o 1).
+        """
+        try:
+            object_id = ObjectId(order_id)
+            result = await self.collection.update_one(
+                {"_id": object_id},
+                update_operation,  # Se pasa la operación directamente
+                session=session
+            )
+            return result.matched_count
+        except InvalidId:
+            return 0

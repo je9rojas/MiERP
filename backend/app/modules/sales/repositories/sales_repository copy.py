@@ -13,7 +13,7 @@ base de datos y está diseñado para operar dentro de transacciones de MongoDB.
 # ==============================================================================
 
 from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClientSession
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from bson import ObjectId
 from bson.errors import InvalidId
 
@@ -73,4 +73,48 @@ class SalesOrderRepository:
         except InvalidId:
             return None
 
-    # Aquí puedes añadir futuros métodos como find_all_paginated, update_one_by_id, etc.
+    async def find_all_paginated(
+        self,
+        query: Dict[str, Any],
+        skip: int,
+        limit: int,
+        sort_options: Optional[List] = None,
+        session: Optional[AsyncIOMotorClientSession] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Encuentra múltiples órdenes de venta con paginación y ordenamiento.
+
+        Args:
+            query: El diccionario de consulta de MongoDB.
+            skip: El número de documentos a omitir.
+            limit: El número máximo de documentos a devolver.
+            sort_options: Opciones de ordenamiento para la consulta.
+            session: Una sesión de cliente de MongoDB opcional para transacciones.
+
+        Returns:
+            Una lista de diccionarios, cada uno representando una orden de venta.
+        """
+        cursor = self.collection.find(query, session=session)
+        if sort_options:
+            cursor = cursor.sort(sort_options)
+        cursor = cursor.skip(skip).limit(limit)
+        return await cursor.to_list(length=limit)
+
+    async def count_documents(
+        self,
+        query: Dict[str, Any],
+        session: Optional[AsyncIOMotorClientSession] = None
+    ) -> int:
+        """
+        Cuenta el número total de documentos que coinciden con una consulta.
+
+        Args:
+            query: El diccionario de consulta de MongoDB.
+            session: Una sesión de cliente de MongoDB opcional para transacciones.
+
+        Returns:
+            El número total de documentos coincidentes.
+        """
+        return await self.collection.count_documents(query, session=session)
+
+    # Aquí puedes añadir futuros métodos como update_one_by_id.

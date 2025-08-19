@@ -13,12 +13,10 @@
 // ==============================================================================
 
 import api from '../../../app/axiosConfig';
-// Asumiremos que tienes un archivo de constantes para los endpoints. Si no, puedes reemplazarlo por la cadena.
-// import { ENDPOINTS } from '../../../constants/apiConfig'; 
+
 const ENDPOINTS = {
     AUTH_LOGIN: '/auth/login',
     AUTH_VERIFY_TOKEN: '/auth/verify-token',
-    AUTH_PROFILE: '/auth/me'
 };
 
 
@@ -34,6 +32,8 @@ const ENDPOINTS = {
  */
 export const loginAPI = async (credentials) => {
     console.log("[DEBUG] authAPI: Iniciando `loginAPI` con credenciales:", { username: credentials.username });
+    
+    // FastAPI espera los datos de login en un formato de formulario.
     const formBody = new URLSearchParams();
     formBody.append('username', credentials.username);
     formBody.append('password', credentials.password);
@@ -45,7 +45,7 @@ export const loginAPI = async (credentials) => {
 
         if (!response.data?.access_token || !response.data?.user) {
             console.error("[DEBUG] authAPI: Respuesta de login inválida.", response.data);
-            throw new Error('La respuesta del servidor de autenticación fue inválida o incompleta.');
+            throw new Error('La respuesta del servidor de autenticación fue inválida.');
         }
         console.log("[DEBUG] authAPI: Login exitoso. Usuario:", response.data.user);
         return response.data;
@@ -59,57 +59,31 @@ export const loginAPI = async (credentials) => {
 /**
  * Verifica la validez del token JWT actual y devuelve los datos del usuario.
  * @param {AbortSignal} [signal] - Una señal opcional para permitir la cancelación de la petición.
- * @returns {Promise<object>} Una promesa que resuelve al objeto de usuario si el token es válido.
- * @throws {Error} Si el token es inválido, ha expirado, fue cancelado, o hay un error de red.
+ * @returns {Promise<object|null>} Una promesa que resuelve al objeto de usuario si el token
+ * es válido, o `null` si la petición fue cancelada o el token es inválido.
  */
 export const verifyTokenAPI = async (signal) => {
     console.log("[DEBUG] authAPI: Iniciando `verifyTokenAPI`...");
     try {
-        console.log(`[DEBUG] authAPI: Realizando petición GET a ${ENDPOINTS.AUTH_VERIFY_TOKEN}`);
         const response = await api.get(ENDPOINTS.AUTH_VERIFY_TOKEN, { signal });
         
-        console.log("[DEBUG] authAPI: Petición a `verifyTokenAPI` completada. Respuesta:", response);
+        console.log("[DEBUG] authAPI: Petición a `verifyTokenAPI` completada exitosamente.");
 
-        if (response.status === 200 && response.data?.user) {
-            console.log("[DEBUG] authAPI: Verificación exitosa. Usuario válido encontrado:", response.data.user);
-            return response.data.user;
-        } else {
-            console.warn("[DEBUG] authAPI: La respuesta de verificación fue exitosa pero no contenía los datos de usuario esperados.", response.data);
-            throw new Error('La respuesta de verificación del token no fue la esperada.');
-        }
+        // Devuelve el usuario solo si la respuesta es exitosa y contiene el usuario.
+        return response.data?.user || null;
+
     } catch (error) {
-        // LOG EXHAUSTIVO: Muestra todos los detalles del error.
-        console.error("[DEBUG] authAPI: Error en `verifyTokenAPI`. Detalles del error:", {
-            esErrorDeCancelacion: error.name === 'CanceledError',
-            mensajeError: error.message,
-            respuestaServidor: error.response?.data,
-            estadoHttp: error.response?.status,
-            peticion: error.request,
-            errorCompleto: error
-        });
-
+        // --- CORRECCIÓN CRÍTICA ---
+        // Se maneja el error de cancelación de forma silenciosa, devolviendo null.
+        // Esto permite que el `AuthContext` que la llama no falle, sino que simplemente
+        // reciba un usuario nulo, que es el resultado correcto de una verificación fallida o cancelada.
         if (error.name === 'CanceledError') {
-            throw error;
+            console.log("[DEBUG] authAPI: Petición a `verifyTokenAPI` fue cancelada (comportamiento esperado en StrictMode).");
+            return null;
         }
-        const errorMessage = error.response?.data?.detail || 'La sesión ha expirado o es inválida.';
-        throw new Error(errorMessage);
-    }
-};
 
-/**
- * Obtiene el perfil completo del usuario autenticado.
- * @returns {Promise<object>} Los datos del perfil del usuario.
- * @throws {Error} Si el token es inválido o no se puede cargar el perfil.
- */
-export const getUserProfileAPI = async () => {
-    console.log("[DEBUG] authAPI: Iniciando `getUserProfileAPI`...");
-    try {
-        const response = await api.get(ENDPOINTS.AUTH_PROFILE);
-        console.log("[DEBUG] authAPI: Perfil de usuario obtenido exitosamente:", response.data);
-        return response.data;
-    } catch (error) {
-        const errorMessage = error.response?.data?.detail || 'No se pudo cargar el perfil del usuario.';
-        console.error("[DEBUG] authAPI: Error en `getUserProfileAPI`.", { message: errorMessage, errorOriginal: error });
-        throw new Error(errorMessage);
+        // Para cualquier otro error (401 Unauthorized, error de red, etc.), se loguea y devuelve null.
+        console.error("[DEBUG] authAPI: Error en `verifyTokenAPI`. El token es inválido o hubo un error de red.", error.message);
+        return null;
     }
 };

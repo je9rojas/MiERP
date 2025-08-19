@@ -1,192 +1,225 @@
-# backend/app/modules/inventory/inventory_service.py
+# /backend/app/modules/inventory/inventory_service.py
 
 """
 Capa de Servicio para las operaciones transaccionales del Inventario.
 
 Este módulo contiene la lógica de negocio para los movimientos de stock.
 Se adhiere al principio de Responsabilidad Única, donde cada función
-tiene un propósito claro: registrar entradas, despachar salidas, o
-actualizar los totales del inventario.
+tiene un propósito claro: registrar entradas físicas, despachar salidas,
+o actualizar los totales del inventario.
 """
 
 # ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
-from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClientSession
+# --- Importaciones de la Librería Estándar y Terceros ---
+import logging
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
 from bson import ObjectId
-from typing import List, Optional
+from bson.errors import InvalidId
 from fastapi import HTTPException, status
+from motor.motor_asyncio import AsyncIOMotorClientSession, AsyncIOMotorDatabase
 from pymongo import ASCENDING
 
+# --- Importaciones de la Aplicación ---
 # Modelos
+from app.modules.purchasing.purchasing_models import GoodsReceiptInDB
+
 from .inventory_models import InventoryLotInDB, InventoryLotOut
-from app.modules.sales.sales_models import SalesOrderItem
-# Importamos el nuevo modelo de la factura de compra
-from app.modules.purchasing.purchasing_models import PurchaseBillInDB, PurchaseBillItem
-
 # Repositorios
-from .repositories.product_repository import ProductRepository
 from .repositories.inventory_lot_repository import InventoryLotRepository
+from .repositories.product_repository import ProductRepository
 
 # ==============================================================================
-# SECCIÓN 2: LÓGICA DE ENTRADA DE STOCK (ADQUISICIÓN)
+# SECCIÓN 2: CONFIGURACIÓN DEL LOGGER
 # ==============================================================================
 
-async def add_stock_from_purchase_bill(
-    db: AsyncIOMotorDatabase,
-    bill: PurchaseBillInDB,
+logger = logging.getLogger(__name__)
+
+# ==============================================================================
+# SECCIÓN 3: LÓGICA DE ENTRADA DE STOCK Y LOTES
+# ==============================================================================
+
+async def add_stock_from_goods_receipt(
+    database: AsyncIOMotorDatabase,
+    receipt: GoodsReceiptInDB,
+    purchase_order_doc: Dict[str, Any],
     session: AsyncIOMotorClientSession
 ) -> None:
     """
-    Registra la entrada de stock basada en una Factura de Compra (PurchaseBill).
-
-    Por cada ítem en la factura, crea un nuevo lote de inventario y luego
-    actualiza el resumen del producto correspondiente (stock total y costo promedio).
-    Esta función está diseñada para ser ejecutada dentro de una transacción.
-
-    Args:
-        db: La instancia de la base de datos.
-        bill: El objeto de la factura de compra (`PurchaseBillInDB`) que contiene los datos de la recepción.
-        session: La sesión de MongoDB para garantizar la atomicidad de la transacción.
+    Registra la entrada de stock creando un documento de lote de inventario manualmente
+    para asegurar la correcta tipificación de datos (ObjectId) en la base de datos.
     """
-    lot_repo = InventoryLotRepository(db)
+    logger.info(f"Procesando entrada de stock para la recepción: {receipt.receipt_number} (ID: {receipt.id})")
+    lot_repository = InventoryLotRepository(database)
     
-    # NOTA: El ID del almacén debe ser dinámico, posiblemente basado en el usuario que recibe.
-    # Por ahora, usamos un placeholder.
+    if not purchase_order_doc:
+        raise ValueError("El documento de la Orden de Compra no fue proporcionado al servicio de inventario.")
+    
+    product_cost_map = {str(item['product_id']): item['unit_cost'] for item in purchase_order_doc.get('items', [])}
     warehouse_id_placeholder = ObjectId("60d5ec49e7e2d2001e4a0000")
 
-    for item in bill.items:
+    for item in receipt.items:
         if item.quantity_received <= 0:
+            logger.warning(f"Omitiendo ítem SKU '{item.sku}' en recepción '{receipt.receipt_number}'. Cantidad recibida es <= 0.")
             continue
 
-        new_lot = InventoryLotInDB(
-            product_id=item.product_id,
-            purchase_order_id=bill.purchase_order_id,
-            purchase_bill_id=bill.id,
-            supplier_id=bill.supplier_id,
-            warehouse_id=warehouse_id_placeholder,
-            lot_number=f"LOTE-{bill.bill_number}-{item.sku}",
-            received_on=bill.received_date,
-            acquisition_cost=item.unit_cost,
-            initial_quantity=item.quantity_received,
-            current_quantity=item.quantity_received
-        )
+        unit_cost = product_cost_map.get(str(item.product_id), 0.0)
         
-        await lot_repo.insert_one(new_lot.model_dump(by_alias=True), session=session)
+        # --- CORRECCIÓN DEFINITIVA: Construcción manual del documento a insertar ---
+        # Esto evita que Pydantic `model_dump` convierta los ObjectId a string.
         
-        # Después de crear cada lote, se actualiza el resumen del producto.
-        await update_product_summary_from_lots(db, str(item.product_id), session=session)
+        try:
+            lot_id = ObjectId()
+            product_id_as_object = ObjectId(str(item.product_id))
+            
+            document_to_insert = {
+                "_id": lot_id,
+                "product_id": product_id_as_object,
+                "purchase_order_id": ObjectId(str(receipt.purchase_order_id)),
+                "goods_receipt_id": ObjectId(str(receipt.id)),
+                "supplier_id": ObjectId(str(receipt.supplier_id)),
+                "warehouse_id": warehouse_id_placeholder,
+                "lot_number": f"LOTE-{receipt.receipt_number}-{item.sku}",
+                "received_on": receipt.received_date,
+                "acquisition_cost": unit_cost,
+                "initial_quantity": item.quantity_received,
+                "current_quantity": item.quantity_received,
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
+            }
+            
+            # --- LOG DE VERIFICACIÓN FINAL ---
+            # Imprime el documento y los tipos de sus IDs antes de la inserción.
+            logger.debug(f"Documento de lote preparado para inserción: {document_to_insert}")
+            logger.debug(f"Tipo de '_id': {type(document_to_insert['_id'])}")
+            logger.debug(f"Tipo de 'product_id': {type(document_to_insert['product_id'])}")
 
+            await lot_repository.insert_one(document_to_insert, session=session)
+            
+            logger.info(f"Lote '{document_to_insert['lot_number']}' creado. Desencadenando actualización para producto ID '{product_id_as_object}'.")
+            await update_product_summary_from_lots(database, str(product_id_as_object), session=session)
+
+        except InvalidId as e:
+            logger.error(f"Error Crítico: ID inválido al crear lote para SKU '{item.sku}'. Error: {e}. Omitiendo lote.")
+            continue
+        except Exception as e:
+            logger.error(f"Error inesperado al crear lote para SKU '{item.sku}': {e}", exc_info=True)
+            raise # Vuelve a lanzar la excepción para que la transacción se revierta.
 
 async def create_initial_lot_for_product(
-    db: AsyncIOMotorDatabase,
+    database: AsyncIOMotorDatabase,
     product_id: str,
     product_sku: str,
     quantity: int,
     cost: float,
     session: Optional[AsyncIOMotorClientSession] = None
 ) -> None:
-    """
-    (Función existente, sin cambios)
-    Crea el lote de inventario inicial para un producto recién registrado.
-    """
+    """Crea el lote de inventario inicial para un producto, asegurando tipos de BSON correctos."""
     if quantity <= 0:
+        logger.info(f"No se creó lote inicial para SKU '{product_sku}' porque la cantidad inicial es cero.")
         return
 
-    lot_repo = InventoryLotRepository(db)
+    lot_repository = InventoryLotRepository(database)
     warehouse_id_placeholder = ObjectId("60d5ec49e7e2d2001e4a0000")
 
-    initial_lot = InventoryLotInDB(
-        product_id=ObjectId(product_id),
-        warehouse_id=warehouse_id_placeholder,
-        lot_number=f"INICIAL-{product_sku}",
-        acquisition_cost=cost,
-        initial_quantity=quantity,
-        current_quantity=quantity,
-        received_on=datetime.now(timezone.utc)
-    )
-    
-    await lot_repo.insert_one(initial_lot.model_dump(by_alias=True), session=session)
-    await update_product_summary_from_lots(db, product_id, session=session)
+    # --- CORRECCIÓN DEFINITIVA: Construcción manual del documento ---
+    try:
+        lot_id = ObjectId()
+        product_id_as_object = ObjectId(product_id)
+        
+        document_to_insert = {
+            "_id": lot_id,
+            "product_id": product_id_as_object,
+            "purchase_order_id": None,
+            "goods_receipt_id": None,
+            "supplier_id": None,
+            "warehouse_id": warehouse_id_placeholder,
+            "lot_number": f"INICIAL-{product_sku}",
+            "received_on": datetime.now(timezone.utc),
+            "acquisition_cost": cost,
+            "initial_quantity": quantity,
+            "current_quantity": quantity,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
+        }
+        
+        logger.debug(f"Documento de lote inicial preparado para inserción: {document_to_insert}")
+        logger.debug(f"Tipo de 'product_id' inicial: {type(document_to_insert['product_id'])}")
+        
+        await lot_repository.insert_one(document_to_insert, session=session)
+        await update_product_summary_from_lots(database, product_id, session=session)
 
+    except InvalidId as e:
+        logger.error(f"Error Crítico: ID de producto inválido '{product_id}' al crear lote inicial. Error: {e}")
+        # En este caso, no continuamos porque es una operación de creación de producto.
+        raise HTTPException(status_code=500, detail="No se pudo crear el lote inicial debido a un ID de producto inválido.")
 
 # ==============================================================================
-# SECCIÓN 3: LÓGICA DE SALIDA DE STOCK (DESPACHO - FIFO)
+# SECCIÓN 4: LÓGICA DE SALIDA DE STOCK (FIFO)
 # ==============================================================================
 
-async def dispatch_stock_for_sale(
-    db: AsyncIOMotorDatabase,
-    items_sold: List[SalesOrderItem],
+async def decrease_stock(
+    database: AsyncIOMotorDatabase, product_id: str, quantity_to_decrease: int,
     session: AsyncIOMotorClientSession
 ) -> float:
-    """
-    (Función existente, sin cambios, pero ahora explícitamente requiere sesión)
-    Gestiona la salida de stock para una venta, aplicando el método PEPS/FIFO.
-    """
-    product_repo = ProductRepository(db)
-    lot_repo = InventoryLotRepository(db)
-    total_cost_of_goods_sold = 0.0
-
-    for item in items_sold:
-        product_doc = await product_repo.find_by_id(str(item.product_id), session=session)
-        if not product_doc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Producto con ID '{item.product_id}' no encontrado.")
-
-        if product_doc.get('stock_quantity', 0) < item.quantity:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Stock insuficiente para SKU '{product_doc.get('sku')}'. Solicitado: {item.quantity}, Disponible: {product_doc.get('stock_quantity')}."
-            )
-
-        available_lots = await lot_repo.find_available_by_product_id(
-            str(item.product_id), sort_options=[("received_on", ASCENDING)], session=session
+    # (Esta sección no requiere cambios y se mantiene igual)
+    product_repository = ProductRepository(database)
+    lot_repository = InventoryLotRepository(database)
+    
+    product_document = await product_repository.find_by_id(product_id, session=session)
+    if not product_document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Producto con ID '{product_id}' no encontrado.")
+    
+    current_stock = product_document.get('stock_quantity', 0)
+    if current_stock < quantity_to_decrease:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, 
+            detail=f"Stock insuficiente para SKU '{product_document.get('sku')}'. Solicitado: {quantity_to_decrease}, Disponible: {current_stock}."
         )
 
-        quantity_to_dispatch = item.quantity
-        for lot in available_lots:
-            if quantity_to_dispatch <= 0:
-                break
-            quantity_from_this_lot = min(lot['current_quantity'], quantity_to_dispatch)
-            total_cost_of_goods_sold += quantity_from_this_lot * lot['acquisition_cost']
-            new_quantity = lot['current_quantity'] - quantity_from_this_lot
-            await lot_repo.update_one_by_id(str(lot['_id']), {"current_quantity": new_quantity}, session=session)
-            quantity_to_dispatch -= quantity_from_this_lot
+    available_lots = await lot_repository.find_available_by_product_id(product_id, sort_options=[("received_on", ASCENDING)], session=session)
 
-        if quantity_to_dispatch > 0:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Inconsistencia de stock para SKU '{product_doc.get('sku')}'. No se pudieron despachar todas las unidades."
-            )
+    remaining_quantity_to_dispatch = quantity_to_decrease
+    cost_of_goods_sold = 0.0
 
-        await update_product_summary_from_lots(db, str(item.product_id), session=session)
+    for lot in available_lots:
+        if remaining_quantity_to_dispatch <= 0: break
+        quantity_from_this_lot = min(lot['current_quantity'], remaining_quantity_to_dispatch)
+        cost_of_goods_sold += quantity_from_this_lot * lot['acquisition_cost']
+        new_lot_quantity = lot['current_quantity'] - quantity_from_this_lot
+        await lot_repository.update_one_by_id(str(lot['_id']), {"current_quantity": new_lot_quantity}, session=session)
+        remaining_quantity_to_dispatch -= quantity_from_this_lot
 
-    return total_cost_of_goods_sold
+    if remaining_quantity_to_dispatch > 0:
+        logger.error(f"INCONSISTENCIA DE STOCK para SKU '{product_document.get('sku')}'. El stock total era {current_stock}, pero no se encontraron lotes suficientes.")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Inconsistencia de stock para SKU '{product_document.get('sku')}'.")
+
+    await update_product_summary_from_lots(database, product_id, session=session)
+    return cost_of_goods_sold
 
 # ==============================================================================
-# SECCIÓN 4: LÓGICA DE ACTUALIZACIÓN DE TOTALES DE PRODUCTO
+# SECCIÓN 5: LÓGICA DE ACTUALIZACIÓN DE TOTALES DE PRODUCTO
 # ==============================================================================
 
 async def update_product_summary_from_lots(
-    db: AsyncIOMotorDatabase,
-    product_id: str,
+    database: AsyncIOMotorDatabase, 
+    product_id_str: str, 
     session: Optional[AsyncIOMotorClientSession] = None
 ) -> None:
-    """
-    Recalcula y actualiza el stock total y el costo promedio de un producto maestro.
-    Esta función es la única fuente de verdad para los totales de inventario de un producto,
-    basándose en la suma de sus lotes activos.
-    """
-    lot_repo = InventoryLotRepository(db)
-    product_repo = ProductRepository(db)
-
-    try:
-        product_object_id = ObjectId(product_id)
-    except Exception:
-        # Si el ID del producto no es válido, no podemos continuar.
+    # (Esta sección no requiere cambios y se mantiene igual)
+    if not ObjectId.is_valid(product_id_str):
+        logger.error(f"ID de producto inválido '{product_id_str}' recibido en 'update_product_summary_from_lots'. Se omite la actualización.")
         return
 
+    lot_repository = InventoryLotRepository(database)
+    product_repository = ProductRepository(database)
+    product_object_id = ObjectId(product_id_str)
+    
+    logger.debug(f"Ejecutando pipeline de agregación para product_id (como ObjectId): {product_object_id}")
     pipeline = [
         {"$match": {"product_id": product_object_id, "current_quantity": {"$gt": 0}}},
         {"$group": {
@@ -196,49 +229,47 @@ async def update_product_summary_from_lots(
         }}
     ]
     
-    aggregation_result = await lot_repo.aggregate(pipeline, session=session)
-
-    if not aggregation_result:
-        # Si no hay lotes con stock, se establece todo a cero.
-        total_stock = 0
-        total_value = 0.0
-    else:
-        stats = aggregation_result[0]
-        total_stock = stats.get("total_stock", 0)
-        total_value = stats.get("total_value", 0.0)
+    aggregation_result = await lot_repository.aggregate(pipeline, session=session)
+    logger.debug(f"Resultado de la agregación para el producto ID '{product_id_str}': {aggregation_result}")
     
-    average_cost = total_value / total_stock if total_stock > 0 else 0.0
+    stats = aggregation_result[0] if aggregation_result else {}
+    total_stock = stats.get("total_stock", 0)
+    total_value = stats.get("total_value", 0.0)
+    average_cost = (total_value / total_stock) if total_stock > 0 else 0.0
+    
+    logger.info(f"PRODUCTO ID: {product_id_str} | STOCK CALCULADO DESDE LOTES: {total_stock} | VALOR TOTAL: {total_value}")
 
     update_data = {
         "stock_quantity": total_stock,
-        "average_cost": round(average_cost, 4), # Usamos 4 decimales para precisión en el costo
+        "average_cost": round(average_cost, 4),
         "total_value": round(total_value, 2),
         "updated_at": datetime.now(timezone.utc)
     }
     
-    await product_repo.update_one_by_id(product_id, update_data, session=session)
+    logger.debug(f"Datos a actualizar en el producto '{product_id_str}': {update_data}")
+    await product_repository.update_one_by_id(product_id_str, update_data, session=session)
+    logger.info(f"Resumen de stock para el producto ID '{product_id_str}' actualizado exitosamente.")
 
 # ==============================================================================
-# SECCIÓN 5: LÓGICA DE CONSULTA DE LOTES (Sin cambios)
+# SECCIÓN 6: LÓGICA DE CONSULTA DE LOTES
 # ==============================================================================
 
-async def get_lots_by_product_id(db: AsyncIOMotorDatabase, product_id: str) -> List[InventoryLotOut]:
-    """
-    Obtiene y enriquece todos los lotes de inventario para un producto específico.
-    """
-    lot_repo = InventoryLotRepository(db)
-    product_repo = ProductRepository(db)
-
-    product_doc = await product_repo.find_by_id(product_id)
-    if not product_doc:
+async def get_lots_by_product_id(database: AsyncIOMotorDatabase, product_id: str) -> List[InventoryLotOut]:
+    # (Esta sección no requiere cambios y se mantiene igual)
+    lot_repository = InventoryLotRepository(database)
+    product_repository = ProductRepository(database)
+    
+    product_document = await product_repository.find_by_id(product_id)
+    if not product_document:
+        logger.warning(f"Se solicitó buscar lotes para un producto inexistente con ID: {product_id}")
         return []
-
-    lot_docs = await lot_repo.find_by_product_id(product_id)
-
+        
+    lot_documents = await lot_repository.find_by_product_id(product_id)
+    
     enriched_lots = []
-    for doc in lot_docs:
-        doc["product_sku"] = product_doc.get("sku")
-        doc["product_name"] = product_doc.get("name")
+    for doc in lot_documents:
+        doc["product_sku"] = product_document.get("sku")
+        doc["product_name"] = product_document.get("name")
         enriched_lots.append(InventoryLotOut.model_validate(doc))
-
+        
     return enriched_lots

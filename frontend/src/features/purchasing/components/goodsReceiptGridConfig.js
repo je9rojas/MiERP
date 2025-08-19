@@ -1,11 +1,10 @@
-// frontend/src/features/purchasing/components/purchaseBillGridConfig.js
+// frontend/src/features/purchasing/components/goodsReceiptGridConfig.js
 
 /**
- * @file Archivo de configuración para el MUI DataGrid de Facturas de Compra.
+ * @file Archivo de configuración para el MUI DataGrid de Recepciones de Mercancía.
  *
- * Este archivo centraliza la lógica de creación de columnas y otras configuraciones
- * específicas de la tabla de facturas de compra. Al aislar esta lógica, se mejora la
- * separación de concerns y se hace más fácil de mantener y probar.
+ * Este archivo centraliza la lógica de creación de columnas para la tabla de
+ * recepciones, mejorando la separación de concerns y la mantenibilidad.
  */
 
 // ==============================================================================
@@ -25,42 +24,35 @@ import { es } from 'date-fns/locale';
 /**
  * Factory function para crear la configuración de las columnas de la DataGrid.
  * @param {object} actions - Un objeto que contiene los callbacks para las acciones.
- * @param {function} actions.onViewDetails - Callback para ver los detalles de una factura.
+ * @param {function} actions.onViewDetails - Callback para ver los detalles de una recepción.
  * @returns {Array<object>} Un array de objetos de definición de columnas.
  */
-export const createPurchaseBillColumns = (actions) => [
+export const createGoodsReceiptColumns = (actions) => [
     { 
-        field: 'bill_number', 
-        headerName: 'N° Factura (Interno)', 
+        field: 'receipt_number', 
+        headerName: 'N° Recepción', 
         width: 180 
     },
-    { 
-        field: 'supplier_invoice_number', 
-        headerName: 'N° Factura Proveedor', 
-        width: 180 
+    {
+        field: 'purchase_order_number',
+        headerName: 'Orden de Compra',
+        width: 180,
+        // Este campo se añade en el servicio del backend.
+        valueGetter: (_value, row) => row.purchase_order_number || 'N/A',
     },
     {
         field: 'supplier',
         headerName: 'Proveedor',
         flex: 1,
         minWidth: 250,
-        // CORRECCIÓN: Se añade una guarda para asegurar que params.row exista.
-        valueGetter: (params) => params.row?.supplier?.business_name || 'N/A',
-    },
-    {
-        field: 'purchase_order_number',
-        headerName: 'Orden de Compra',
-        width: 150,
-        // CORRECCIÓN: Se añade una guarda para asegurar que params.row exista.
-        valueGetter: (params) => params.row?.purchase_order_number || 'N/A',
+        valueGetter: (_value, row) => row.supplier?.business_name || 'N/A',
     },
     {
         field: 'received_date',
         headerName: 'Fecha de Recepción',
         width: 180,
         type: 'date',
-        // El `value` que recibe valueGetter ya es `params.row.received_date`, por lo que es seguro.
-        valueGetter: (params) => (params.value ? new Date(params.value) : null),
+        valueGetter: (value) => (value ? new Date(value) : null),
         valueFormatter: (value) => {
             if (!value) return '';
             try {
@@ -70,15 +62,7 @@ export const createPurchaseBillColumns = (actions) => [
             }
         },
     },
-    {
-        field: 'total_amount',
-        headerName: 'Monto Total',
-        width: 150,
-        type: 'number',
-        align: 'right',
-        headerAlign: 'right',
-        valueFormatter: (value) => `S/ ${Number(value || 0).toFixed(2)}`,
-    },
+    // Podríamos añadir una columna de "Estado" si las recepciones tuvieran un ciclo de vida.
     {
         field: 'actions',
         headerName: 'Acciones',
@@ -89,8 +73,7 @@ export const createPurchaseBillColumns = (actions) => [
         disableColumnMenu: true,
         renderCell: (params) => (
             <Box>
-                <Tooltip title="Ver Detalles de la Factura">
-                    {/* El onClick aquí es seguro porque si la fila no existe, el botón no se renderiza. */}
+                <Tooltip title="Ver Detalles de la Recepción">
                     <IconButton onClick={() => actions.onViewDetails(params.id)} size="small">
                         <VisibilityIcon />
                     </IconButton>

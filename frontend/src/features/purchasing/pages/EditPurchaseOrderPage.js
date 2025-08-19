@@ -1,15 +1,12 @@
 // frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js
 
 /**
- * @file Página contenedora para ver y gestionar una Orden de Compra existente.
+ * @file Página para ver, editar y gestionar el ciclo de vida de una Orden de Compra.
  *
- * @description Este componente orquesta el flujo de visualización, edición y aprobación de una OC.
- * Sus responsabilidades son:
- * 1. Obtener todos los datos necesarios para el formulario de forma paralela y eficiente.
- * 2. Renderizar el formulario, habilitando la edición solo si el estado es 'borrador'.
- * 3. Determinar qué acciones están permitidas para el usuario actual y pasarlas a los
- *    sub-componentes, manteniendo la lógica de permisos centralizada en la página.
- * 4. Manejar las mutaciones para actualizar la OC o cambiar su estado.
+ * @description Orquesta el flujo completo de una Orden de Compra (OC), desde su
+ * edición en estado de borrador y su confirmación, hasta la navegación para
+ * registrar las recepciones de mercancía. Utiliza un sistema de control de acceso
+ * basado en permisos para mostrar las acciones disponibles al usuario.
  */
 
 // ==============================================================================
@@ -20,14 +17,13 @@ import React, { useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { Container, Paper, Box, CircularProgress, Typography, Alert, Button, Stack, Divider } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
-import ThumbUpIcon from '@mui/icons-material/ThumbUp';
-import ThumbDownIcon from '@mui/icons-material/ThumbDown';
+import { Container, Paper, Box, CircularProgress, Alert, Button, Divider } from '@mui/material';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import Inventory2Icon from '@mui/icons-material/Inventory2';
 
-// Hooks, API, Componentes y Mappers
+// Hooks, API, Componentes y Utilitarios
 import { useAuth } from '../../../app/contexts/AuthContext';
-import { checkUserRole } from '../../../utils/auth/roles';
+import { hasPermission, PERMISSIONS } from '../../../utils/auth/roles';
 import PurchaseOrderForm from '../components/PurchaseOrderForm';
 import { getPurchaseOrderByIdAPI, updatePurchaseOrderAPI, updatePurchaseOrderStatusAPI } from '../api/purchasingAPI';
 import { getSuppliersAPI } from '../../crm/api/suppliersAPI';
@@ -37,33 +33,49 @@ import { formatApiError } from '../../../utils/errorUtils';
 import PageHeader from '../../../components/common/PageHeader';
 
 // ==============================================================================
-// SECCIÓN 2: SUB-COMPONENTE DE ACCIONES DE APROBACIÓN
+// SECCIÓN 2: SUB-COMPONENTE DE BOTONES DE ACCIÓN
 // ==============================================================================
 
-// Este componente ahora es más "tonto". Solo renderiza lo que la página le dice que renderice.
-const ActionButtons = ({ showSend, showApproval, onSend, onApprove, onReject, isSubmitting }) => {
-    if (showSend) {
-        return (
-            <Button variant="contained" startIcon={<SendIcon />} onClick={onSend} disabled={isSubmitting}>
-                Enviar para Aprobación
-            </Button>
-        );
-    }
-
-    if (showApproval) {
-        return (
-            <Stack direction="row" spacing={2}>
-                <Button variant="contained" color="success" startIcon={<ThumbUpIcon />} onClick={onApprove} disabled={isSubmitting}>
-                    Aprobar
-                </Button>
-                <Button variant="outlined" color="error" startIcon={<ThumbDownIcon />} onClick={onReject} disabled={isSubmitting}>
-                    Rechazar
-                </Button>
-            </Stack>
-        );
-    }
-
+/**
+ * Renderiza los botones de acción disponibles para la OC según su estado y
+ * los permisos del usuario.
+ */
+const ActionButtons = ({ order, user, onConfirm, onNavigateToReceipt, isSubmitting }) => {
+  if (!order || !user?.role) {
     return null;
+  }
+
+  // Lógica de permisos para determinar qué botones mostrar
+  const canConfirm = hasPermission(user.role, PERMISSIONS.PURCHASING_CANCEL_ORDER); // Confirmar es parte de la gestión de la OC
+  const canReceive = hasPermission(user.role, PERMISSIONS.PURCHASING_RECEIVE_GOODS);
+
+  const showConfirmButton = order.status === 'draft' && canConfirm;
+  const showReceiptButton = ['confirmed', 'partially_received'].includes(order.status) && canReceive;
+
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'flex-end', my: 2, gap: 2 }}>
+      {showConfirmButton && (
+        <Button
+          variant="contained"
+          startIcon={<CheckCircleIcon />}
+          onClick={onConfirm}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? 'Confirmando...' : 'Confirmar Orden'}
+        </Button>
+      )}
+      {showReceiptButton && (
+        <Button
+          variant="contained"
+          color="secondary"
+          startIcon={<Inventory2Icon />}
+          onClick={onNavigateToReceipt}
+        >
+          Registrar Recepción
+        </Button>
+      )}
+    </Box>
+  );
 };
 
 // ==============================================================================
@@ -71,117 +83,143 @@ const ActionButtons = ({ showSend, showApproval, onSend, onApprove, onReject, is
 // ==============================================================================
 
 const EditPurchaseOrderPage = () => {
-    // Sub-sección 3.1: Hooks y Estado
-    const { orderId } = useParams();
-    const navigate = useNavigate();
-    const { enqueueSnackbar } = useSnackbar();
-    const queryClient = useQueryClient();
-    const { user } = useAuth(); // Se obtiene el usuario del contexto
+  // --------------------------------------------------------------------------
+  // Sub-sección 3.1: Hooks y Estado
+  // --------------------------------------------------------------------------
+  const { orderId } = useParams();
+  const navigate = useNavigate();
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
-    // Sub-sección 3.2: Lógica de Obtención de Datos
-    const [orderQuery, suppliersQuery, productsQuery] = useQueries({
-        queries: [
-            { queryKey: ['purchaseOrder', orderId], queryFn: () => getPurchaseOrderByIdAPI(orderId), enabled: !!orderId },
-            { queryKey: ['suppliersListForForm'], queryFn: () => getSuppliersAPI({ page: 1, pageSize: 1000 }), select: (data) => data.items || [], staleTime: 300000 },
-            { queryKey: ['productsListForForm'], queryFn: () => getProductsAPI({ page: 1, pageSize: 1000 }), select: (data) => data.items || [], staleTime: 300000 },
-        ],
-    });
+  // --------------------------------------------------------------------------
+  // Sub-sección 3.2: Lógica de Obtención de Datos (React Query)
+  // --------------------------------------------------------------------------
+  const [orderQuery, suppliersQuery, productsQuery] = useQueries({
+    queries: [
+      {
+        queryKey: ['purchaseOrder', orderId],
+        queryFn: () => getPurchaseOrderByIdAPI(orderId),
+        enabled: !!orderId,
+      },
+      {
+        queryKey: ['suppliersListForForm'],
+        queryFn: () => getSuppliersAPI({ page: 1, pageSize: 1000 }),
+        select: (data) => data.items || [],
+        staleTime: 300000, // 5 minutos
+      },
+      {
+        queryKey: ['productsListForForm'],
+        queryFn: () => getProductsAPI({ page: 1, pageSize: 1000 }),
+        select: (data) => data.items || [],
+        staleTime: 300000, // 5 minutos
+      },
+    ],
+  });
 
-    const isLoading = orderQuery.isLoading || suppliersQuery.isLoading || productsQuery.isLoading;
-    const isError = orderQuery.isError || suppliersQuery.isError || productsQuery.isError;
-    const error = orderQuery.error || suppliersQuery.error || productsQuery.error;
-    
-    // Sub-sección 3.3: Lógica de Mutaciones
-    const { mutate: updatePurchaseOrder, isPending: isUpdating } = useMutation({
-        mutationFn: (payload) => updatePurchaseOrderAPI(orderId, payload),
-        onSuccess: (data) => {
-            enqueueSnackbar(`Orden de Compra ${data?.order_number || ''} actualizada exitosamente.`, { variant: 'success' });
-            queryClient.invalidateQueries({ queryKey: ['purchaseOrder', orderId] });
-        },
-        onError: (err) => enqueueSnackbar(formatApiError(err), { variant: 'error', persist: true }),
-    });
+  const isLoading = orderQuery.isLoading || suppliersQuery.isLoading || productsQuery.isLoading;
+  const isError = orderQuery.isError || suppliersQuery.isError || productsQuery.isError;
+  const error = orderQuery.error || suppliersQuery.error || productsQuery.error;
 
-    const { mutate: updateStatus, isPending: isUpdatingStatus } = useMutation({
-        mutationFn: (newStatus) => updatePurchaseOrderStatusAPI(orderId, newStatus),
-        onSuccess: (data) => {
-            enqueueSnackbar(`Estado de la Orden de Compra actualizado a: ${data.status.replace('_', ' ').toUpperCase()}`, { variant: 'success' });
-            queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
-            queryClient.invalidateQueries({ queryKey: ['purchaseOrder', orderId] });
-            if (['approved', 'rejected', 'cancelled'].includes(data.status)) {
-                navigate('/compras/ordenes');
-            }
-        },
-        onError: (err) => enqueueSnackbar(formatApiError(err), { variant: 'error', persist: true }),
-    });
+  // --------------------------------------------------------------------------
+  // Sub-sección 3.3: Lógica de Mutaciones (React Query)
+  // --------------------------------------------------------------------------
+  const { mutate: updatePurchaseOrder, isPending: isUpdating } = useMutation({
+    mutationFn: (payload) => updatePurchaseOrderAPI(orderId, payload),
+    onSuccess: (data) => {
+      enqueueSnackbar(`Orden de Compra ${data?.order_number || ''} actualizada exitosamente.`, { variant: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrder', orderId] });
+    },
+    onError: (err) => enqueueSnackbar(formatApiError(err), { variant: 'error' }),
+  });
 
-    const isSubmitting = isUpdating || isUpdatingStatus;
+  const { mutate: updateStatus, isPending: isUpdatingStatus } = useMutation({
+    mutationFn: (newStatus) => updatePurchaseOrderStatusAPI(orderId, newStatus),
+    onSuccess: (data) => {
+      enqueueSnackbar(`Estado actualizado a: ${data.status.replace('_', ' ').toUpperCase()}`, { variant: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] }); // Invalidar lista general
+      queryClient.invalidateQueries({ queryKey: ['purchaseOrder', orderId] }); // Invalidar esta orden
+    },
+    onError: (err) => enqueueSnackbar(formatApiError(err), { variant: 'error' }),
+  });
 
-    // Sub-sección 3.4: Manejadores de Eventos
-    const handleUpdatePurchaseOrder = useCallback((formValues) => updatePurchaseOrder(mapFormValuesToUpdatePayload(formValues)), [updatePurchaseOrder]);
-    const handleSendForApproval = useCallback(() => updateStatus('pending_approval'), [updateStatus]);
-    const handleApprove = useCallback(() => updateStatus('approved'), [updateStatus]);
-    const handleReject = useCallback(() => updateStatus('rejected'), [updateStatus]);
+  const isSubmitting = isUpdating || isUpdatingStatus;
 
-    // Sub-sección 3.5: Lógica de Permisos de UI
-    const purchaseOrder = orderQuery.data;
-    const isReadOnly = purchaseOrder?.status !== 'draft';
-    
-    // La lógica de permisos ahora vive en la página, que es la que tiene todo el contexto.
-    const canApprove = checkUserRole(user?.role, ['manager', 'admin', 'superadmin']);
-    const showSendButton = purchaseOrder?.status === 'draft';
-    const showApprovalButtons = purchaseOrder?.status === 'pending_approval' && canApprove;
+  // --------------------------------------------------------------------------
+  // Sub-sección 3.4: Manejadores de Eventos
+  // --------------------------------------------------------------------------
+  const handleUpdatePurchaseOrder = useCallback((formValues) => {
+    const payload = mapFormValuesToUpdatePayload(formValues);
+    updatePurchaseOrder(payload);
+  }, [updatePurchaseOrder]);
 
-    // Sub-sección 3.6: Renderizado
-    if (isLoading) {
-        return (
-            <Container maxWidth="md">
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh' }}>
-                    <CircularProgress size={40} />
-                </Box>
-            </Container>
-        );
-    }
+  const handleConfirmOrder = useCallback(() => {
+    updateStatus('confirmed');
+  }, [updateStatus]);
 
-    if (isError) {
-        return <Container maxWidth="md" sx={{ mt: 4 }}><Alert severity="error">{formatApiError(error)}</Alert></Container>;
-    }
-    
+  const handleNavigateToReceipt = useCallback(() => {
+    navigate(`/compras/ordenes/${orderId}/recepciones/nueva`);
+  }, [navigate, orderId]);
+
+  // --------------------------------------------------------------------------
+  // Sub-sección 3.5: Lógica de Renderizado
+  // --------------------------------------------------------------------------
+  if (isLoading) {
     return (
-        <Container maxWidth="xl" sx={{ my: 4 }}>
-            <Paper sx={{ p: { xs: 2, md: 4 }, borderRadius: 2 }}>
-                <PageHeader
-                    title={isReadOnly ? `Detalles de OC: ${purchaseOrder?.order_number || ''}` : `Editar OC: ${purchaseOrder?.order_number || ''}`}
-                    subtitle={isReadOnly ? "Revise los detalles de la orden para su aprobación." : "Modifique los detalles de la solicitud de compra."}
-                    showAddButton={false}
-                />
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', my: 2 }}>
-                    <ActionButtons
-                        showSend={showSendButton}
-                        showApproval={showApprovalButtons}
-                        onSend={handleSendForApproval}
-                        onApprove={handleApprove}
-                        onReject={handleReject}
-                        isSubmitting={isSubmitting}
-                    />
-                </Box>
-                <Divider sx={{ mb: 3 }} />
-                <Box>
-                    {purchaseOrder && suppliersQuery.data && productsQuery.data && (
-                        <PurchaseOrderForm
-                            initialData={purchaseOrder}
-                            onSubmit={handleUpdatePurchaseOrder}
-                            isSubmitting={isUpdating}
-                            isReadOnly={isReadOnly}
-                            suppliersOptions={suppliersQuery.data}
-                            productsOptions={productsQuery.data}
-                            isLoadingSuppliers={suppliersQuery.isLoading}
-                            isLoadingProducts={productsQuery.isLoading}
-                        />
-                    )}
-                </Box>
-            </Paper>
-        </Container>
+      <Container maxWidth="md">
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 5 }}>
+          <CircularProgress />
+        </Box>
+      </Container>
     );
+  }
+
+  if (isError) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4 }}>
+        <Alert severity="error">{formatApiError(error)}</Alert>
+      </Container>
+    );
+  }
+
+  const purchaseOrder = orderQuery.data;
+  const isReadOnly = purchaseOrder?.status !== 'draft';
+
+  return (
+    <Container maxWidth="xl" sx={{ my: 4 }}>
+      <Paper sx={{ p: { xs: 2, md: 4 }, borderRadius: 2 }}>
+        <PageHeader
+          title={isReadOnly ? `Detalles de OC: ${purchaseOrder?.order_number || ''}` : `Editar OC: ${purchaseOrder?.order_number || ''}`}
+          subtitle={isReadOnly ? "Revise los detalles para registrar la recepción." : "Modifique los detalles de la solicitud de compra."}
+        />
+
+        <ActionButtons
+          order={purchaseOrder}
+          user={user}
+          onConfirm={handleConfirmOrder}
+          onNavigateToReceipt={handleNavigateToReceipt}
+          isSubmitting={isSubmitting}
+        />
+
+        <Divider sx={{ mb: 3 }} />
+
+        <Box>
+          {purchaseOrder && suppliersQuery.data && productsQuery.data && (
+            <PurchaseOrderForm
+              initialData={purchaseOrder}
+              onSubmit={handleUpdatePurchaseOrder}
+              isSubmitting={isUpdating}
+              isReadOnly={isReadOnly}
+              suppliersOptions={suppliersQuery.data}
+              productsOptions={productsQuery.data}
+              isLoadingSuppliers={suppliersQuery.isLoading}
+              isLoadingProducts={productsQuery.isLoading}
+            />
+          )}
+        </Box>
+      </Paper>
+    </Container>
+  );
 };
 
 export default EditPurchaseOrderPage;

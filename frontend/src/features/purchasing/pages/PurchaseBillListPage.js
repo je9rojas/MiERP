@@ -53,11 +53,8 @@ const PurchaseBillListPage = () => {
 
     // Sub-sección 2.3: Manejadores de Eventos (Callbacks)
     const handleViewDetails = useCallback((billId) => {
-        // NOTA A FUTURO: Esta ruta aún no existe, pero la preparamos para el futuro.
-        // Podrías crear una página de solo vista para las facturas.
-        // Por ahora, podemos simplemente registrar el ID en la consola.
-        console.log("Navegar a los detalles de la factura con ID:", billId);
-        // navigate(`/compras/facturas/${billId}`);
+        // CORRECCIÓN: Se activa la navegación a la página de detalles de la factura.
+        navigate(`/compras/facturas/${billId}`);
     }, [navigate]);
 
     // Sub-sección 2.4: Renderizado de la Interfaz de Usuario
@@ -66,7 +63,7 @@ const PurchaseBillListPage = () => {
             <PageHeader
                 title="Gestión de Facturas de Compra"
                 subtitle="Consulte todas las facturas y recepciones de mercancía registradas en el sistema."
-                showAddButton={false} // No se pueden crear facturas directamente
+                showAddButton={false}
             />
             
             <Paper sx={{

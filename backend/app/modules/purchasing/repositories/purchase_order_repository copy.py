@@ -1,19 +1,18 @@
-# /backend/app/modules/purchasing/repositories/purchase_order_repository.py
+# backend/app/modules/purchasing/repositories/purchase_order_repository.py
 
 """
 Capa de Repositorio para la entidad 'Orden de Compra' (Purchase Order).
 
 Este módulo proporciona una interfaz de bajo nivel para interactuar directamente con la
 colección de 'purchase_orders' en la base de datos MongoDB. Abstrae las operaciones
-CRUD para que la capa de servicio pueda utilizarlas sin conocer los detalles de
-la implementación de la base de datos.
+CRUD y está diseñado para soportar opcionalmente sesiones transaccionales de MongoDB.
 """
 
 # ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClientSession
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -28,96 +27,52 @@ class PurchaseOrderRepository:
     """
 
     def __init__(self, db: AsyncIOMotorDatabase):
-        """
-        Inicializa el repositorio con una instancia de la base de datos.
-
-        Args:
-            db: La instancia de la base de datos asíncrona (Motor).
-        """
+        """Inicializa el repositorio con una instancia de la base de datos."""
         self.collection = db.purchase_orders
 
-    async def find_by_id(self, order_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Busca una única orden de compra por su ObjectId de MongoDB.
+    async def insert_one(self, order_doc: Dict[str, Any], session: Optional[AsyncIOMotorClientSession] = None) -> ObjectId:
+        """Inserta un nuevo documento de orden de compra."""
+        result = await self.collection.insert_one(order_doc, session=session)
+        return result.inserted_id
 
-        Args:
-            order_id: El ID (en formato string) de la orden a buscar.
-
-        Returns:
-            Un diccionario representando el documento si se encuentra, de lo contrario None.
-        """
+    async def find_by_id(self, order_id: str, session: Optional[AsyncIOMotorClientSession] = None) -> Optional[Dict[str, Any]]:
+        """Busca una única orden de compra por su ObjectId de MongoDB."""
         try:
-            return await self.collection.find_one({"_id": ObjectId(order_id)})
+            return await self.collection.find_one({"_id": ObjectId(order_id)}, session=session)
         except InvalidId:
             return None
 
-    async def insert_one(self, order_doc: Dict[str, Any]) -> ObjectId:
-        """
-        Inserta un nuevo documento de orden de compra en la colección.
+    async def find_one_sorted(self, sort_options: List, session: Optional[AsyncIOMotorClientSession] = None) -> Optional[Dict[str, Any]]:
+        """Encuentra el primer documento según un criterio de ordenamiento."""
+        return await self.collection.find_one(sort=sort_options, session=session)
 
-        Args:
-            order_doc: Un diccionario que representa la orden a crear.
-
-        Returns:
-            El ObjectId del documento recién insertado.
-        """
-        result = await self.collection.insert_one(order_doc)
-        return result.inserted_id
-
-    # --- FUNCIÓN CORREGIDA ---
     async def find_all_paginated(
         self,
         query: Dict[str, Any],
         skip: int,
         limit: int,
-        sort_options: Optional[List] = None
+        sort_options: Optional[List] = None,
+        session: Optional[AsyncIOMotorClientSession] = None
     ) -> List[Dict[str, Any]]:
-        """
-        Encuentra múltiples documentos de órdenes de compra con paginación y ordenamiento.
-
-        Args:
-            query: El diccionario de consulta de MongoDB para filtrar los resultados.
-            skip: El número de documentos a omitir.
-            limit: El número máximo de documentos a devolver.
-            sort_options: Una lista de tuplas para el ordenamiento (ej. [("campo", 1)]).
-
-        Returns:
-            Una lista de diccionarios, cada uno representando una orden de compra.
-        """
-        cursor = self.collection.find(query)
+        """Encuentra múltiples documentos con paginación y ordenamiento."""
+        cursor = self.collection.find(query, session=session)
         if sort_options:
             cursor = cursor.sort(sort_options)
         
         cursor = cursor.skip(skip).limit(limit)
         return await cursor.to_list(length=limit)
 
-    async def count_documents(self, query: Dict[str, Any]) -> int:
-        """
-        Cuenta el número total de documentos que coinciden con una consulta.
+    async def count_documents(self, query: Dict[str, Any], session: Optional[AsyncIOMotorClientSession] = None) -> int:
+        """Cuenta el número total de documentos que coinciden con una consulta."""
+        return await self.collection.count_documents(query, session=session)
 
-        Args:
-            query: El diccionario de consulta de MongoDB.
-
-        Returns:
-            El número total de documentos coincidentes.
-        """
-        return await self.collection.count_documents(query)
-
-    async def update_one_by_id(self, order_id: str, update_data: Dict[str, Any]) -> int:
-        """
-        Actualiza un documento de orden de compra existente, buscándolo por su ID.
-
-        Args:
-            order_id: El ID de la orden a actualizar.
-            update_data: Un diccionario con los campos y valores a actualizar.
-
-        Returns:
-            El número de documentos que coincidieron con el filtro (0 o 1).
-        """
+    async def update_one_by_id(self, order_id: str, update_data: Dict[str, Any], session: Optional[AsyncIOMotorClientSession] = None) -> int:
+        """Actualiza un documento de orden de compra existente."""
         try:
             result = await self.collection.update_one(
                 {"_id": ObjectId(order_id)},
-                {"$set": update_data}
+                {"$set": update_data},
+                session=session
             )
             return result.matched_count
         except InvalidId:

@@ -1,89 +1,111 @@
 // frontend/src/features/purchasing/mappers/purchaseOrderMappers.js
 
 /**
- * @file Mappers para el módulo de Compras.
- * @description Estas funciones transforman los datos crudos recibidos de la API
- * a un formato consistente y predecible que los componentes del frontend pueden usar
- * de manera segura. La principal tarea es estandarizar los identificadores a 'id'.
+ * @file Mappers específicos para el Módulo de Compras (Purchasing).
+ *
+ * @description Este archivo centraliza la lógica de transformación de datos
+ * desde los formularios de la UI del módulo de Compras hacia los payloads que
+ * la API del backend espera recibir. Sigue el principio de Separación de Concerns,
+ * aislando esta lógica de "traducción" de los componentes y las llamadas a la API.
  */
-
-/**
- * Mapea un único objeto para asegurar que tenga una propiedad 'id'.
- * Si el objeto tiene '_id' pero no 'id', copia el valor de '_id' a 'id'.
- * @param {object} item - El objeto individual a mapear (ej. un producto, un proveedor).
- * @returns {object} El objeto con la propiedad 'id' garantizada.
- */
-const mapItemToId = (item) => {
-    if (!item) return null;
-    // Si el item tiene _id pero no tiene una propiedad id, la creamos.
-    if (item._id && typeof item.id === 'undefined') {
-        return {
-            ...item,
-            id: item._id,
-        };
-    }
-    return item;
-};
-
-/**
- * Mapea un array de objetos usando la función mapItemToId.
- * @param {Array<object>} items - El array de objetos a mapear.
- * @returns {Array<object>} El array con todos sus objetos mapeados.
- */
-const mapArrayToId = (items) => {
-    if (!Array.isArray(items)) return [];
-    return items.map(mapItemToId);
-};
-
-/**
- * Mapeador específico para una Orden de Compra.
- * Estandariza el ID de la propia orden, el ID del proveedor anidado y los IDs
- * de todos los productos en la lista de items.
- * @param {object} purchaseOrder - La orden de compra cruda de la API.
- * @returns {object} La orden de compra con todos sus IDs estandarizados.
- */
-export const mapPurchaseOrderResponse = (purchaseOrder) => {
-    if (!purchaseOrder) return null;
-    
-    // Mapea la orden principal
-    let mappedOrder = mapItemToId(purchaseOrder);
-
-    // Mapea el proveedor si existe
-    if (mappedOrder.supplier) {
-        mappedOrder.supplier = mapItemToId(mappedOrder.supplier);
-    }
-
-    // Mapea los productos dentro del array de items
-    if (mappedOrder.items) {
-        // Importante: No mapeamos el 'item' en sí, sino el producto DENTRO del item si lo tuviera.
-        // La estandarización principal se hará en la lista de productos general.
-        // Aquí solo nos aseguramos de que los datos que vienen con la OC sean consistentes.
-        mappedOrder.items = mappedOrder.items.map(item => mapItemToId(item));
-    }
-    
-    return mappedOrder;
-};
-
-/**
- * Mapeador para una respuesta paginada (ej. lista de productos, lista de proveedores).
- * Mapea cada objeto dentro del array 'items' de la respuesta.
- * @param {object} paginatedResponse - La respuesta paginada de la API (ej. { items: [...], total_count: X }).
- * @returns {object} La respuesta paginada con sus items mapeados.
- */
-export const mapPaginatedResponse = (paginatedResponse) => {
-    if (!paginatedResponse || !paginatedResponse.items) {
-        return { items: [], total_count: 0 };
-    }
-    
-    return {
-        ...paginatedResponse,
-        items: mapArrayToId(paginatedResponse.items),
-    };
-};
 
 // ==============================================================================
-// SECCIÓN DE EXPORTACIÓN ADICIONAL
+// SECCIÓN 1: MAPEADORES DE PAYLOAD (UI -> API)
 // ==============================================================================
-// CORRECCIÓN: Exportamos 'mapArrayToId' para que pueda ser usado directamente
-// por otros módulos cuando la respuesta de la API es un array simple.
-export { mapArrayToId };
+
+// --------------------------------------------------------------------------
+// Sub-sección 1.1: Mapeadores de Órdenes de Compra (Purchase Order)
+// --------------------------------------------------------------------------
+
+/**
+ * Transforma los valores del formulario de creación de OC al payload de la API.
+ */
+export const mapFormValuesToCreatePayload = (formValues) => {
+  return {
+    supplier_id: formValues.supplier?.id,
+    order_date: formValues.order_date.toISOString().split('T')[0],
+    expected_delivery_date: formValues.expected_delivery_date
+      ? formValues.expected_delivery_date.toISOString().split('T')[0]
+      : null,
+    notes: formValues.notes,
+    items: formValues.items.map(item => ({
+      product_id: item.product?.id,
+      quantity_ordered: Number(item.quantity_ordered) || 0,
+      unit_cost: Number(item.unit_cost) || 0,
+    })),
+  };
+};
+
+/**
+ * Transforma los valores del formulario de actualización de OC al payload de la API.
+ */
+export const mapFormValuesToUpdatePayload = (formValues) => {
+  return {
+    expected_delivery_date: formValues.expected_delivery_date
+      ? formValues.expected_delivery_date.toISOString().split('T')[0]
+      : null,
+    notes: formValues.notes,
+    items: formValues.items.map(item => ({
+      product_id: item.product?.id,
+      quantity_ordered: Number(item.quantity_ordered) || 0,
+      unit_cost: Number(item.unit_cost) || 0,
+    })),
+  };
+};
+
+// --------------------------------------------------------------------------
+// Sub-sección 1.2: Mapeadores de Recepción de Mercancía (Goods Receipt)
+// --------------------------------------------------------------------------
+
+/**
+ * Transforma los valores del formulario de recepción al payload de la API.
+ * @param {object} formValues - Los valores del formulario de Formik.
+ * @param {string} orderId - El ID de la Orden de Compra asociada.
+ * @returns {object} El payload para el endpoint `POST /purchasing/orders/{id}/receipts`.
+ */
+export const mapFormValuesToGoodsReceiptPayload = (formValues, orderId) => {
+  return {
+    // --- CORRECCIÓN CRÍTICA ---
+    // Se añade el campo `purchase_order_id`, que es requerido por el backend.
+    purchase_order_id: orderId,
+    
+    received_date: formValues.received_date.toISOString().split('T')[0],
+    notes: formValues.notes,
+    items: formValues.items
+      // Se asegura de enviar solo los ítems que realmente se están recibiendo.
+      .filter(item => Number(item.quantity_received) > 0)
+      // Se asegura de que todos los campos requeridos por el modelo `GoodsReceiptItem` estén presentes.
+      .map(item => ({
+        product_id: item.product_id,
+        sku: item.sku,
+        name: item.name,
+        quantity_ordered: Number(item.quantity_ordered),
+        quantity_received: Number(item.quantity_received),
+      })),
+  };
+};
+
+// --------------------------------------------------------------------------
+// Sub-sección 1.3: Mapeadores de Factura de Compra (Purchase Bill)
+// --------------------------------------------------------------------------
+
+/**
+ * Transforma los valores del formulario de factura al payload de la API.
+ */
+export const mapFormValuesToBillPayload = (formValues) => {
+  return {
+    purchase_order_id: formValues.purchase_order_id,
+    supplier_invoice_number: formValues.supplier_invoice_number,
+    invoice_date: formValues.invoice_date.toISOString().split('T')[0],
+    due_date: formValues.due_date.toISOString().split('T')[0],
+    notes: formValues.notes,
+    items: formValues.items.map(item => ({
+      product_id: item.product_id,
+      sku: item.sku,
+      name: item.name,
+      quantity_billed: Number(item.quantity_billed),
+      unit_cost: Number(item.unit_cost),
+      subtotal: Number(item.quantity_billed) * Number(item.unit_cost),
+    })),
+  };
+};

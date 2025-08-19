@@ -1,53 +1,113 @@
 // /frontend/src/components/common/ConfirmationDialog.js
-// Diálogo de confirmación genérico y reutilizable.
+
+/**
+ * @file Componente de diálogo de confirmación genérico y reutilizable.
+ *
+ * Este componente encapsula la lógica y la presentación de un diálogo modal
+ * estándar de MUI para solicitar al usuario la confirmación de una acción.
+ * Es altamente configurable a través de props.
+ */
+
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
+// ==============================================================================
 
 import React from 'react';
+import PropTypes from 'prop-types';
 import {
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
-  DialogTitle
+  DialogTitle,
+  CircularProgress
 } from '@mui/material';
 
-/**
- * Muestra un diálogo modal para confirmar una acción potencialmente destructiva.
- * 
- * @param {object} props - Las propiedades del componente.
- * @param {boolean} props.open - Controla si el diálogo está visible.
- * @param {function} props.onClose - Función para cerrar el diálogo (ej. al hacer clic en "Cancelar").
- * @param {function} props.onConfirm - Función que se ejecuta si el usuario confirma la acción.
- * @param {string} props.title - El título del diálogo (ej. "Confirmar Desactivación").
- * @param {React.ReactNode} props.children - El contenido o mensaje principal del diálogo.
- */
-const ConfirmationDialog = ({ open, onClose, onConfirm, title, children }) => {
+// ==============================================================================
+// SECCIÓN 2: DEFINICIÓN DEL COMPONENTE
+// ==============================================================================
+
+const ConfirmationDialog = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  content,
+  isLoading = false
+}) => {
+  /**
+   * Maneja el evento de cierre del diálogo.
+   * Previene el cierre al hacer clic en el fondo si una operación está en curso.
+   */
+  const handleClose = (event, reason) => {
+    if (isLoading && (reason === 'backdropClick' || reason === 'escapeKeyDown')) {
+      return;
+    }
+    onClose();
+  };
+  
   return (
     <Dialog
-      open={open}
-      onClose={onClose}
+      open={isOpen}
+      onClose={handleClose}
       aria-labelledby="confirmation-dialog-title"
       aria-describedby="confirmation-dialog-description"
+      disableEscapeKeyDown={isLoading}
     >
       <DialogTitle id="confirmation-dialog-title">
         {title}
       </DialogTitle>
       <DialogContent>
-        {/* Usamos 'children' para poder pasar JSX complejo como mensaje */}
-        <DialogContentText id="confirmation-dialog-description">
-          {children}
-        </DialogContentText>
+        {typeof content === 'string' ? (
+          <DialogContentText id="confirmation-dialog-description">
+            {content}
+          </DialogContentText>
+        ) : (
+          content
+        )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>
+      <DialogActions sx={{ padding: '8px 24px 16px' }}>
+        <Button onClick={onClose} disabled={isLoading} color="inherit">
           Cancelar
         </Button>
-        <Button onClick={onConfirm} color="error" variant="contained" autoFocus>
-          Confirmar
+        <Button
+          onClick={onConfirm}
+          color="primary"
+          variant="contained"
+          autoFocus
+          disabled={isLoading}
+          startIcon={isLoading ? <CircularProgress size={20} color="inherit" /> : null}
+        >
+          {isLoading ? 'Confirmando...' : 'Confirmar'}
         </Button>
       </DialogActions>
     </Dialog>
   );
+};
+
+// ==============================================================================
+// SECCIÓN 3: DEFINICIÓN DE PROPTYPES
+// ==============================================================================
+
+ConfirmationDialog.propTypes = {
+  /** Controla si el diálogo está visible. */
+  isOpen: PropTypes.bool.isRequired,
+  
+  /** Función que se invoca para cerrar el diálogo. */
+  onClose: PropTypes.func.isRequired,
+  
+  /** Función que se invoca al hacer clic en el botón de confirmación. */
+  onConfirm: PropTypes.func.isRequired,
+  
+  /** El título que se muestra en la cabecera del diálogo. */
+  title: PropTypes.string.isRequired,
+  
+  /** El contenido principal del diálogo. Puede ser un string o un nodo de React. */
+  content: PropTypes.node.isRequired,
+  
+  /** Si es `true`, muestra un indicador de carga y deshabilita los botones. */
+  isLoading: PropTypes.bool,
 };
 
 export default ConfirmationDialog;

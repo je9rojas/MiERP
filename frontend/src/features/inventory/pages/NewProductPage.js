@@ -1,13 +1,18 @@
-// frontend/src/features/inventory/pages/NewProductPage.js
+// /frontend/src/features/inventory/pages/NewProductPage.js
 
 /**
  * @file Página contenedora para el formulario de creación de un nuevo producto.
- * @description Este componente orquesta el flujo de creación de un producto.
- * Actúa como un "contenedor inteligente", conectando el formulario, la lógica de
- * transformación de datos (mappers) y la comunicación con la API.
+ * @description Este componente actúa como un "contenedor inteligente" que orquesta
+ * el flujo de creación. Es responsable de:
+ * 1. Renderizar el componente de formulario (`ProductForm`).
+ * 2. Gestionar el estado de la comunicación con la API mediante React Query (`useMutation`).
+ * 3. Manejar las respuestas de la API (éxito o error) para proporcionar feedback al usuario.
  */
 
+// ==============================================================================
 // SECCIÓN 1: IMPORTACIONES DE MÓDULOS
+// ==============================================================================
+
 import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
@@ -16,51 +21,69 @@ import { Typography, Paper, Container, Box } from '@mui/material';
 
 import ProductForm from '../components/ProductForm';
 import { createProductAPI } from '../api/productsAPI';
-import { mapFormToCreateAPI } from '../productMappers'; // <--- USANDO EL MAPPER CENTRALIZADO
 import { formatApiError } from '../../../utils/errorUtils';
 
-// SECCIÓN 2: DEFINICIÓN DEL COMPONENTE PRINCIPAL
+// ==============================================================================
+// SECCIÓN 2: DEFINICIÓN DEL COMPONENTE DE LA PÁGINA
+// ==============================================================================
+
 const NewProductPage = () => {
-    // Sub-sección 2.1: Hooks de React y Librerías
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.1: Hooks de React y Librerías Externas
+    // --------------------------------------------------------------------------
+
     const navigate = useNavigate();
     const { enqueueSnackbar } = useSnackbar();
     const queryClient = useQueryClient();
 
-    // Sub-sección 2.2: Mutación de Creación con React Query
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.2: Lógica de Comunicación con la API (Mutación)
+    // --------------------------------------------------------------------------
+
     const { mutate: createProduct, isPending: isSubmitting } = useMutation({
-        mutationFn: createProductAPI, // La función que realiza la llamada a la API.
-        onSuccess: (data) => {
-            enqueueSnackbar(`Producto "${data.name}" creado exitosamente!`, {
+        // La función que ejecuta la llamada a la API.
+        mutationFn: createProductAPI,
+        
+        // Se ejecuta si la mutación tiene éxito.
+        onSuccess: (createdProductData) => {
+            enqueueSnackbar(`Producto "${createdProductData.name}" creado exitosamente!`, {
                 variant: 'success',
             });
-            queryClient.invalidateQueries({ queryKey: ['products'] }); // Invalida la cache de la lista de productos.
+            // Invalida la cache de la lista de productos para que se vuelva a cargar con el nuevo dato.
+            queryClient.invalidateQueries({ queryKey: ['products'] });
             navigate('/inventario/productos');
         },
+        
+        // Se ejecuta si la mutación falla.
         onError: (error) => {
-            console.error("Error detallado al crear producto:", error.response || error);
             const userFriendlyErrorMessage = formatApiError(error);
             enqueueSnackbar(userFriendlyErrorMessage, {
                 variant: 'error',
-                persist: true,
+                persist: true, // El error persiste hasta que el usuario lo descarte.
             });
         },
     });
 
-    // Sub-sección 2.3: Manejador de Envío del Formulario
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.3: Manejador de Eventos del Formulario
+    // --------------------------------------------------------------------------
+    
     /**
-     * Orquesta el proceso de creación al recibir los datos del formulario.
-     * @param {object} formData Los datos crudos provenientes del estado de Formik.
+     * Función callback que se pasa al `ProductForm` y se ejecuta al enviarlo.
+     * @param {object} apiPayload - Los datos ya formateados y listos para ser enviados,
+     *                              proporcionados por el componente `ProductForm`.
      */
-    const handleCreateProduct = useCallback((formData) => {
-        // Paso 1: Mapear los datos del formulario al formato esperado por la API.
-        const apiPayload = mapFormToCreateAPI(formData);
-        
-        // Paso 2: Ejecutar la mutación con el payload preparado.
+    const handleCreateProduct = useCallback((apiPayload) => {
+        // --- LÓGICA SIMPLIFICADA ---
+        // El `ProductForm` ya ha preparado el payload. Esta página solo necesita
+        // pasarlo a la función de mutación.
         createProduct(apiPayload);
-
     }, [createProduct]);
 
+    // --------------------------------------------------------------------------
     // Sub-sección 2.4: Renderizado de la Interfaz de Usuario (UI)
+    // --------------------------------------------------------------------------
+
     return (
         <Container maxWidth="lg">
             <Paper 
@@ -83,7 +106,7 @@ const NewProductPage = () => {
                 
                 <ProductForm
                     onSubmit={handleCreateProduct}
-                    isSubmitting={isSubmitting} // El estado de carga viene directamente de useMutation.
+                    isSubmitting={isSubmitting} // El estado de carga viene directamente de `useMutation`.
                 />
             </Paper>
         </Container>

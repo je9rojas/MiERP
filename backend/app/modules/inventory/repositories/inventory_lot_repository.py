@@ -17,7 +17,6 @@ from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClientSession
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
 from bson.errors import InvalidId
-from pymongo import ASCENDING
 
 # ==============================================================================
 # SECCIÓN 2: CLASE DEL REPOSITORIO
@@ -28,31 +27,31 @@ class InventoryLotRepository:
     Gestiona todas las operaciones de base de datos para la colección de lotes de inventario.
     """
 
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, database: AsyncIOMotorDatabase):
         """
         Inicializa el repositorio con una instancia de la base de datos.
 
         Args:
-            db: La instancia de la base de datos asíncrona (Motor).
+            database: Una instancia de AsyncIOMotorDatabase para interactuar con MongoDB.
         """
-        self.collection = db.inventory_lots
+        self.collection = database.inventory_lots
 
     async def insert_one(
         self,
-        lot_doc: Dict[str, Any],
+        lot_document: Dict[str, Any],
         session: Optional[AsyncIOMotorClientSession] = None
     ) -> ObjectId:
         """
         Inserta un nuevo documento de lote en la colección.
 
         Args:
-            lot_doc: Un diccionario que representa el lote a crear.
+            lot_document: Un diccionario que representa el lote a crear.
             session: Una sesión de cliente de MongoDB opcional para transacciones.
 
         Returns:
             El ObjectId del documento recién insertado.
         """
-        result = await self.collection.insert_one(lot_doc, session=session)
+        result = await self.collection.insert_one(lot_document, session=session)
         return result.inserted_id
 
     async def find_by_id(
@@ -65,13 +64,14 @@ class InventoryLotRepository:
 
         Args:
             lot_id: El ID (en formato string) del lote a buscar.
-            session: Una sesión de cliente de MongoDB opcional para transacciones.
+            session: Una sesión de cliente de MongoDB opcional.
 
         Returns:
             Un diccionario representando el documento si se encuentra, de lo contrario None.
         """
         try:
-            return await self.collection.find_one({"_id": ObjectId(lot_id)}, session=session)
+            object_id = ObjectId(lot_id)
+            return await self.collection.find_one({"_id": object_id}, session=session)
         except InvalidId:
             return None
 
@@ -85,13 +85,14 @@ class InventoryLotRepository:
 
         Args:
             product_id: El ID del producto a buscar.
-            session: Una sesión de cliente de MongoDB opcional para transacciones.
+            session: Una sesión de cliente de MongoDB opcional.
 
         Returns:
             Una lista de diccionarios, cada uno representando un lote de inventario.
         """
         try:
-            cursor = self.collection.find({"product_id": ObjectId(product_id)}, session=session)
+            object_id = ObjectId(product_id)
+            cursor = self.collection.find({"product_id": object_id}, session=session)
             return await cursor.to_list(length=None)
         except InvalidId:
             return []
@@ -107,8 +108,8 @@ class InventoryLotRepository:
 
         Args:
             product_id: El ID del producto a buscar.
-            sort_options: Opciones de ordenamiento para la consulta (ej. para PEPS/FIFO).
-            session: Una sesión de cliente de MongoDB opcional para transacciones.
+            sort_options: Opciones de ordenamiento para la consulta (ej. para FIFO).
+            session: Una sesión de cliente de MongoDB opcional.
 
         Returns:
             Una lista de lotes de inventario con stock disponible.
@@ -125,27 +126,28 @@ class InventoryLotRepository:
     async def update_one_by_id(
         self,
         lot_id: str,
-        update_data: Dict[str, Any],
+        fields_to_update: Dict[str, Any],
         session: Optional[AsyncIOMotorClientSession] = None
     ) -> int:
         """
-        Actualiza un documento de lote existente, buscándolo por su ID.
+        Actualiza campos específicos de un documento de lote usando el operador $set.
 
         Args:
             lot_id: El ID del lote a actualizar.
-            update_data: Un diccionario con los campos y valores a actualizar.
-            session: Una sesión de cliente de MongoDB opcional para transacciones.
+            fields_to_update: Un diccionario con los campos y valores a actualizar.
+            session: Una sesión de cliente de MongoDB opcional.
 
         Returns:
-            El número de documentos modificados (0 o 1).
+            El número de documentos que coincidieron con el filtro (0 o 1).
         """
         try:
+            object_id = ObjectId(lot_id)
             result = await self.collection.update_one(
-                {"_id": ObjectId(lot_id)},
-                {"$set": update_data},
+                {"_id": object_id},
+                {"$set": fields_to_update},
                 session=session
             )
-            return result.modified_count
+            return result.matched_count
         except InvalidId:
             return 0
 
@@ -159,7 +161,7 @@ class InventoryLotRepository:
 
         Args:
             pipeline: La lista de etapas de la agregación de MongoDB.
-            session: Una sesión de cliente de MongoDB opcional para transacciones.
+            session: Una sesión de cliente de MongoDB opcional.
 
         Returns:
             El resultado de la agregación como una lista de diccionarios.

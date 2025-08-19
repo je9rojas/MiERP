@@ -487,6 +487,7 @@ backend/app/modules/purchasing/purchasing_service.py
 
 backend/app/modules/purchasing/repositories/purchase_bill_repository.py
 /backend/app/modules/purchasing/repositories/purchase_order_repository.py
+backend/app/modules/purchasing/repositories/goods_receipt_repository.py
 
 # ---------------------- REPORTES ----------------------
 /backend/app/modules/reports/__init__.py
@@ -501,6 +502,8 @@ backend/app/modules/purchasing/repositories/purchase_bill_repository.py
 /backend/app/modules/sales/sales_service.py
 /backend/app/modules/sales/sales_models.py
 /backend/app/modules/sales/repositories/sales_repository.py
+backend/app/modules/sales/repositories/shipment_repository.py
+backend/app/modules/sales/repositories/sales_invoice_repository.py
 
 # ---------------------- ROLES Y PERMISOS ----------------------
 /backend/app/modules/roles/__init__.py
@@ -546,7 +549,6 @@ backend/app/modules/purchasing/repositories/purchase_bill_repository.py
 # --- Constantes Globales ---
 /frontend/src/constants/crmConstants.js
 /frontend/src/constants/productConstants.js
-/frontend/src/constants/rolesAndPermissions.js
 /frontend/src/constants/validationSchemas.js
 
 # ---------------------- MÓDULOS DE NEGOCIO (FEATURES) ----------------------
@@ -564,10 +566,17 @@ backend/app/modules/purchasing/repositories/purchase_bill_repository.py
 # --- Módulo: CRM ---
 /frontend/src/features/crm/api/customersAPI.js
 /frontend/src/features/crm/api/suppliersAPI.js
+
 /frontend/src/features/crm/components/SupplierForm.js
 /frontend/src/features/crm/components/SupplierDataGrid.js
+frontend/src/features/crm/components/customerGridConfig.js
+frontend/src/features/crm/components/CustomerDataGrid.js
+frontend/src/features/crm/components/CustomerForm.js
+
 /frontend/src/features/crm/pages/NewSupplierPage.js
 /frontend/src/features/crm/pages/SupplierListPage.js
+frontend/src/features/crm/pages/CustomerListPage.js
+// frontend/src/features/crm/pages/NewCustomerPage.js
 
 # --- Módulo: Inventario ---
 /frontend/src/features/inventory/api/productsAPI.js
@@ -594,13 +603,22 @@ frontend/src/features/purchasing/components/PurchaseBillForm.js
 frontend/src/features/purchasing/components/purchaseOrderGridConfig.js
 frontend/src/features/purchasing/components/purchaseBillGridConfig.js
 frontend/src/features/purchasing/components/PurchaseBillDataGrid.js
+frontend/src/features/purchasing/components/PurchaseBillDetails.js
+frontend/src/features/purchasing/components/goodsReceiptGridConfig.js
+frontend/src/features/purchasing/components/GoodsReceiptDataGrid.js
+frontend/src/features/purchasing/components/GoodsReceiptForm.js
+frontend/src/features/purchasing/components/GoodsReceiptDetails.js
 
 frontend/src/features/purchasing/pages/PurchaseBillListPage.js
-frontend/src/features/purchasing/pages/RegisterReceiptPage.js
+frontend/src/features/purchasing/pages/CreateReceiptPage.js.js
+frontend/src/features/purchasing/pages/CreatePurchaseBillPage.js
 /frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
 /frontend/src/features/purchasing/pages/NewPurchaseOrderPage.js
 /frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js
 frontend/src/features/purchasing/pages/RegisterReceiptPage.js
+frontend/src/features/purchasing/pages/PurchaseBillDetailsPage.js
+frontend/src/features/purchasing/pages/GoodsReceiptListPage.js
+frontend/src/features/purchasing/pages/GoodsReceiptDetailsPage.js
 
 
 # --- Módulo: Reportes ---
@@ -611,8 +629,16 @@ frontend/src/features/purchasing/pages/RegisterReceiptPage.js
 /frontend/src/features/sales/api/salesAPI.js
 /frontend/src/features/sales/components/SalesOrderDataGrid.js
 /frontend/src/features/sales/components/SalesOrderForm.js
+frontend/src/features/sales/components/salesOrderGridConfig.js
+frontend/src/features/sales/components/ShipmentForm.js
+
 /frontend/src/features/sales/pages/SalesOrderListPage.js
 /frontend/src/features/sales/pages/NewSalesOrderPage.js
+frontend/src/features/sales/pages/EditSalesOrderPage.js
+frontend/src/features/sales/pages/CreateShipmentPage.js
+
+
+frontend/src/features/sales/mappers/salesMappers.js
 
 # --- Hooks Personalizados ---
 /frontend/src/hooks/useDebounce.js
@@ -625,7 +651,8 @@ frontend/src/features/purchasing/pages/RegisterReceiptPage.js
 /frontend/src/utils/auth/auth.js
 /frontend/src/utils/auth/roles.js
 /frontend/src/utils/errorUtils.js
-/frontend/src/utils/formatters.js                     
+/frontend/src/utils/formatters.js    
+frontend/src/utils/dataMappers.js                 
 
 
 (+) # Centralizar formateadores (moneda, fecha)

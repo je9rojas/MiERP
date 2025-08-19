@@ -9,7 +9,7 @@ CRUD de la base de datos para que la capa de servicio no necesite conocer los
 detalles de la implementación de Motor o PyMongo.
 """
 
-# =-============================================================================
+# ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
@@ -63,18 +63,36 @@ class SupplierRepository:
         except InvalidId:
             return None
 
-    async def insert_one(self, supplier_doc: Dict[str, Any]) -> ObjectId:
+    async def find_by_ids(self, supplier_ids: List[str]) -> List[Dict[str, Any]]:
         """
-        Inserta un nuevo documento de proveedor en la colección.
+        Busca múltiples proveedores por una lista de sus IDs de MongoDB.
 
         Args:
-            supplier_doc: Un diccionario que representa el proveedor a crear.
+            supplier_ids: Una lista de IDs (en formato string) a buscar.
 
         Returns:
-            El ObjectId del documento recién insertado.
+            Una lista de diccionarios, cada uno representando un proveedor encontrado.
         """
-        result = await self.collection.insert_one(supplier_doc)
-        return result.inserted_id
+        if not supplier_ids:
+            return []
+        
+        object_ids = [ObjectId(sid) for sid in supplier_ids if ObjectId.is_valid(sid)]
+        cursor = self.collection.find({"_id": {"$in": object_ids}})
+        return await cursor.to_list(length=len(object_ids))
+
+    async def find_ids_by_name(self, name_query: str) -> List[ObjectId]:
+        """
+        Busca proveedores por nombre (insensible a mayúsculas/minúsculas) y devuelve solo sus IDs.
+
+        Args:
+            name_query: El término de búsqueda para el nombre del negocio.
+
+        Returns:
+            Una lista de ObjectIds de los proveedores que coinciden.
+        """
+        query = {"business_name": {"$regex": name_query, "$options": "i"}}
+        cursor = self.collection.find(query, {"_id": 1}) # Proyección para obtener solo el _id
+        return [doc["_id"] async for doc in cursor]
 
     async def find_all_paginated(self, query: Dict[str, Any], skip: int, page_size: int) -> List[Dict[str, Any]]:
         """
@@ -90,6 +108,19 @@ class SupplierRepository:
         """
         cursor = self.collection.find(query).skip(skip).limit(page_size)
         return await cursor.to_list(length=page_size)
+
+    async def insert_one(self, supplier_doc: Dict[str, Any]) -> ObjectId:
+        """
+        Inserta un nuevo documento de proveedor en la colección.
+
+        Args:
+            supplier_doc: Un diccionario que representa el proveedor a crear.
+
+        Returns:
+            El ObjectId del documento recién insertado.
+        """
+        result = await self.collection.insert_one(supplier_doc)
+        return result.inserted_id
 
     async def count_documents(self, query: Dict[str, Any]) -> int:
         """

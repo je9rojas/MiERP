@@ -12,7 +12,7 @@ actualización, almacenamiento en base de datos y exposición a través de la AP
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
-from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_serializer
+from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, List
 from datetime import datetime, timezone
 from enum import Enum
@@ -25,10 +25,10 @@ from app.models.shared import PyObjectId
 
 class DocumentType(str, Enum):
     """Estandariza los tipos de documento de identidad."""
-    RUC = "ruc"  # Registro Único de Contribuyentes (Perú)
-    DNI = "dni"  # Documento Nacional de Identidad (Perú)
-    CE = "ce"    # Carnet de Extranjería (Perú)
-    OTHER = "other" # Para identificadores de otros países
+    RUC = "ruc"
+    DNI = "dni"
+    CE = "ce"
+    OTHER = "other"
 
 class EmailPurpose(str, Enum):
     """Estandariza los propósitos para los correos de contacto."""
@@ -39,40 +39,70 @@ class EmailPurpose(str, Enum):
 
 class CustomerEmail(BaseModel):
     """Representa un único correo electrónico de contacto con un propósito definido."""
-    address: EmailStr = Field(..., description="La dirección de correo electrónico.")
-    purpose: EmailPurpose = Field(EmailPurpose.GENERAL, description="El propósito o departamento asociado al correo.")
+    address: EmailStr
+    purpose: EmailPurpose = EmailPurpose.GENERAL
+    model_config = ConfigDict(from_attributes=True)
 
 class ContactPerson(BaseModel):
     """Representa a una persona de contacto dentro de la empresa del cliente."""
-    name: str = Field(..., description="Nombre completo de la persona de contacto.")
-    email: Optional[EmailStr] = Field(None, description="Correo electrónico del contacto.")
-    phone: Optional[str] = Field(None, description="Teléfono del contacto.")
-    position: Optional[str] = Field(None, description="Cargo o puesto de la persona (ej. 'Jefe de Compras').")
-
+    name: str = Field(..., max_length=100)
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = Field(None, max_length=20)
+    position: Optional[str] = Field(None, max_length=100)
+    model_config = ConfigDict(from_attributes=True)
 
 # ==============================================================================
 # SECCIÓN 3: ARQUITECTURA DE MODELOS PRINCIPALES (DTOS)
 # ==============================================================================
 
 class CustomerBase(BaseModel):
-    """Modelo base con los campos comunes que definen a un cliente."""
-    doc_type: DocumentType = Field(..., description="Tipo de documento de identidad.")
-    doc_number: str = Field(..., description="Número del documento, debe ser único para el tipo de documento.")
-    business_name: str = Field(..., description="Razón Social o Nombre completo del cliente.")
-    address: Optional[str] = Field(None, description="Dirección fiscal principal del cliente.")
-    phone: Optional[str] = Field(None, description="Teléfono principal de contacto.")
-    emails: List[CustomerEmail] = Field(default_factory=list, description="Lista de correos electrónicos de contacto.")
-    contact_person: Optional[ContactPerson] = Field(None, description="Datos de la persona de contacto principal.")
+    """
+    Modelo base con los campos que definen a un cliente.
+    Se usa para `CustomerInDB` y `CustomerOut` que requieren más rigidez.
+    """
+    doc_number: str = Field(..., max_length=20)
+    business_name: str = Field(..., max_length=200)
+    doc_type: DocumentType = DocumentType.RUC # Valor por defecto
+    address: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=20)
+    emails: List[CustomerEmail] = Field(default_factory=list)
+    contact_person: Optional[ContactPerson] = None
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        arbitrary_types_allowed=True,
+        json_encoders={PyObjectId: str}
+    )
 
-class CustomerCreate(CustomerBase):
-    """DTO de Entrada para la creación de un nuevo cliente."""
-    pass
+class CustomerCreate(BaseModel):
+    """
+    DTO de Entrada para la creación de un nuevo cliente.
+    Define explícitamente los campos requeridos y opcionales para la creación.
+    """
+    business_name: str = Field(..., max_length=200)
+    doc_number: str = Field(..., max_length=20)
+    doc_type: DocumentType = DocumentType.RUC # Opcional con valor por defecto
+    address: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=20)
+    emails: List[CustomerEmail] = Field(default_factory=list)
+    contact_person: Optional[ContactPerson] = None
+    
+    model_config = ConfigDict(
+        from_attributes=True,
+        arbitrary_types_allowed=True,
+        json_encoders={PyObjectId: str}
+    )
 
 class CustomerUpdate(BaseModel):
-    """DTO de Entrada para la actualización parcial de un cliente. Todos los campos son opcionales."""
-    business_name: Optional[str] = None
-    address: Optional[str] = None
-    phone: Optional[str] = None
+    """
+    DTO de Entrada para la actualización parcial de un cliente.
+    Todos los campos son opcionales.
+    """
+    doc_type: Optional[DocumentType] = None
+    doc_number: Optional[str] = Field(None, max_length=20)
+    business_name: Optional[str] = Field(None, max_length=200)
+    address: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=20)
     emails: Optional[List[CustomerEmail]] = None
     contact_person: Optional[ContactPerson] = None
     is_active: Optional[bool] = None
@@ -80,29 +110,17 @@ class CustomerUpdate(BaseModel):
 class CustomerInDB(CustomerBase):
     """Representa el documento completo del cliente tal como se almacena en MongoDB."""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    is_active: bool = Field(True, description="Indica si el cliente está activo en el sistema.")
+    is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
+    
+    model_config = ConfigDict(populate_by_name=True)
 
 class CustomerOut(CustomerBase):
     """DTO de Salida que define la estructura de datos que la API devuelve al cliente."""
-    id: PyObjectId = Field(alias="_id")
+    id: PyObjectId = Field(..., alias="_id")
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
-    @field_serializer('id')
-    def serialize_id(self, id_obj: PyObjectId, _info):
-        """Convierte el campo 'id' (ObjectId) a string al serializar a JSON."""
-        return str(id_obj)
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        from_attributes=True,
-    )
+    model_config = ConfigDict(populate_by_name=True)

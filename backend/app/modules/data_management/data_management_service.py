@@ -1,168 +1,181 @@
 # /backend/app/modules/data_management/data_management_service.py
-# SERVICIO DEDICADO A LA IMPORTACIÓN Y EXPORTACIÓN DE DATOS MAESTROS
 
+"""
+Capa de Servicio para la Importación y Exportación de Datos Maestros.
+
+Este módulo centraliza la lógica para procesar archivos (ej. CSV) y convertirlos
+en operaciones de base de datos. Actúa como un cliente de los servicios de negocio
+(como `product_service`), reutilizando su lógica para garantizar la consistencia
+y la validación de los datos, en lugar de interactuar directamente con los repositorios.
+"""
+
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES
+# ==============================================================================
+
+# --- Importaciones de la Librería Estándar y Terceros ---
 import csv
 import io
 import json
-from typing import List, Dict
-from fastapi import UploadFile, HTTPException, status
+import logging
+from typing import Any, Dict, List
+
+from fastapi import HTTPException, UploadFile, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import ValidationError
 
-# --- SECCIÓN DE IMPORTACIONES DE MÓDULOS ---
+# --- Importaciones de la Aplicación ---
+# Se importa el servicio de productos para reutilizar la lógica de negocio.
+from app.modules.inventory import product_service
+from app.modules.inventory.product_models import ProductCreate, ProductUpdate
 from app.modules.inventory.repositories.product_repository import ProductRepository
-from app.modules.inventory.product_models import ProductCreate, ProductUpdate, ProductInDB
 
-# --- SECCIÓN DE SERVICIOS DE EXPORTACIÓN ---
+# ==============================================================================
+# SECCIÓN 2: CONFIGURACIÓN DEL LOGGER
+# ==============================================================================
 
-async def export_products_to_csv(db: AsyncIOMotorDatabase) -> str:
+logger = logging.getLogger(__name__)
+
+# ==============================================================================
+# SECCIÓN 3: SERVICIOS DE EXPORTACIÓN DE DATOS
+# ==============================================================================
+
+async def export_products_to_csv(database: AsyncIOMotorDatabase) -> str:
     """
-    Obtiene todos los datos de los productos y los formatea en un string CSV.
-    Este archivo está diseñado para ser una plantilla perfecta para la re-importación.
+    Genera un string en formato CSV a partir de todos los productos del catálogo.
+    El formato de las columnas está diseñado para ser compatible con la función de importación.
     """
-    product_repo = ProductRepository(db)
-    all_products: List[Dict] = await product_repo.find_all({})
+    product_repository = ProductRepository(database)
+    all_products: List[Dict[str, Any]] = await product_repository.find_all({})
 
-    output = io.StringIO()
+    output_buffer = io.StringIO()
     
+    # Define las columnas del CSV. Los nombres deben coincidir con la lógica de importación.
     fieldnames = [
-        'operation', 'sku', 'name', 'brand', 'main_image_url', 'description', 
-        'category', 'product_type', 'shape', 'cost', 'price', 'stock_quantity',
+        'operation', 'sku', 'name', 'brand', 'price', 'category', 'product_type', 'shape',
+        'initial_quantity', 'initial_cost', 'description', 'main_image_url',
         'points_on_sale', 'weight_g', 'is_active',
-        'specifications_json', 'oem_codes_json', 'cross_references_json', 'applications_json'
+        'dimensions_json', 'oem_codes_json', 'cross_references_json', 'applications_json'
     ]
-    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
+    writer = csv.DictWriter(output_buffer, fieldnames=fieldnames, extrasaction='ignore')
     writer.writeheader()
-
-    if not all_products:
-        return output.getvalue()
 
     for product in all_products:
         row_data = {
-            "operation": "",
+            "operation": "upsert",  # Se sugiere 'upsert' para la re-importación.
             "sku": product.get("sku"),
             "name": product.get("name"),
             "brand": product.get("brand"),
-            "main_image_url": product.get("main_image_url"),
-            "description": product.get("description"),
+            "price": product.get("price"),
             "category": product.get("category"),
             "product_type": product.get("product_type"),
             "shape": product.get("shape"),
-            "cost": product.get("cost"),
-            "price": product.get("price"),
-            "stock_quantity": product.get("stock_quantity"),
+            "initial_quantity": product.get("stock_quantity"), # El stock actual se exporta como stock inicial.
+            "initial_cost": product.get("average_cost"),     # El costo actual se exporta como costo inicial.
+            "description": product.get("description"),
+            "main_image_url": product.get("main_image_url"),
             "points_on_sale": product.get("points_on_sale"),
             "weight_g": product.get("weight_g"),
             "is_active": product.get("is_active"),
-            'specifications_json': json.dumps(product.get('specifications', {})),
+            'dimensions_json': json.dumps(product.get('dimensions', {})),
             'oem_codes_json': json.dumps(product.get('oem_codes', [])),
             'cross_references_json': json.dumps(product.get('cross_references', [])),
             'applications_json': json.dumps(product.get('applications', [])),
         }
         writer.writerow(row_data)
 
-    return output.getvalue()
+    return output_buffer.getvalue()
 
-# --- SECCIÓN DE SERVICIOS DE IMPORTACIÓN ---
+# ==============================================================================
+# SECCIÓN 4: SERVICIOS DE IMPORTACIÓN DE DATOS
+# ==============================================================================
 
-async def import_products_from_csv(db: AsyncIOMotorDatabase, file: UploadFile) -> Dict:
+async def import_products_from_csv(database: AsyncIOMotorDatabase, file: UploadFile) -> Dict[str, Any]:
     """
-    Procesa un archivo CSV para gestionar productos, con una lógica robusta de limpieza
-    y conversión de tipos de datos.
+    Procesa un archivo CSV para crear, actualizar o desactivar productos masivamente.
+    Delega las operaciones de negocio a `product_service` para asegurar consistencia.
     """
-    product_repo = ProductRepository(db)
-    
-    # Etapa 1: Lectura y Decodificación Segura
+    # Etapa 1: Lectura y Decodificación Segura del Archivo
     contents = await file.read()
     try:
         decoded_content = contents.decode('utf-8')
     except UnicodeDecodeError:
-        try:
-            decoded_content = contents.decode('latin-1')
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"No se pudo decodificar el archivo: {e}")
+        decoded_content = contents.decode('latin-1', errors='replace')
 
     buffer = io.StringIO(decoded_content)
-    try:
-        reader = csv.DictReader(buffer)
-        rows = list(reader)
-    except Exception as e:
-         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Error al procesar la estructura del CSV: {e}")
+    reader = csv.DictReader(buffer)
 
     # Etapa 2: Procesamiento de Filas
     summary = {"total_rows": 0, "products_created": 0, "products_updated": 0, "products_deactivated": 0, "rows_with_errors": 0}
-    errors = []
+    errors: List[str] = []
 
-    for idx, original_row in enumerate(rows):
-        if not original_row: continue
+    for idx, row in enumerate(reader):
         row_num = idx + 2
-        sku_value = original_row.get("sku") if isinstance(original_row, dict) else None
-        if not sku_value or not sku_value.strip(): continue
+        
+        # Ignorar filas vacías o sin SKU
+        sku = row.get("sku", "").strip()
+        if not sku:
+            continue
+        
         summary["total_rows"] += 1
-        sku = sku_value.strip()
-        operation = original_row.get("operation", "").lower().strip()
+        operation = row.get("operation", "").lower().strip()
 
         try:
-            # Etapa 3: Preparación y Limpieza de Datos de la Fila
-            data_to_process = {
-                key: value for key, value in original_row.items()
-                if value is not None and value != '' and not key.endswith('_json')
+            # Etapa 3: Preparar datos para los modelos Pydantic
+            catalog_data = {k: v for k, v in row.items() if v not in [None, '']}
+            inventory_data = {
+                'initial_quantity': int(row.get('initial_quantity') or 0),
+                'initial_cost': float(row.get('initial_cost') or 0.0)
             }
-
-            for json_field in ['specifications', 'oem_codes', 'cross_references', 'applications']:
-                json_value = original_row.get(f"{json_field}_json")
-                if json_value:
-                    data_to_process[json_field] = json.loads(json_value)
-
-            if 'specifications' in data_to_process and isinstance(data_to_process['specifications'], dict):
-                specs = data_to_process['specifications']
-                cleaned_specs = {}
-                for key, value in specs.items():
-                    try:
-                        cleaned_specs[key] = float(value)
-                    except (ValueError, TypeError):
-                        cleaned_specs[key] = str(value)
-                data_to_process['specifications'] = cleaned_specs
-
-            if 'cost' in data_to_process: data_to_process['cost'] = float(data_to_process['cost'])
-            if 'price' in data_to_process: data_to_process['price'] = float(data_to_process['price'])
-            if 'stock_quantity' in data_to_process: data_to_process['stock_quantity'] = int(data_to_process['stock_quantity'])
-            if 'points_on_sale' in data_to_process: data_to_process['points_on_sale'] = float(data_to_process['points_on_sale'])
-            if 'weight_g' in data_to_process: data_to_process['weight_g'] = float(data_to_process['weight_g'])
             
-            # Etapa 4: Ejecución de la Operación
+            # Cargar y parsear campos JSON
+            for json_field in ['dimensions', 'oem_codes', 'cross_references', 'applications']:
+                json_value = row.get(f"{json_field}_json")
+                if json_value:
+                    catalog_data[json_field] = json.loads(json_value)
+
+            # Etapa 4: Ejecución de la Operación delegando al servicio
             if operation == "upsert":
-                existing_product = await product_repo.find_by_sku(sku)
+                # --- CORRECCIÓN CRÍTICA ---
+                # Se utiliza un bloque try/except para verificar la existencia del producto.
+                existing_product = None
+                try:
+                    existing_product = await product_service.get_product_by_sku(database, sku)
+                except HTTPException as e:
+                    if e.status_code != status.HTTP_404_NOT_FOUND:
+                        raise  # Vuelve a lanzar cualquier excepción que no sea 'No Encontrado'
+                
                 if existing_product:
-                    update_model = ProductUpdate(**data_to_process)
-                    update_data = update_model.model_dump(exclude_unset=True)
-                    if update_data:
-                        matched_count = await product_repo.update_one(sku, update_data)
-                        if matched_count > 0: summary["products_updated"] += 1
+                    # --- Operación de Actualización ---
+                    update_model = ProductUpdate.model_validate(catalog_data)
+                    await product_service.update_product_by_sku(database, sku, update_model)
+                    summary["products_updated"] += 1
                 else:
-                    # --- CORRECCIÓN DEFINITIVA EN LA LÓGICA DE CREACIÓN ---
-                    # 1. Se asegura que los campos complejos tengan un valor por defecto si no vienen en el CSV
-                    data_to_process.setdefault('specifications', {})
-                    data_to_process.setdefault('oem_codes', [])
-                    data_to_process.setdefault('cross_references', [])
-                    data_to_process.setdefault('applications', [])
-                    
-                    # 2. Se procede con la validación y creación como antes
-                    create_model = ProductCreate(**data_to_process)
-                    new_product_in_db = ProductInDB(**create_model.model_dump())
-                    product_doc_to_insert = new_product_in_db.model_dump(by_alias=True)
-                    await product_repo.insert_one(product_doc_to_insert)
+                    # --- Operación de Creación ---
+                    create_model = ProductCreate.model_validate(catalog_data)
+                    await product_service.create_product(
+                        database,
+                        create_model,
+                        inventory_data['initial_quantity'],
+                        inventory_data['initial_cost']
+                    )
                     summary["products_created"] += 1
 
             elif operation == "delete":
-                matched_count = await product_repo.deactivate_one(sku, {"is_active": False})
-                if matched_count > 0: summary["products_deactivated"] += 1
-            elif operation:
-                errors.append(f"Fila {row_num}: Operación '{operation}' no válida.")
-                summary["rows_with_errors"] += 1
+                await product_service.deactivate_product_by_sku(database, sku)
+                summary["products_deactivated"] += 1
+            
+            elif operation: # Si la operación no es vacía pero tampoco es válida
+                raise ValueError(f"Operación '{operation}' no reconocida. Use 'upsert' o 'delete'.")
 
-        except Exception as e:
+        except ValidationError as e:
+            error_details = e.errors()
+            error_msg = ", ".join([f"{err['loc'][0]}: {err['msg']}" for err in error_details])
+            errors.append(f"Fila {row_num} (SKU: {sku}): Error de validación - {error_msg}")
             summary["rows_with_errors"] += 1
+        except Exception as e:
             errors.append(f"Fila {row_num} (SKU: {sku}): Error inesperado - {str(e)}")
+            summary["rows_with_errors"] += 1
+            logger.error(f"Error procesando fila {row_num} del CSV (SKU: {sku}): {e}", exc_info=True)
             
     return {"summary": summary, "errors": errors}

@@ -1,11 +1,5 @@
 // /frontend/src/index.js
-
-/**
- * @file Punto de entrada principal de la aplicación React.
- * Este archivo es responsable de renderizar el componente raíz (`App`) en el DOM
- * y de envolver toda la aplicación en los proveedores de contexto globales
- * necesarios para su funcionamiento (rutas, tema, estado de autenticación, etc.).
- */
+// [VERSIÓN DE DEPURACIÓN]
 
 // --- SECCIÓN 1: IMPORTACIONES ---
 import React from 'react';
@@ -24,10 +18,8 @@ import App from './App';
 import theme from './app/theme';
 import './index.css';
 
-
-// --- SECCIÓN 2: INICIALIZACIÓN DE CLIENTES Y CONFIGURACIONES ---
-
-console.log("[DEBUG] index.js: Archivo cargado. Iniciando configuración de la aplicación.");
+// --- SECCIÓN 2: INICIALIZACIÓN ---
+console.log("[INDEX_DEBUG] 1. Archivo index.js cargado.");
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -37,20 +29,18 @@ const queryClient = new QueryClient({
     },
   },
 });
-console.log("[DEBUG] index.js: Cliente de React Query inicializado.");
+console.log("[INDEX_DEBUG] 2. Cliente React Query inicializado.");
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  console.error("[CRITICAL ERROR] index.js: No se pudo encontrar el elemento raíz '#root' en el DOM.");
-  throw new Error('Error Crítico: No se pudo encontrar el elemento raíz con id "root" en el DOM.');
+  throw new Error('Error Crítico: No se pudo encontrar el elemento raíz con id "root".');
 }
-console.log("[DEBUG] index.js: Elemento raíz del DOM encontrado.");
+console.log("[INDEX_DEBUG] 3. Elemento raíz del DOM encontrado.");
 
 const root = ReactDOM.createRoot(rootElement);
 
-
-// --- SECCIÓN 3: RENDERIZADO DE LA APLICACIÓN ---
-console.log("[DEBUG] index.js: Iniciando renderizado de la aplicación React...");
+// --- SECCIÓN 3: RENDERIZADO ---
+console.log("[INDEX_DEBUG] 4. A punto de llamar a root.render().");
 
 root.render(
   <React.StrictMode>
@@ -58,11 +48,7 @@ root.render(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
           <AuthProvider>
-            <SnackbarProvider
-              maxSnack={3}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-              autoHideDuration={4000}
-            >
+            <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} autoHideDuration={4000}>
               <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
                 <App />
               </LocalizationProvider>
@@ -75,4 +61,4 @@ root.render(
   </React.StrictMode>
 );
 
-console.log("[DEBUG] index.js: Renderizado de la aplicación completado.");
+console.log("[INDEX_DEBUG] 5. Llamada a root.render() completada.");

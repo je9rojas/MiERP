@@ -24,7 +24,7 @@ from app.modules.auth import auth_routes as auth_router
 from app.modules.users import user_routes as users_router
 from app.modules.roles import role_routes as roles_router
 from app.modules.crm import supplier_routes as suppliers_router
-# from app.modules.crm import customer_routes as customers_router # Listo para el futuro
+from app.modules.crm import customer_routes as customers_router # <- CORRECCIÓN: Activado
 from app.modules.inventory import product_routes as products_router
 from app.modules.inventory import inventory_routes as inventory_router
 from app.modules.purchasing import purchasing_routes as purchasing_router
@@ -49,7 +49,7 @@ api_router.include_router(roles_router.router)
 
 # --- CRM (Entidades de Negocio) ---
 api_router.include_router(suppliers_router.router)
-# api_router.include_router(customers_router.router)
+api_router.include_router(customers_router.router) # <- CORRECCIÓN: Activado
 
 # --- Flujo de Mercancía ---
 api_router.include_router(products_router.router)     # Catálogo de Productos

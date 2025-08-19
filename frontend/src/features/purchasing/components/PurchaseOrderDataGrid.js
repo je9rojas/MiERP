@@ -10,7 +10,7 @@
  */
 
 // ==============================================================================
-// SECCIÓN 1: IMPORTACIONES DE MÓDULOS
+// SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
 import React, { useMemo } from 'react';
@@ -18,7 +18,6 @@ import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 
 import DataGridToolbar from '../../../components/common/DataGridToolbar';
-// Se importa la función que crea la configuración de las columnas.
 import { createPurchaseOrderColumns } from './purchaseOrderGridConfig';
 
 // ==============================================================================
@@ -33,19 +32,24 @@ const PurchaseOrderDataGrid = (props) => {
         paginationModel,
         onPaginationModelChange,
         onEditOrder,
+        onConfirmOrder,
         onRegisterReceipt,
+        onRegisterBill, // <- CORRECCIÓN: Se recibe la nueva prop
         searchTerm,
         onSearchChange,
     } = props;
 
-    // La lógica de las columnas ahora está desacoplada.
-    // Usamos useMemo para evitar recrear la configuración en cada renderizado.
+    // Se pasan todas las funciones de acción a la configuración de columnas.
+    // useMemo asegura que la configuración no se recalcule innecesariamente.
     const columns = useMemo(
         () => createPurchaseOrderColumns({
-            onViewDetails: onEditOrder, // El nombre interno en config es onViewDetails
+            onEditOrder: onEditOrder,
+            onConfirmOrder: onConfirmOrder,
             onRegisterReceipt: onRegisterReceipt,
+            onRegisterBill: onRegisterBill, // <- CORRECCIÓN: Se pasa la prop al factory
         }),
-        [onEditOrder, onRegisterReceipt]
+        // CORRECCIÓN: Se añade `onRegisterBill` al array de dependencias de useMemo.
+        [onEditOrder, onConfirmOrder, onRegisterReceipt, onRegisterBill]
     );
 
     return (

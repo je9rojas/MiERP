@@ -1,11 +1,12 @@
 # backend/app/modules/purchasing/repositories/purchase_bill_repository.py
 
 """
-Capa de Repositorio para la entidad 'Recepción/Factura de Compra' (Purchase Bill).
+Capa de Repositorio para la entidad 'Factura de Compra' (Purchase Bill).
 
 Este módulo proporciona una interfaz de bajo nivel para interactuar directamente con la
-colección 'purchase_bills' en la base de datos MongoDB. Abstrae las operaciones
-CRUD y está diseñado para soportar opcionalmente sesiones transaccionales de MongoDB.
+colección de facturas de compra ('purchase_invoices') en la base de datos MongoDB.
+Abstrae las operaciones CRUD y está diseñado para soportar opcionalmente sesiones
+transaccionales de MongoDB.
 """
 
 # ==============================================================================
@@ -30,7 +31,8 @@ class PurchaseBillRepository:
         """
         Inicializa el repositorio con una instancia de la base de datos.
         """
-        self.collection = db.purchase_bills
+        # CORRECCIÓN SEMÁNTICA: Se renombra la colección para reflejar su rol financiero.
+        self.collection = db.purchase_invoices
 
     async def insert_one(self, bill_doc: Dict[str, Any], session: Optional[AsyncIOMotorClientSession] = None) -> ObjectId:
         """

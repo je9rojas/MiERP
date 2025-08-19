@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     )
     PROJECT_NAME: str = Field("MiERP PRO", description="Nombre del proyecto.")
     PROJECT_VERSION: str = Field("1.0.0", description="Versión del proyecto.")
+    
+    # --- CORRECCIÓN CRÍTICA ---
+    # Se añade la variable API_V1_PREFIX que es utilizada por otras partes
+    # de la aplicación (como la configuración de OAuth2) para construir URLs.
+    API_V1_PREFIX: str = Field(
+        "/api/v1",
+        description="Prefijo para todas las rutas de la versión 1 de la API."
+    )
 
     # --- Configuración de la Base de Datos (OBLIGATORIA) ---
     DATABASE_URL: str = Field(
@@ -48,7 +56,6 @@ class Settings(BaseSettings):
         ...,
         description="Clave secreta para firmar tokens JWT. Debe ser larga y aleatoria."
     )
-    # CORRECCIÓN: Se acepta un string o una lista, que será procesado por el validador.
     ALLOWED_ORIGINS: Union[str, List[str]] = Field(
         default_factory=list,
         description="Lista de orígenes (URLs de frontend) con permiso para acceder a esta API. Formato: '[\"url1\", \"url2\"]' o 'url1,url2'."
@@ -63,22 +70,18 @@ class Settings(BaseSettings):
         if isinstance(v, list):
             return v
         if isinstance(v, str) and not v.startswith("["):
-            # Si es un string simple separado por comas
             return [origin.strip() for origin in v.split(",")]
         if isinstance(v, str) and v.startswith("["):
-            # Si es un string que parece una lista (ej: '["url1", "url2"]')
             try:
-                # Se usa json.loads para parsear el string a una lista de Python
                 return json.loads(v)
             except json.JSONDecodeError:
                 raise ValueError("El string de ALLOWED_ORIGINS no es un JSON array válido.")
         
         raise ValueError("Formato de ALLOWED_ORIGINS no reconocido.")
 
-
     # --- Configuración de JSON Web Tokens (JWT) ---
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
-        30,
+        60 * 24 * 8, # 8 días
         description="Duración en minutos para la expiración de los tokens de acceso."
     )
     ALGORITHM: str = Field(
@@ -108,4 +111,3 @@ class Settings(BaseSettings):
 # ==============================================================================
 
 settings = Settings()
-
