@@ -4,8 +4,9 @@ cd mierp/backend
 python -m venv venv
 .\venv\Scripts\activate
 
-uvicorn src.main:app --reload
 uvicorn app.main:app --reload
+
+uvicorn app.main:app
 
 # Inicializar frontend
 cd ../frontend

@@ -8,6 +8,25 @@
  */
 
 // ==============================================================================
+// SECCIÓN 0: FUNCIONES DE AYUDA
+// ==============================================================================
+
+/**
+ * Formatea un objeto Date de JavaScript a un string 'YYYY-MM-DD' para la API.
+ * Pydantic v2 es estricto y requiere este formato para los campos de tipo `date`.
+ * @param {Date} date - El objeto de fecha del formulario.
+ * @returns {string} La fecha formateada como un string.
+ */
+const formatDateForAPI = (date) => {
+    if (!(date instanceof Date) || isNaN(date.getTime())) {
+        // Retorna la fecha actual como fallback si la fecha es inválida.
+        return new Date().toISOString().split('T')[0];
+    }
+    // Extrae de forma segura la parte YYYY-MM-DD del formato ISO.
+    return date.toISOString().split('T')[0];
+};
+
+// ==============================================================================
 // SECCIÓN 1: MAPEADORES DE ORDEN DE VENTA (UI -> API)
 // ==============================================================================
 
@@ -20,14 +39,16 @@
 export const mapFormValuesToCreatePayload = (formValues) => {
     return {
         customer_id: formValues.customer?.id,
-        order_date: formValues.order_date.toISOString(),
-        notes: formValues.notes,
-        shipping_address: formValues.shipping_address,
-        items: formValues.items.map(item => ({
-            product_id: item.product?.id,
-            quantity: Number(item.quantity) || 0,
-            unit_price: Number(item.unit_price) || 0,
-        })),
+        order_date: formatDateForAPI(formValues.order_date),
+        notes: formValues.notes || '',
+        shipping_address: formValues.shipping_address || '',
+        items: formValues.items
+            .filter(item => item.product?.id && (Number(item.quantity) || 0) > 0)
+            .map(item => ({
+                product_id: item.product.id,
+                quantity: Number(item.quantity) || 0,
+                unit_price: Number(item.unit_price) || 0,
+            })),
     };
 };
 
@@ -40,14 +61,16 @@ export const mapFormValuesToCreatePayload = (formValues) => {
 export const mapFormValuesToUpdatePayload = (formValues) => {
     return {
         customer_id: formValues.customer?.id,
-        order_date: formValues.order_date.toISOString(),
-        notes: formValues.notes,
-        shipping_address: formValues.shipping_address,
-        items: formValues.items.map(item => ({
-            product_id: item.product?.id,
-            quantity: Number(item.quantity) || 0,
-            unit_price: Number(item.unit_price) || 0,
-        })),
+        order_date: formatDateForAPI(formValues.order_date),
+        notes: formValues.notes || '',
+        shipping_address: formValues.shipping_address || '',
+        items: formValues.items
+            .filter(item => item.product?.id && (Number(item.quantity) || 0) > 0)
+            .map(item => ({
+                product_id: item.product.id,
+                quantity: Number(item.quantity) || 0,
+                unit_price: Number(item.unit_price) || 0,
+            })),
     };
 };
 
@@ -63,17 +86,19 @@ export const mapFormValuesToUpdatePayload = (formValues) => {
  */
 export const mapFormValuesToShipmentPayload = (formValues) => {
     return {
-        shipping_date: formValues.shipping_date.toISOString(),
-        notes: formValues.notes,
+        shipping_date: formatDateForAPI(formValues.shipping_date),
+        notes: formValues.notes || '',
         // Filtra solo los ítems que se van a despachar y mapea al formato de la API.
         items: formValues.items
-            .filter(item => Number(item.quantity_shipped) > 0)
+            .filter(item => (Number(item.quantity_shipped) || 0) > 0)
             .map(item => ({
-                product_id: item.product_id, // El ID del producto ya viene como string
+                product_id: item.product_id,
                 sku: item.sku,
                 name: item.name,
-                quantity_ordered: item.quantity, // La cantidad original de la OV
-                quantity_shipped: Number(item.quantity_shipped),
+                // [SOLUCIÓN] Se utiliza 'item.quantity' que contiene la cantidad original
+                // de la orden y se asegura que la conversión a número sea robusta.
+                quantity_ordered: Number(item.quantity) || 0,
+                quantity_shipped: Number(item.quantity_shipped) || 0,
             })),
     };
 };

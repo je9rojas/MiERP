@@ -431,6 +431,7 @@ frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js
 # --- Dependencias Reutilizables ---
 /backend/app/dependencies/__init__.py
 /backend/app/dependencies/roles.py                        # Middleware/Dependencia para la verificación de roles
+/backend/app/repositories/base_repository.py
 
 # --- Modelos Compartidos ---
 /backend/app/models/__init__.py

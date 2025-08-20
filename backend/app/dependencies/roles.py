@@ -1,71 +1,103 @@
 # /backend/app/dependencies/roles.py
 
 """
-Este módulo define la dependencia de FastAPI para el control de acceso basado en ROLES (RBAC).
-Proporciona una función `role_checker` que se utiliza para proteger los endpoints de la API,
-asegurando que solo los usuarios con los roles adecuados puedan acceder a recursos específicos.
+Módulo de Dependencias para la Gestión de Roles y Permisos (RBAC).
+
+Este archivo define un sistema de dependencias reutilizable para FastAPI que permite
+proteger endpoints específicos, asegurando que solo los usuarios con los roles
+adecuados puedan acceder a ellos.
 """
 
-from typing import List
+# ==============================================================================
+# SECCIÓN 1: IMPORTACIONES
+# ==============================================================================
+
+# --- Importaciones de la Librería Estándar y Terceros ---
+import logging
+from typing import List, Callable
+
 from fastapi import Depends, HTTPException, status
 
-# --- Importaciones de Modelos y Dependencias de Autenticación ---
-from app.modules.users.user_models import UserRole, UserOut
+# --- Importaciones de la Aplicación ---
 from app.modules.auth.dependencies import get_current_active_user
+from app.modules.users.user_models import UserOut, UserRole
 
+# ==============================================================================
+# SECCIÓN 2: CONFIGURACIÓN INICIAL
+# ==============================================================================
 
-def role_checker(allowed_roles: List[UserRole]):
+logger = logging.getLogger(__name__)
+
+# ==============================================================================
+# SECCIÓN 3: DEPENDENCIA DE VERIFICACIÓN DE ROLES
+# ==============================================================================
+
+def role_checker(allowed_roles: List[UserRole]) -> Callable[[UserOut], UserOut]:
     """
-    Factoría de dependencias que crea un verificador de ROLES personalizado.
+    Factoría de dependencias para la verificación de roles de usuario.
 
-    Esta función genera una dependencia de FastAPI que:
-    1. Obtiene el usuario activo actual a través del token JWT.
-    2. Otorga acceso inmediato y universal si el rol del usuario es SUPERADMIN.
-    3. Verifica si el rol del usuario está en la lista de 'allowed_roles' para todos los demás casos.
-    4. Lanza una excepción HTTPException 403 (Forbidden) si la verificación falla.
+    Esta función no es una dependencia en sí misma, sino que genera y retorna
+    una dependencia dinámica (`check_roles`) que puede ser utilizada por FastAPI.
+    Este patrón permite pasar argumentos (la lista de roles permitidos) a la
+    dependencia de una manera limpia y reutilizable.
 
     Args:
-        allowed_roles: Una lista de `UserRole` (Enum) que tienen permiso para acceder al endpoint.
+        allowed_roles: Una lista de enumeraciones `UserRole` que tienen permiso
+                       para acceder al endpoint.
 
     Returns:
-        Una función de dependencia de FastAPI (`check_roles`) que puede ser usada en los endpoints.
+        Una función de dependencia (`check_roles`) que FastAPI puede ejecutar.
+        Esta función, a su vez, retornará el objeto `UserOut` si la validación
+        es exitosa.
     """
     
+    # Esta es la dependencia real que FastAPI ejecutará.
     def check_roles(current_user: UserOut = Depends(get_current_active_user)) -> UserOut:
         """
-        La dependencia real que realiza la verificación del rol.
-        Es inyectada por FastAPI en los endpoints protegidos.
+        Valida si el rol del usuario actual está en la lista de roles permitidos.
+
+        Esta función se inyecta en los endpoints y realiza la comprobación de
+        permisos. Si el usuario no está autenticado, la dependencia
+        `get_current_active_user` ya habrá lanzado un error 401.
 
         Args:
-            current_user: El modelo del usuario autenticado, inyectado por `get_current_active_user`.
+            current_user: El modelo del usuario autenticado, inyectado por la
+                          dependencia `get_current_active_user`.
 
         Raises:
-            HTTPException: Si el rol del usuario no está permitido.
+            HTTPException (403 Forbidden): Si el rol del usuario no está en la
+                                          lista de `allowed_roles`.
 
         Returns:
-            El objeto `UserOut` del usuario si tiene permiso, permitiendo que el endpoint continúe.
+            El objeto `UserOut` del usuario actual si su rol es válido, permitiendo
+            que la ejecución del endpoint continúe.
         """
         
-        # --- LÓGICA DE VERIFICACIÓN DE PERMISOS ---
+        # [CORRECCIÓN CRÍTICA] Se compara el rol del usuario (string) con el
+        # valor del Enum (role.value), que también es un string.
+        user_role_str = current_user.role
         
         # Regla 1: Acceso universal e implícito para el SUPERADMIN.
-        # Esta es la primera y más importante verificación.
-        if current_user.role == UserRole.SUPERADMIN:
-            print(f"✅ Acceso Permitido (SUPERADMIN): El usuario '{current_user.username}' tiene acceso universal.")
+        if user_role_str == UserRole.SUPERADMIN.value:
+            logger.debug(f"Acceso Permitido (SUPERADMIN): Usuario '{current_user.username}' tiene acceso universal.")
             return current_user
 
+        # Se crea una lista de strings con los valores de los roles permitidos.
+        allowed_role_values = [role.value for role in allowed_roles]
+
         # Regla 2: Verificación estándar para todos los demás roles.
-        # Comprueba si el rol del usuario está en la lista de roles permitidos.
-        if current_user.role not in allowed_roles:
-            print(f"❌ Acceso Denegado: El rol '{current_user.role.value}' del usuario '{current_user.username}' no está en la lista de roles permitidos: {[role.value for role in allowed_roles]}")
+        if user_role_str not in allowed_role_values:
+            logger.warning(f"Acceso Denegado: Rol '{user_role_str}' del usuario '{current_user.username}' no está en la lista permitida: {allowed_role_values}")
+            
+            # Se lanza una excepción HTTP estándar con detalles claros.
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No tiene los permisos necesarios para realizar esta acción."
             )
         
-        # Si se superan todas las verificaciones, el acceso es concedido.
-        print(f"✅ Acceso Permitido: El rol '{current_user.role.value}' del usuario '{current_user.username}' es válido.")
+        # Si la validación es exitosa, se concede el acceso.
+        logger.debug(f"Acceso Permitido: Rol '{user_role_str}' del usuario '{current_user.username}' es válido para este endpoint.")
         return current_user
 
-    # La factoría devuelve la función de dependencia interna.
+    # La factoría retorna la dependencia interna para que FastAPI la utilice.
     return check_roles

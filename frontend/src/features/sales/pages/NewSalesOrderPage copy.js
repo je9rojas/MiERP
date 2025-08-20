@@ -76,27 +76,20 @@ const NewSalesOrderPage = () => {
 
     // --- 2.4: Manejador de Envío del Formulario ---
     const handleFormSubmit = useCallback((formValues) => {
-        // --- CORRECCIÓN CRÍTICA DE FORMATO DE FECHA ---
-        // Pydantic V2 es estricto con los formatos de fecha/hora.
-        // `toISOString()` produce un formato completo que puede causar problemas de parsing.
-        // Enviar en formato YYYY-MM-DD es más robusto.
-        const formatDateForAPI = (date) => {
-            if (!(date instanceof Date) || isNaN(date)) {
-                return new Date().toISOString().split('T')[0]; // Fallback a la fecha actual
-            }
-            return date.toISOString().split('T')[0]; // Extrae solo la parte de la fecha: 'YYYY-MM-DD'
-        };
-
         const payload = {
             customer_id: formValues.customer?.id,
-            order_date: formatDateForAPI(formValues.order_date),
-            notes: formValues.notes || "", // Asegura que se envíe un string vacío en lugar de null
-            shipping_address: formValues.shipping_address || "", // Asegura que se envíe un string vacío
+            order_date: formValues.order_date.toISOString(),
+            notes: formValues.notes || null,
+            shipping_address: formValues.shipping_address || null, // Asumiendo que este campo existe en el form
             items: formValues.items
                 .filter(item => item.product?.id && Number(item.quantity) > 0)
                 .map(item => ({
                     product_id: item.product.id,
                     quantity: Number(item.quantity),
+                    // --- CORRECCIÓN CRÍTICA ---
+                    // Se toma el `unit_price` directamente del ítem del formulario,
+                    // que es el valor que el usuario ve y puede editar.
+                    // Esto "congela" el precio de la venta.
                     unit_price: Number(item.unit_price),
                 })),
         };
@@ -105,9 +98,6 @@ const NewSalesOrderPage = () => {
             enqueueSnackbar('Por favor, seleccione un cliente y añada al menos un producto con cantidad mayor a cero.', { variant: 'warning' });
             return;
         }
-
-        // --- LOG DE DEPURACIÓN EN FRONTEND ---
-        console.log("[FRONTEND-DEBUG] Payload final a punto de ser enviado a la API:", JSON.stringify(payload, null, 2));
 
         createSalesOrder(payload);
     }, [createSalesOrder, enqueueSnackbar]);
