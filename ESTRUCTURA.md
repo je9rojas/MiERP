@@ -637,7 +637,7 @@ frontend/src/features/sales/components/ShipmentForm.js
 /frontend/src/features/sales/pages/NewSalesOrderPage.js
 frontend/src/features/sales/pages/EditSalesOrderPage.js
 frontend/src/features/sales/pages/CreateShipmentPage.js
-
+/frontend/src/features/sales/pages/ShipmentListPage.j
 
 frontend/src/features/sales/mappers/salesMappers.js
 

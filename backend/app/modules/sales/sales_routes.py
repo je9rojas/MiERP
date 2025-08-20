@@ -56,6 +56,11 @@ class PaginatedSalesOrdersResponse(BaseModel):
     total_count: int
     items: List[SalesOrderOut]
 
+class PaginatedShipmentsResponse(BaseModel):
+    """Modelo de respuesta estandarizado para listas paginadas de despachos."""
+    total_count: int
+    items: List[ShipmentOut]
+
 # ==============================================================================
 # SECCIÓN 4: ENDPOINTS PARA ÓRDENES DE VENTA (SALES ORDERS)
 # ==============================================================================
@@ -65,64 +70,45 @@ class PaginatedSalesOrdersResponse(BaseModel):
     response_model=SalesOrderOut,
     status_code=status.HTTP_201_CREATED,
     summary="Crear una nueva Orden de Venta",
-    description="Registra una nueva orden de venta en el sistema, validando los datos de entrada y asignando al usuario actual como el creador."
+    description="Registra una nueva orden de venta en el sistema."
 )
 async def create_new_sales_order(
     order_payload: SalesOrderCreate,
     database: AsyncIOMotorDatabase = Depends(get_db),
-    # [RESTAURADO] Se vuelve a utilizar el 'role_checker' con la lógica ya corregida.
     current_user: UserOut = Depends(role_checker([
-        UserRole.SUPERADMIN,
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-        UserRole.SALES
+        UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.SALES
     ]))
 ):
-    """
-    Gestiona la petición para crear una orden de venta.
-
-    Delega la lógica de negocio a la capa de servicio y retorna la orden creada.
-    """
+    """Gestiona la petición para crear una orden de venta."""
     logger.info(f"Petición recibida para crear Orden de Venta por el usuario '{current_user.username}'.")
-    logger.debug(f"Payload recibido: {order_payload.model_dump_json(indent=2)}")
-    
     created_order = await sales_service.create_sales_order(database, order_payload, current_user)
-    
     logger.info(f"Orden de Venta #{created_order.order_number} creada exitosamente.")
     return created_order
-
 
 @router.patch(
     "/orders/{order_id}/confirm",
     response_model=SalesOrderOut,
     summary="Confirmar una Orden de Venta",
-    description="Cambia el estado de una orden de venta de 'Borrador' a 'Confirmado', lo que permite su posterior procesamiento (despacho)."
+    description="Cambia el estado de una orden de venta a 'Confirmado'."
 )
 async def confirm_sales_order(
     order_id: str,
     database: AsyncIOMotorDatabase = Depends(get_db),
-    # El '_' indica que la variable es necesaria para la validación de roles pero no se usa en el cuerpo de la función.
     _user: UserOut = Depends(role_checker([
-        UserRole.SUPERADMIN,
-        UserRole.ADMIN,
-        UserRole.MANAGER,
-        UserRole.SALES
+        UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.SALES
     ]))
 ):
-    """
-    Gestiona la petición para confirmar una orden de venta.
-    """
+    """Gestiona la petición para confirmar una orden de venta."""
     logger.info(f"Petición recibida para confirmar la Orden de Venta con ID: {order_id}")
     confirmed_order = await sales_service.update_sales_order_status(database, order_id, SalesOrderStatus.CONFIRMED)
     logger.info(f"Orden de Venta #{confirmed_order.order_number} confirmada exitosamente.")
     return confirmed_order
 
-
 @router.get(
     "/orders",
     response_model=PaginatedSalesOrdersResponse,
     summary="Listar todas las Órdenes de Venta",
-    description="Obtiene una lista paginada de todas las órdenes de venta, con opciones para buscar y filtrar por estado."
+    description="Obtiene una lista paginada de órdenes de venta."
 )
 async def get_all_sales_orders(
     database: AsyncIOMotorDatabase = Depends(get_db),
@@ -132,26 +118,21 @@ async def get_all_sales_orders(
     page: int = Query(1, ge=1, description="Número de la página a obtener."),
     page_size: int = Query(25, ge=1, le=100, description="Número de resultados por página.")
 ) -> Dict[str, Any]:
-    """
-    Gestiona la petición para obtener una lista paginada de órdenes de venta.
-    """
+    """Gestiona la petición para obtener una lista paginada de órdenes de venta."""
     return await sales_service.get_sales_orders_paginated(database, page, page_size, search_term, order_status)
-
 
 @router.get(
     "/orders/{order_id}",
     response_model=SalesOrderOut,
     summary="Obtener una Orden de Venta por ID",
-    description="Recupera todos los detalles de una orden de venta específica utilizando su identificador único."
+    description="Recupera los detalles de una orden de venta específica."
 )
 async def get_sales_order_by_id(
     order_id: str,
     database: AsyncIOMotorDatabase = Depends(get_db),
     _user: UserOut = Depends(get_current_active_user)
 ):
-    """
-    Gestiona la petición para recuperar una orden de venta por su ID.
-    """
+    """Gestiona la petición para recuperar una orden de venta por su ID."""
     return await sales_service.get_sales_order_by_id(database, order_id)
 
 # ==============================================================================
@@ -163,25 +144,51 @@ async def get_sales_order_by_id(
     response_model=ShipmentOut,
     status_code=status.HTTP_201_CREATED,
     summary="Crear un Despacho desde una Orden de Venta",
-    description="Genera un nuevo registro de despacho asociado a una orden de venta confirmada."
+    description="Genera un registro de despacho asociado a una orden de venta confirmada."
 )
 async def create_shipment_from_order(
     order_id: str,
     shipment_payload: ShipmentCreate,
     database: AsyncIOMotorDatabase = Depends(get_db),
     current_user: UserOut = Depends(role_checker([
-        UserRole.SUPERADMIN,
-        UserRole.ADMIN,
-        UserRole.WAREHOUSE
+        UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.WAREHOUSE
     ]))
 ):
-    """
-    Gestiona la petición para crear un despacho a partir de una orden de venta.
-    """
+    """Gestiona la petición para crear un despacho a partir de una orden de venta."""
     logger.info(f"Petición recibida para crear un despacho para la Orden de Venta ID: {order_id}")
     created_shipment = await sales_service.create_shipment_from_sales_order(database, order_id, shipment_payload, current_user)
     logger.info(f"Despacho #{created_shipment.shipment_number} creado exitosamente.")
     return created_shipment
+
+@router.get(
+    "/shipments",
+    response_model=PaginatedShipmentsResponse,
+    summary="Listar todos los Despachos",
+    description="Obtiene una lista paginada de todos los despachos registrados en el sistema."
+)
+async def get_all_shipments(
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    _user: UserOut = Depends(get_current_active_user),
+    search_term: Optional[str] = Query(None, description="Término para buscar por número de despacho.", alias="search"),
+    page: int = Query(1, ge=1, description="Número de la página a obtener."),
+    page_size: int = Query(25, ge=1, le=100, description="Número de resultados por página.")
+) -> Dict[str, Any]:
+    """Gestiona la petición para obtener una lista paginada de despachos."""
+    return await sales_service.get_shipments_paginated(database, page, page_size, search_term)
+
+@router.get(
+    "/shipments/{shipment_id}",
+    response_model=ShipmentOut,
+    summary="Obtener un Despacho por ID",
+    description="Recupera los detalles de un despacho específico."
+)
+async def get_shipment_by_id(
+    shipment_id: str,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    _user: UserOut = Depends(get_current_active_user)
+):
+    """Gestiona la petición para recuperar un despacho por su ID."""
+    return await sales_service.get_shipment_by_id(database, shipment_id)
 
 # ==============================================================================
 # SECCIÓN 6: ENDPOINTS PARA FACTURAS DE VENTA (SALES INVOICES)
@@ -192,23 +199,18 @@ async def create_shipment_from_order(
     response_model=SalesInvoiceOut,
     status_code=status.HTTP_201_CREATED,
     summary="Crear una Factura desde una Orden de Venta",
-    description="Genera una factura financiera a partir de los despachos asociados a una orden de venta."
+    description="Genera una factura financiera a partir de los despachos de una orden de venta."
 )
 async def create_invoice_for_order(
-    order_id: str, # Aunque no se use directamente aquí, es semánticamente correcto en la URL
+    order_id: str,
     invoice_payload: SalesInvoiceCreate,
     database: AsyncIOMotorDatabase = Depends(get_db),
     current_user: UserOut = Depends(role_checker([
-        UserRole.SUPERADMIN,
-        UserRole.ADMIN,
-        UserRole.ACCOUNTANT
+        UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.ACCOUNTANT
     ]))
 ):
-    """
-    Gestiona la petición para crear una factura.
-    """
+    """Gestiona la petición para crear una factura."""
     logger.info(f"Petición recibida para crear una factura para la Orden de Venta ID: {order_id}")
-    # Nota: El servicio podría necesitar el 'order_id' en el futuro para validaciones.
     created_invoice = await sales_service.create_invoice_from_shipments(database, invoice_payload, current_user)
     logger.info(f"Factura #{created_invoice.invoice_number} creada exitosamente.")
     return created_invoice

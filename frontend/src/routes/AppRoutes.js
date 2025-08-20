@@ -1,7 +1,12 @@
 // frontend/src/routes/AppRoutes.js
 
 /**
- * @file [VERSIÓN DE DEPURACIÓN] Gestor principal de rutas de la aplicación.
+ * @file Gestor principal de rutas de la aplicación.
+ *
+ * @description Este componente centraliza la configuración de todas las rutas de la
+ * aplicación utilizando React Router. Implementa guardias de rutas para proteger
+ * el acceso a las páginas y utiliza carga diferida (lazy loading) para optimizar
+ * el rendimiento inicial de la aplicación.
  */
 
 // ==============================================================================
@@ -38,6 +43,7 @@ const SalesOrderListPage = lazy(() => import('../features/sales/pages/SalesOrder
 const NewSalesOrderPage = lazy(() => import('../features/sales/pages/NewSalesOrderPage'));
 const EditSalesOrderPage = lazy(() => import('../features/sales/pages/EditSalesOrderPage'));
 const CreateShipmentPage = lazy(() => import('../features/sales/pages/CreateShipmentPage'));
+const ShipmentListPage = lazy(() => import('../features/sales/pages/ShipmentListPage')); // <-- NUEVA IMPORTACIÓN
 const PurchaseOrderListPage = lazy(() => import('../features/purchasing/pages/PurchaseOrderListPage'));
 const NewPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/NewPurchaseOrderPage'));
 const EditPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/EditPurchaseOrderPage'));
@@ -55,49 +61,36 @@ const UserManagementPage = lazy(() => import('../features/admin/pages/UserManage
 const DataManagementPage = lazy(() => import('../features/admin/pages/DataManagementPage'));
 
 // ==============================================================================
-// SECCIÓN 2: GUARDIANES DE RUTAS (CON LOGS DE DEPURACIÓN)
+// SECCIÓN 2: GUARDIANES DE RUTAS
 // ==============================================================================
 
 const PermissionGuard = ({ requiredPermission }) => {
   const { isAuthenticated, user, isInitialized } = useAuth();
   const location = useLocation();
 
-  // --- LOG DE DEPURACIÓN ---
-  console.log(`[APP_ROUTES_DEBUG] PermissionGuard (ruta protegida): isInitialized=${isInitialized}, isAuthenticated=${isAuthenticated}`);
-
   if (!isInitialized) {
-    console.log("[APP_ROUTES_DEBUG] PermissionGuard -> MOSTRANDO LOADER (no inicializado)");
     return <FullScreenLoader />;
   }
   if (!isAuthenticated) {
-    console.log("[APP_ROUTES_DEBUG] PermissionGuard -> REDIRIGIENDO A /login (no autenticado)");
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   if (requiredPermission && !hasPermission(user?.role, requiredPermission)) {
-    console.log(`[APP_ROUTES_DEBUG] PermissionGuard -> REDIRIGIENDO A /unauthorized (sin permiso: ${requiredPermission})`);
     return <Navigate to="/unauthorized" replace />;
   }
 
-  console.log("[APP_ROUTES_DEBUG] PermissionGuard -> RENDERIZANDO CONTENIDO (acceso concedido)");
   return <Outlet />;
 };
 
 const PublicRouteGuard = () => {
   const { isAuthenticated, isInitialized } = useAuth();
 
-  // --- LOG DE DEPURACIÓN ---
-  console.log(`[APP_ROUTES_DEBUG] PublicRouteGuard (ruta pública): isInitialized=${isInitialized}, isAuthenticated=${isAuthenticated}`);
-
   if (!isInitialized) {
-    console.log("[APP_ROUTES_DEBUG] PublicRouteGuard -> MOSTRANDO LOADER (no inicializado)");
     return <FullScreenLoader />;
   }
   if (isAuthenticated) {
-    console.log("[APP_ROUTES_DEBUG] PublicRouteGuard -> REDIRIGIENDO A /dashboard (ya autenticado)");
     return <Navigate to="/dashboard" replace />;
   }
   
-  console.log("[APP_ROUTES_DEBUG] PublicRouteGuard -> RENDERIZANDO CONTENIDO (acceso concedido)");
   return <Outlet />;
 };
 
@@ -106,9 +99,6 @@ const PublicRouteGuard = () => {
 // ==============================================================================
 
 const AppRoutes = () => {
-  // --- LOG DE DEPURACIÓN ---
-  console.log("[APP_ROUTES_DEBUG] AppRoutes RENDERIZADO.");
-
   return (
     <Suspense fallback={<FullScreenLoader />}>
       <Routes>
@@ -131,13 +121,13 @@ const AppRoutes = () => {
             <Route path="crm/proveedores/nuevo" element={<NewSupplierPage />} />
             <Route path="crm/clientes" element={<CustomerListPage />} />
             <Route path="crm/clientes/nuevo" element={<NewCustomerPage />} />
-            {/* <Route path="crm/clientes/editar/:customerId" element={<EditCustomerPage />} /> */}
 
             {/* Módulo de Ventas */}
             <Route path="ventas/ordenes" element={<SalesOrderListPage />} />
             <Route path="ventas/ordenes/nueva" element={<NewSalesOrderPage />} />
             <Route path="ventas/ordenes/:orderId" element={<EditSalesOrderPage />} />
             <Route path="ventas/ordenes/:orderId/despachar" element={<CreateShipmentPage />} />
+            <Route path="ventas/despachos" element={<ShipmentListPage />} /> {/* <-- NUEVA RUTA */}
 
             {/* Módulo de Compras */}
             <Route path="compras/ordenes" element={<PurchaseOrderListPage />} />

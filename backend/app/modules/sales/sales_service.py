@@ -283,7 +283,31 @@ async def get_shipment_by_id(database: AsyncIOMotorDatabase, shipment_id: str) -
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Despacho con ID '{shipment_id}' no encontrado.")
     
     return await _populate_document_details(database, shipment_doc, ShipmentOut)
-            
+
+async def get_shipments_paginated(
+    database: AsyncIOMotorDatabase, 
+    page: int, 
+    page_size: int, 
+    search: Optional[str]
+) -> Dict[str, Any]:
+    """Obtiene una lista paginada de despachos con filtros."""
+    shipment_repo = ShipmentRepository(database)
+    query_filter: Dict[str, Any] = {}
+    if search: 
+        query_filter["shipment_number"] = {"$regex": search, "$options": "i"}
+    
+    total_count = await shipment_repo.count_documents(query_filter)
+    shipment_docs = await shipment_repo.find_all_paginated(
+        query_filter, 
+        (page - 1) * page_size, 
+        page_size, 
+        [("shipping_date", DESCENDING)]
+    )
+    
+    populated_items = [await _populate_document_details(database, doc, ShipmentOut) for doc in shipment_docs]
+        
+    return {"total_count": total_count, "items": populated_items}
+
 # ==============================================================================
 # SECCIÓN 6: SERVICIO PARA FACTURAS DE VENTA (SALES INVOICE)
 # ==============================================================================

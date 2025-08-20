@@ -1,12 +1,7 @@
 // frontend/src/routes/AppRoutes.js
 
 /**
- * @file Gestor principal de rutas de la aplicación.
- *
- * Este componente define toda la navegación de la aplicación utilizando React Router.
- * Implementa un sistema de control de acceso basado en permisos, Carga Perezosa
- * (Lazy Loading) para los componentes de página, y un Suspense fallback global
- * para una experiencia de usuario fluida y un rendimiento óptimo.
+ * @file [VERSIÓN DE DEPURACIÓN] Gestor principal de rutas de la aplicación.
  */
 
 // ==============================================================================
@@ -35,18 +30,14 @@ const FullScreenLoader = () => (
 const HomePage = lazy(() => import('../features/home/pages/HomePage'));
 const LoginPage = lazy(() => import('../features/auth/pages/LoginPage'));
 const DashboardPage = lazy(() => import('../features/dashboard/pages/DashboardPage'));
-
-// Módulo de CRM
 const SupplierListPage = lazy(() => import('../features/crm/pages/SupplierListPage'));
 const NewSupplierPage = lazy(() => import('../features/crm/pages/NewSupplierPage'));
-
-// Módulo de Ventas
+const CustomerListPage = lazy(() => import('../features/crm/pages/CustomerListPage'));
+const NewCustomerPage = lazy(() => import('../features/crm/pages/NewCustomerPage'));
 const SalesOrderListPage = lazy(() => import('../features/sales/pages/SalesOrderListPage'));
 const NewSalesOrderPage = lazy(() => import('../features/sales/pages/NewSalesOrderPage'));
 const EditSalesOrderPage = lazy(() => import('../features/sales/pages/EditSalesOrderPage'));
 const CreateShipmentPage = lazy(() => import('../features/sales/pages/CreateShipmentPage'));
-
-// Módulo de Compras
 const PurchaseOrderListPage = lazy(() => import('../features/purchasing/pages/PurchaseOrderListPage'));
 const NewPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/NewPurchaseOrderPage'));
 const EditPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/EditPurchaseOrderPage'));
@@ -56,36 +47,58 @@ const GoodsReceiptDetailsPage = lazy(() => import('../features/purchasing/pages/
 const PurchaseBillListPage = lazy(() => import('../features/purchasing/pages/PurchaseBillListPage'));
 const PurchaseBillDetailsPage = lazy(() => import('../features/purchasing/pages/PurchaseBillDetailsPage'));
 const CreatePurchaseBillPage = lazy(() => import('../features/purchasing/pages/CreatePurchaseBillPage'));
-
-// Módulo de Inventario
 const ProductListPage = lazy(() => import('../features/inventory/pages/ProductListPage'));
 const NewProductPage = lazy(() => import('../features/inventory/pages/NewProductPage'));
 const EditProductPage = lazy(() => import('../features/inventory/pages/EditProductPage'));
-
-// Módulos de Soporte
 const ProductCatalogPage = lazy(() => import('../features/reports/pages/ProductCatalogPage'));
 const UserManagementPage = lazy(() => import('../features/admin/pages/UserManagementPage'));
 const DataManagementPage = lazy(() => import('../features/admin/pages/DataManagementPage'));
 
 // ==============================================================================
-// SECCIÓN 2: GUARDIANES DE RUTAS
+// SECCIÓN 2: GUARDIANES DE RUTAS (CON LOGS DE DEPURACIÓN)
 // ==============================================================================
 
 const PermissionGuard = ({ requiredPermission }) => {
   const { isAuthenticated, user, isInitialized } = useAuth();
   const location = useLocation();
 
-  if (!isInitialized) return <FullScreenLoader />;
-  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
-  if (requiredPermission && !hasPermission(user.role, requiredPermission)) return <Navigate to="/unauthorized" replace />;
+  // --- LOG DE DEPURACIÓN ---
+  console.log(`[APP_ROUTES_DEBUG] PermissionGuard (ruta protegida): isInitialized=${isInitialized}, isAuthenticated=${isAuthenticated}`);
 
+  if (!isInitialized) {
+    console.log("[APP_ROUTES_DEBUG] PermissionGuard -> MOSTRANDO LOADER (no inicializado)");
+    return <FullScreenLoader />;
+  }
+  if (!isAuthenticated) {
+    console.log("[APP_ROUTES_DEBUG] PermissionGuard -> REDIRIGIENDO A /login (no autenticado)");
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  if (requiredPermission && !hasPermission(user?.role, requiredPermission)) {
+    console.log(`[APP_ROUTES_DEBUG] PermissionGuard -> REDIRIGIENDO A /unauthorized (sin permiso: ${requiredPermission})`);
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  console.log("[APP_ROUTES_DEBUG] PermissionGuard -> RENDERIZANDO CONTENIDO (acceso concedido)");
   return <Outlet />;
 };
 
 const PublicRouteGuard = () => {
   const { isAuthenticated, isInitialized } = useAuth();
-  if (!isInitialized) return <FullScreenLoader />;
-  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Outlet />;
+
+  // --- LOG DE DEPURACIÓN ---
+  console.log(`[APP_ROUTES_DEBUG] PublicRouteGuard (ruta pública): isInitialized=${isInitialized}, isAuthenticated=${isAuthenticated}`);
+
+  if (!isInitialized) {
+    console.log("[APP_ROUTES_DEBUG] PublicRouteGuard -> MOSTRANDO LOADER (no inicializado)");
+    return <FullScreenLoader />;
+  }
+  if (isAuthenticated) {
+    console.log("[APP_ROUTES_DEBUG] PublicRouteGuard -> REDIRIGIENDO A /dashboard (ya autenticado)");
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  console.log("[APP_ROUTES_DEBUG] PublicRouteGuard -> RENDERIZANDO CONTENIDO (acceso concedido)");
+  return <Outlet />;
 };
 
 // ==============================================================================
@@ -93,6 +106,9 @@ const PublicRouteGuard = () => {
 // ==============================================================================
 
 const AppRoutes = () => {
+  // --- LOG DE DEPURACIÓN ---
+  console.log("[APP_ROUTES_DEBUG] AppRoutes RENDERIZADO.");
+
   return (
     <Suspense fallback={<FullScreenLoader />}>
       <Routes>
@@ -113,6 +129,9 @@ const AppRoutes = () => {
             {/* Módulo de CRM */}
             <Route path="crm/proveedores" element={<SupplierListPage />} />
             <Route path="crm/proveedores/nuevo" element={<NewSupplierPage />} />
+            <Route path="crm/clientes" element={<CustomerListPage />} />
+            <Route path="crm/clientes/nuevo" element={<NewCustomerPage />} />
+            {/* <Route path="crm/clientes/editar/:customerId" element={<EditCustomerPage />} /> */}
 
             {/* Módulo de Ventas */}
             <Route path="ventas/ordenes" element={<SalesOrderListPage />} />
@@ -126,10 +145,8 @@ const AppRoutes = () => {
             <Route path="compras/ordenes/editar/:orderId" element={<EditPurchaseOrderPage />} />
             <Route path="compras/ordenes/:orderId/recepciones/nueva" element={<CreateReceiptPage />} />
             <Route path="compras/ordenes/:orderId/facturar" element={<CreatePurchaseBillPage />} />
-
             <Route path="compras/recepciones" element={<GoodsReceiptListPage />} />
             <Route path="compras/recepciones/:receiptId" element={<GoodsReceiptDetailsPage />} />
-            
             <Route path="compras/facturas" element={<PurchaseBillListPage />} />
             <Route path="compras/facturas/:billId" element={<PurchaseBillDetailsPage />} />
 

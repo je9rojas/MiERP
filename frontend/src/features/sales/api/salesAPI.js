@@ -85,3 +85,23 @@ export const createShipmentAPI = async (orderId, shipmentData) => {
   const response = await api.post(`/sales/orders/${orderId}/shipments`, shipmentData);
   return mapItemToId(response.data);
 };
+
+/**
+ * Obtiene una lista paginada y filtrada de todos los despachos.
+ * @param {object} params - Objeto con parámetros de consulta (ej. { page, pageSize, search }).
+ * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada y mapeada.
+ */
+export const getShipmentsAPI = async (params) => {
+  const response = await api.get('/sales/shipments', { params });
+  return mapPaginatedResponse(response.data);
+};
+
+/**
+ * Obtiene los datos detallados de un único despacho por su ID.
+ * @param {string} shipmentId - El ID del despacho a obtener.
+ * @returns {Promise<object>} Una promesa que resuelve con los datos del despacho mapeados.
+ */
+export const getShipmentByIdAPI = async (shipmentId) => {
+  const response = await api.get(`/sales/shipments/${shipmentId}`);
+  return mapItemToId(response.data);
+};
