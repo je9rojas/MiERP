@@ -632,6 +632,8 @@ frontend/src/features/purchasing/pages/GoodsReceiptDetailsPage.js
 /frontend/src/features/sales/components/SalesOrderForm.js
 frontend/src/features/sales/components/salesOrderGridConfig.js
 frontend/src/features/sales/components/ShipmentForm.js
+frontend/src/features/sales/components/shipmentGridConfig.js
+frontend/src/features/sales/components/ShipmentDataGrid.js
 
 /frontend/src/features/sales/pages/SalesOrderListPage.js
 /frontend/src/features/sales/pages/NewSalesOrderPage.js

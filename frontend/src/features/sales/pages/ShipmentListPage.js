@@ -6,23 +6,23 @@
  * @description Este componente es responsable de:
  * 1. Obtener una lista paginada de todos los despachos desde la API.
  * 2. Mostrar los datos en un componente de tabla (DataGrid).
- * 3. Gestionar los estados de carga y error durante la obtención de datos.
+ * 3. Gestionar los estados de carga, error y paginación.
  */
 
 // ==============================================================================
 // SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Container, Paper, Box, CircularProgress, Typography, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 // API, Componentes y Utilitarios
-import { getShipmentsAPI } from '../api/salesAPI'; // Nota: Crearemos esta función en el siguiente paso.
+import { getShipmentsAPI } from '../api/salesAPI';
 import PageHeader from '../../../components/common/PageHeader';
 import { formatApiError } from '../../../utils/errorUtils';
-// import ShipmentDataGrid from '../components/ShipmentDataGrid'; // Nota: Este componente aún debe ser creado.
+import ShipmentDataGrid from '../components/ShipmentDataGrid';
 
 // ==============================================================================
 // SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
@@ -30,47 +30,51 @@ import { formatApiError } from '../../../utils/errorUtils';
 
 const ShipmentListPage = () => {
     const navigate = useNavigate();
-
-    // Lógica para obtener los datos de los despachos.
-    const { data, isLoading, isError, error } = useQuery({
-        queryKey: ['shipmentsList'],
-        queryFn: () => getShipmentsAPI({ page: 1, pageSize: 25 }), // Usaremos valores por defecto por ahora.
+    
+    // --- 2.1: Gestión de Estado para Paginación ---
+    const [paginationModel, setPaginationModel] = useState({
+        page: 0,       // La página inicial en MUI DataGrid es 0
+        pageSize: 25,
     });
 
-    // Manejador para cuando se haga clic en una fila (a implementar en el DataGrid).
+    // --- 2.2: Lógica de Obtención de Datos ---
+    const { data, isLoading, isError, error } = useQuery({
+        // La queryKey ahora incluye el modelo de paginación para que se vuelva
+        // a ejecutar cuando cambie.
+        queryKey: ['shipmentsList', paginationModel],
+        // La llamada a la API ahora usa los datos del estado de paginación.
+        // Se suma 1 a la página porque la API espera paginación basada en 1.
+        queryFn: () => getShipmentsAPI({ 
+            page: paginationModel.page + 1, 
+            pageSize: paginationModel.pageSize 
+        }),
+        // Mantiene los datos anteriores visibles mientras se cargan los nuevos.
+        placeholderData: (previousData) => previousData,
+    });
+
+    // --- 2.3: Manejadores de Eventos ---
     const handleRowClick = (shipmentId) => {
-        // Aún no tenemos una página de detalles del despacho, pero esta sería la navegación.
+        // En un futuro, esto navegará a la página de detalles del despacho.
         // navigate(`/ventas/despachos/${shipmentId}`);
-        console.log(`Navegar a los detalles del despacho: ${shipmentId}`);
+        console.log(`Navegación a los detalles del despacho: ${shipmentId}`);
     };
 
-    // Renderizado condicional basado en el estado de la consulta.
+    // --- 2.4: Renderizado de la UI ---
     const renderContent = () => {
-        if (isLoading) {
-            return (
-                <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
-                    <CircularProgress />
-                    <Typography sx={{ ml: 2 }}>Cargando despachos...</Typography>
-                </Box>
-            );
-        }
-
         if (isError) {
             return <Alert severity="error" sx={{ my: 2 }}>{formatApiError(error)}</Alert>;
         }
 
+        // Se pasa isLoading directamente a la DataGrid para que muestre su propio indicador.
         return (
-            <Typography sx={{ my: 4, textAlign: 'center' }}>
-                Aquí se mostrará la tabla de despachos (ShipmentDataGrid).
-                <br />
-                Total de despachos encontrados: {data?.total_count ?? 0}
-            </Typography>
-            // <ShipmentDataGrid
-            //     shipments={data?.items || []}
-            //     onRowClick={handleRowClick}
-            //     rowCount={data?.total_count || 0}
-            //     // Aquí pasarías el estado de paginación y los manejadores.
-            // />
+            <ShipmentDataGrid
+                shipments={data?.items || []}
+                onRowClick={handleRowClick}
+                rowCount={data?.total_count || 0}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                isLoading={isLoading}
+            />
         );
     };
 
@@ -79,7 +83,7 @@ const ShipmentListPage = () => {
             <PageHeader
                 title="Listado de Despachos"
                 subtitle="Consulte todos los movimientos de salida de mercancía registrados."
-                showAddButton={false} // No se crean despachos desde aquí, sino desde una OV.
+                showAddButton={false} // Los despachos se crean desde una Orden de Venta.
             />
             
             <Paper sx={{ p: { xs: 2, md: 3 }, mt: 3, borderRadius: 2, boxShadow: 3 }}>

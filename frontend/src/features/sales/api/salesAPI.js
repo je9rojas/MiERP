@@ -51,17 +51,6 @@ export const getSalesOrderByIdAPI = async (orderId) => {
 };
 
 /**
- * Envía los datos actualizados de una orden de venta para su modificación.
- * @param {string} orderId - El ID de la orden de venta a actualizar.
- * @param {object} updateData - El payload con los campos a actualizar.
- * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de venta actualizada y mapeada.
- */
-export const updateSalesOrderAPI = async (orderId, updateData) => {
-  const response = await api.patch(`/sales/orders/${orderId}`, updateData);
-  return mapItemToId(response.data);
-};
-
-/**
  * Envía una petición para confirmar una orden de venta.
  * @param {string} orderId - El ID de la orden de venta a confirmar.
  * @returns {Promise<object>} Una promesa que resuelve con los datos de la orden de venta actualizada y mapeada.
