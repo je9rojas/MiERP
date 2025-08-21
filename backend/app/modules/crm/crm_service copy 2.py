@@ -1,4 +1,4 @@
-# /backend/app/modules/crm/crm_service.py
+# backend/app/modules/crm/crm_service.py
 
 """
 Capa de Servicio para el módulo de CRM (Customer Relationship Management).
@@ -75,9 +75,7 @@ async def create_supplier(db: AsyncIOMotorDatabase, supplier_data: SupplierCreat
     supplier_to_db = SupplierInDB(**supplier_data.model_dump())
     supplier_doc = supplier_to_db.model_dump(by_alias=True)
     inserted_id = await repo.insert_one(supplier_doc)
-    
-    # (CORREGIDO) Se utiliza el nombre de método correcto del repositorio base.
-    created_doc = await repo.find_one_by_id(str(inserted_id))
+    created_doc = await repo.find_by_id(str(inserted_id))
 
     if not created_doc:
         raise HTTPException(
@@ -131,9 +129,7 @@ async def create_customer(db: AsyncIOMotorDatabase, customer_data: CustomerCreat
     document_to_insert['_id'] = customer_to_db.id
     
     inserted_id = await repo.insert_one(document_to_insert)
-
-    # (CORREGIDO) Se utiliza el nombre de método correcto del repositorio base.
-    created_doc = await repo.find_one_by_id(str(inserted_id))
+    created_doc = await repo.find_by_id(str(inserted_id))
 
     if not created_doc:
         raise HTTPException(
@@ -147,9 +143,7 @@ async def create_customer(db: AsyncIOMotorDatabase, customer_data: CustomerCreat
 async def get_customer_by_id(db: AsyncIOMotorDatabase, customer_id: str) -> CustomerOut:
     """Obtiene un único cliente por su ID."""
     repo = CustomerRepository(db)
-    
-    # (CORREGIDO) Se utiliza el nombre de método correcto del repositorio base.
-    customer_doc = await repo.find_one_by_id(customer_id)
+    customer_doc = await repo.find_by_id(customer_id)
     if not customer_doc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

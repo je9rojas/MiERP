@@ -21,22 +21,13 @@
  * @returns {object | null} El objeto transformado, o null si la entrada es nula.
  */
 export const mapItemToId = (item) => {
-  // [DEPURACIÓN] Log del objeto individual ANTES de la transformación.
-  console.log('[dataMappers.js -> mapItemToId] Objeto ENTRANTE:', item);
-
   if (!item) {
     return null;
   }
-  
+  // Si el objeto tiene `_id` pero no `id`, crea `id` para compatibilidad.
   if (item._id && typeof item.id === 'undefined') {
-    const transformedItem = { ...item, id: item._id };
-    // [DEPURACIÓN] Log del objeto DESPUÉS de la transformación.
-    console.log('[dataMappers.js -> mapItemToId] Objeto TRANSFORMADO:', transformedItem);
-    return transformedItem;
+    return { ...item, id: item._id };
   }
-  
-  // [DEPURACIÓN] Log si el objeto no necesita transformación.
-  console.log('[dataMappers.js -> mapItemToId] Objeto NO necesita transformación.');
   return item;
 };
 
@@ -59,20 +50,11 @@ export const mapArrayToId = (items) => {
  * @returns {object} La respuesta paginada con sus ítems transformados.
  */
 export const mapPaginatedResponse = (paginatedResponse) => {
-  // [DEPURACIÓN] Log de la respuesta paginada COMPLETA que entra a la función.
-  console.log('[dataMappers.js -> mapPaginatedResponse] Respuesta paginada RECIBIDA:', paginatedResponse);
-
   if (!paginatedResponse || !paginatedResponse.items) {
     return { items: [], total_count: 0 };
   }
-  
-  const result = {
+  return {
     ...paginatedResponse,
     items: mapArrayToId(paginatedResponse.items),
   };
-  
-  // [DEPURACIÓN] Log de la respuesta paginada DESPUÉS de procesar los ítems.
-  console.log('[dataMappers.js -> mapPaginatedResponse] Respuesta paginada PROCESADA:', result);
-  
-  return result;
 };

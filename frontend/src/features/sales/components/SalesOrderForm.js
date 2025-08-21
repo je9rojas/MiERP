@@ -1,15 +1,17 @@
+// /frontend/src/features/sales/components/SalesOrderForm.js
+
 /**
  * @file Componente de presentación reutilizable para el formulario de Órdenes de Venta.
  * @description Este componente encapsula la interfaz de usuario para crear y editar Órdenes de Venta.
- * Es un componente "controlado" que recibe toda la data y los callbacks a través de props,
- * sin gestionar estado de API directamente.
+ * Es un componente "puro" que recibe toda la data y los callbacks a través de props,
+ * sin gestionar estado de API o lógica de transformación de datos complejos directamente.
  */
 
 // ==============================================================================
 // SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
 import { Formik, Form, Field, FieldArray } from 'formik';
 import {
@@ -148,33 +150,23 @@ const SalesOrderForm = ({
     isLoadingCustomers = false,
     productsOptions = [],
 }) => {
-    const isEditMode = !!initialData?.id;
-
-    const initialValues = useMemo(() => {
-        const defaultValues = {
-            customer: null,
-            order_date: new Date(),
-            notes: '',
-            items: [{ product: null, quantity: 1, unit_price: 0 }],
-        };
-
-        if (isEditMode && initialData) {
-            const customerObject = customerOptions.find(c => c.id === initialData.customer.id);
-            return {
-                customer: customerObject || null,
-                order_date: initialData.order_date ? new Date(initialData.order_date) : new Date(),
-                notes: initialData.notes || '',
-                // CRITICAL FIX: Ensure 'items' is always an array to prevent .reduce() error
-                items: initialData.items || [],
-            };
-        }
-        
-        return defaultValues;
-    }, [initialData, isEditMode, customerOptions]);
+    // (MODIFICADO) La lógica para determinar los valores iniciales se ha simplificado drásticamente.
+    // El componente ahora confía en que `initialData` (si existe) ya viene en el formato correcto
+    // gracias al mapeo realizado en el componente padre (EditSalesOrderPage).
+    const initialValues = initialData || {
+        customer: null,
+        order_date: new Date(),
+        notes: '',
+        items: [{ product: null, quantity: 1, unit_price: 0 }],
+    };
+    
+    const isEditMode = !!initialData;
 
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>
             <Formik
+                // La prop 'key' es opcional pero ayuda a React a resetear el estado de Formik si los datos iniciales cambian.
+                key={initialData?.id || 'new-order'}
                 initialValues={initialValues}
                 validationSchema={salesOrderFormValidationSchema}
                 onSubmit={onSubmit}

@@ -1,41 +1,43 @@
-# /backend/.env
-# Archivo de configuración de variables de entorno para el backend.
-# NO subas este archivo a repositorios públicos como GitHub.
+# backend/.env 
+# ==============================================================================
+# VARIABLES DE ENTORNO PARA DESARROLLO LOCAL DEL BACKEND
+#
+# Este archivo contiene secretos y configuraciones para el entorno de desarrollo.
+# NO debe ser subido a repositorios de Git.
+# ==============================================================================
 
-# --- SECCIÓN 1: CONFIGURACIÓN DEL ENTORNO DE LA APLICACIÓN ---
-# Define el entorno en el que se ejecuta la aplicación.
-# Opciones válidas: "development", "production", "testing"
+
+# --- SECCIÓN 1: CONFIGURACIÓN GENERAL DEL ENTORNO ---
+# Define el entorno de ejecución. Opciones: "development", "production".
 ENV="development"
 
 
-# --- SECCIÓN 2: CONFIGURACIÓN DE LA BASE DE DATOS (OBLIGATORIO) ---
-# URI de conexión completa a tu clúster de MongoDB Atlas.
-MONGODB_URI="mongodb+srv://db_admin:dQ6n5znkCVO0ANm6@erp-cluster.fzyhb.mongodb.net/midb?retryWrites=true&w=majority&appName=ERP-cluster"
-
-# El nombre de la base de datos es opcional si ya está especificado en la URI.
-# Descomenta la siguiente línea si necesitas anular el nombre de la DB de la URI.
-# MONGODB_DATABASE_NAME="midb"
+# --- SECCIÓN 2: BASE DE DATOS (OBLIGATORIO) ---
+# URI de conexión completa a MongoDB Atlas.
+DATABASE_URL="mongodb+srv://db_admin:dQ6n5znkCVO0ANm6@erp-cluster.fzyhb.mongodb.net/midb?retryWrites=true&w=majority&appName=ERP-cluster"
 
 
-# --- SECCIÓN 3: CONFIGURACIÓN DE SEGURIDAD (OBLIGATORIO) ---
+# --- SECCIÓN 3: SEGURIDAD Y JSON WEB TOKENS (OBLIGATORIO) ---
 
-# Clave secreta para la firma de tokens JWT y otras operaciones criptográficas.
-# DEBE SER LARGA, ALEATORIA Y SECRETA. NO USES ESTA EN PRODUCCIÓN.
-# Puedes generar una nueva con: openssl rand -hex 32
+# Clave secreta para la firma de tokens JWT.
+# ¡IMPORTANTE! Esta es una clave de ejemplo. Genera la tuya para un proyecto real.
+# Comando para generar una nueva: openssl rand -hex 32
 SECRET_KEY="1d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e"
 
-# Orígenes (dominios del frontend) que tienen permiso para hacer peticiones a esta API.
-# El formato DEBE ser una lista JSON dentro de una cadena de texto.
+# Orígenes (URLs del frontend) que tienen permiso para acceder a esta API.
+# ALLOWED_ORIGINS= "["https://URL-DE-TU-FRONTEND.vercel.app"]"
 ALLOWED_ORIGINS='["http://localhost:3000", "http://127.0.0.1:3000"]'
 
+# Duración del token de acceso en minutos.
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 
-# --- SECCIÓN 4: CONFIGURACIONES ADICIONALES (OPCIONALES) ---
+# Algoritmo de firma para los tokens JWT.
+ALGORITHM="HS256"
 
-# Habilita o deshabilita la rotación automática de credenciales.
-# ENABLE_CREDENTIAL_ROTATION=false
-# CREDENTIAL_ROTATION_DAYS=90
 
-# Configuración para un gestor de secretos externo (ej. AWS Secrets Manager).
-# Por ahora, se mantiene el valor por defecto "file", que no hace nada.
-# SECRETS_MANAGER="aws"
-# SECRETS_MANAGER_CONFIG='{"region": "us-east-1"}'
+# --- SECCIÓN 4: CREDENCIALES DEL SUPERADMINISTRADOR INICIAL (OBLIGATORIO) ---
+# Estas variables son requeridas por la aplicación para crear el primer usuario
+# con todos los permisos durante el arranque inicial.
+
+SUPERADMIN_EMAIL="super_admin@dirogsa.com"
+SUPERADMIN_PASSWORD="kR8#z!9p$L@w2vF&bQ"

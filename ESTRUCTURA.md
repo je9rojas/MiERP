@@ -235,7 +235,7 @@ BACKEND
 /backend/app/modules/reports/reports_service.py
 /backend/app/modules/reports/reports_routes.py
 /backend/app/modules/reports/reports_models.py
-
+/backend/app/modules/reports/services/sales_order_service.py
 
 
 # ---------------------- Ventas ----------------------
@@ -263,6 +263,8 @@ BACKEND
 
 # ---------------------- ARCHIVOS ESTÁTICOS ----------------------
 /backend/static/product_images/...                         # Carpeta para respaldos de imágenes
+/backend/static/logos/logo_empresa.png
+
 
 # ---------------------- ARCHIVOS DE CONFIGURACIÓN ----------------------
 /backend/pyproject.toml                                    # Configuración de herramientas
@@ -393,6 +395,7 @@ frontend/src/features/purchasing/pages/EditPurchaseOrderPage.js
 /frontend/src/utils/errorUtils.js
 /frontend/src/utils/auth/auth.js
 /frontend/src/utils/auth/roles.js
+/frontend/src/utils/fileUtils.js
 
 # ---------------------- CONFIGURACIÓN DE PROYECTO ----------------------
 /frontend/package.json                                        # Dependencias y scripts

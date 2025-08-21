@@ -5,9 +5,8 @@
  *
  * @description Este componente es responsable de:
  * 1. Obtener una lista paginada de todos los despachos desde la API.
- * 2. Transformar los datos para la UI usando un mapper.
- * 3. Mostrar los datos en un componente de tabla (DataGrid).
- * 4. Gestionar los estados de carga, error y paginación.
+ * 2. Mostrar los datos en un componente de tabla (DataGrid).
+ * 3. Gestionar los estados de carga, error y paginación.
  */
 
 // ==============================================================================
@@ -16,12 +15,11 @@
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Container, Paper, Alert } from '@mui/material';
+import { Container, Paper, Box, CircularProgress, Typography, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
-// API, Mappers, Componentes y Utilitarios
+// API, Componentes y Utilitarios
 import { getShipmentsAPI } from '../api/salesAPI';
-import { mapPaginatedShipmentsForUI } from '../mappers/salesMappers'; // <--- (MODIFICADO) Importamos el mapper
 import PageHeader from '../../../components/common/PageHeader';
 import { formatApiError } from '../../../utils/errorUtils';
 import ShipmentDataGrid from '../components/ShipmentDataGrid';
@@ -35,25 +33,24 @@ const ShipmentListPage = () => {
     
     // --- 2.1: Gestión de Estado para Paginación ---
     const [paginationModel, setPaginationModel] = useState({
-        page: 0,
+        page: 0,       // La página inicial en MUI DataGrid es 0
         pageSize: 25,
     });
 
-    // --- 2.2: Lógica de Obtención y Transformación de Datos --- (MODIFICADO)
+    // --- 2.2: Lógica de Obtención de Datos ---
     const { data, isLoading, isError, error } = useQuery({
+        // La queryKey ahora incluye el modelo de paginación para que se vuelva
+        // a ejecutar cuando cambie.
         queryKey: ['shipmentsList', paginationModel],
+        // La llamada a la API ahora usa los datos del estado de paginación.
+        // Se suma 1 a la página porque la API espera paginación basada en 1.
         queryFn: () => getShipmentsAPI({ 
             page: paginationModel.page + 1, 
             pageSize: paginationModel.pageSize 
         }),
-        // La opción 'select' transforma los datos ANTES de que se almacenen en caché
-        // y se entreguen al componente. Aquí aplicamos nuestro mapper.
-        select: mapPaginatedShipmentsForUI, // <--- (AÑADIDO)
+        // Mantiene los datos anteriores visibles mientras se cargan los nuevos.
         placeholderData: (previousData) => previousData,
     });
-    
-    // [DEPURACIÓN] Este log ahora mostrará los datos ya transformados y listos para la tabla.
-    console.log('Datos MAPEADOS para la tabla:', data);
 
     // --- 2.3: Manejadores de Eventos ---
     const handleRowClick = (shipmentId) => {
@@ -68,10 +65,10 @@ const ShipmentListPage = () => {
             return <Alert severity="error" sx={{ my: 2 }}>{formatApiError(error)}</Alert>;
         }
 
+        // Se pasa isLoading directamente a la DataGrid para que muestre su propio indicador.
         return (
             <ShipmentDataGrid
-                // (MODIFICADO) 'shipments' ahora se llama 'rows' para mayor claridad y estándar
-                rows={data?.items || []} 
+                shipments={data?.items || []}
                 onRowClick={handleRowClick}
                 rowCount={data?.total_count || 0}
                 paginationModel={paginationModel}
@@ -86,7 +83,7 @@ const ShipmentListPage = () => {
             <PageHeader
                 title="Listado de Despachos"
                 subtitle="Consulte todos los movimientos de salida de mercancía registrados."
-                showAddButton={false}
+                showAddButton={false} // Los despachos se crean desde una Orden de Venta.
             />
             
             <Paper sx={{ p: { xs: 2, md: 3 }, mt: 3, borderRadius: 2, boxShadow: 3 }}>

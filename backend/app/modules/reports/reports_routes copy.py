@@ -4,7 +4,7 @@
 Define los endpoints de la API para el módulo de Reportes.
 
 Este router expone las operaciones para la generación de diferentes tipos de
-documentos y reportes del sistema, como catálogos y órdenes de venta.
+reportes del sistema, como catálogos de productos, reportes de ventas, etc.
 """
 
 # ==============================================================================
@@ -34,48 +34,6 @@ router = APIRouter(
 # SECCIÓN 3: ENDPOINTS DE LA API
 # ==============================================================================
 
-@router.get(
-    "/sales/orders/{order_id}/print",
-    summary="Generar Documento de Orden de Venta en PDF",
-    description="Genera un documento en formato PDF para una orden de venta específica. El título del documento ('Proforma' o 'Orden de Venta') se determina automáticamente según el estado de la orden.",
-    response_class=Response,
-    responses={
-        200: {"description": "Documento PDF generado exitosamente.", "content": {"application/pdf": {}}},
-        404: {"description": "La orden de venta especificada no fue encontrada."}
-    }
-)
-async def generate_sales_order_document_route(
-    order_id: str,
-    db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: UserOut = Depends(get_current_active_user)
-):
-    """
-    Endpoint para generar el PDF de una Orden de Venta o Proforma.
-
-    Delega la lógica de negocio a la capa de servicio, que se encarga de
-    recuperar los datos, determinar el tipo de documento y generar el archivo binario.
-    """
-    pdf_bytes_info = await reports_service.generate_sales_order_document_pdf(db, order_id)
-    
-    if not pdf_bytes_info:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No se encontró una orden de venta con el ID: {order_id}"
-        )
-
-    pdf_bytes, filename = pdf_bytes_info
-    
-    headers = {
-        "Content-Disposition": f"inline; filename={filename}"
-    }
-    
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers=headers
-    )
-
-
 @router.post(
     "/catalog",
     summary="Generar Catálogo de Productos en PDF",
@@ -89,6 +47,9 @@ async def generate_sales_order_document_route(
 async def generate_product_catalog_route(
     filters: CatalogFilterPayload,
     db: AsyncIOMotorDatabase = Depends(get_db),
+    # --- CORRECCIÓN CLAVE ---
+    # Se utiliza la dependencia estándar que ya verifica que el usuario
+    # esté autenticado y activo. Es más limpio y reutiliza la lógica existente.
     _user: UserOut = Depends(get_current_active_user)
 ):
     """
@@ -97,19 +58,16 @@ async def generate_product_catalog_route(
     Cualquier usuario autenticado y activo puede generar reportes. La lógica
     de negocio se delega a la capa de servicio de reportes.
     """
-    # (MODIFICADO) Ajuste para reflejar que el servicio puede devolver None
-    pdf_bytes_tuple = await reports_service.generate_product_catalog_pdf(db, filters)
+    pdf_bytes = await reports_service.generate_product_catalog_pdf(db, filters)
     
-    if not pdf_bytes_tuple:
+    if not pdf_bytes:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No se encontraron productos que coincidan con los filtros para generar el catálogo."
         )
     
-    pdf_bytes, filename = pdf_bytes_tuple
-    
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": "attachment; filename=catalogo_productos.pdf"}
     )

@@ -2,62 +2,54 @@
 
 /**
  * @file Define la configuración de columnas para la tabla de Despachos (Shipments).
+ * @description Esta configuración está diseñada para funcionar con datos aplanados
+ * provenientes del mapper 'mapShipmentToDataGridRow'.
  */
 
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+// Ya no se necesitan importaciones de 'date-fns' aquí, la lógica de formato
+// se ha movido al mapper para una mejor separación de concerns.
 
 export const shipmentColumns = [
     {
-        field: 'shipment_number',
+        // (MODIFICADO) El 'field' ahora apunta a la propiedad aplanada.
+        field: 'shipmentNumber',
         headerName: 'N° Despacho',
         width: 150,
-        valueGetter: (params) => params.row?.shipment_number || 'N/A',
+        // (ELIMINADO) 'valueGetter' ya no es necesario.
     },
     {
-        field: 'sales_order_id',
+        // (MODIFICADO)
+        field: 'salesOrderNumber',
         headerName: 'N° Orden de Venta',
         width: 180,
-        // En el futuro, se podría poblar el número de la orden de venta desde el backend.
-        // Por ahora, se muestra el ID de la orden.
-        valueGetter: (params) => params.row?.sales_order_id || 'N/A',
     },
     {
-        field: 'customer',
+        // (MODIFICADO)
+        field: 'customerName',
         headerName: 'Cliente',
         flex: 1,
         minWidth: 200,
-        valueGetter: (params) => params.row?.customer?.name || 'Cliente no encontrado',
     },
     {
-        field: 'shipping_date',
+        // (MODIFICADO)
+        field: 'shipmentDate',
         headerName: 'Fecha de Despacho',
         width: 180,
-        valueGetter: (params) => params.row?.shipping_date,
-        renderCell: (params) => {
-            // Se añade una guarda para evitar errores si la fecha es nula o inválida.
-            if (!params.value) {
-                return 'N/A';
-            }
-            try {
-                return format(new Date(params.value), 'dd MMM yyyy', { locale: es });
-            } catch {
-                return 'Fecha inválida';
-            }
-        },
+        // (ELIMINADO) 'valueGetter' y 'renderCell' ya no son necesarios
+        // porque el mapper ya ha formateado la fecha.
     },
     {
-        field: 'items',
+        // (MODIFICADO)
+        field: 'itemCount',
         headerName: 'Ítems',
         width: 100,
         align: 'center',
         headerAlign: 'center',
-        valueGetter: (params) => params.row?.items?.length || 0,
     },
     {
-        field: 'created_by',
+        // (MODIFICADO)
+        field: 'createdByName',
         headerName: 'Creado Por',
         width: 200,
-        valueGetter: (params) => params.row?.created_by?.name || 'Usuario desconocido',
     },
 ];

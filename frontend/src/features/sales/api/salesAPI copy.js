@@ -3,10 +3,9 @@
 /**
  * @file Contiene todas las funciones para interactuar con los endpoints del Módulo de Ventas.
  *
- * @description Este módulo actúa como una capa de abstracción sobre las llamadas de red (Axios)
- * para las entidades del flujo "Order-to-Cash". Para la mayoría de los endpoints, aplica
- * una capa de mapeo genérica para estandarizar la forma de los datos (ej: _id -> id).
- * Ciertos endpoints que requieren una transformación compleja en la UI devuelven los datos crudos.
+ * Este módulo actúa como una capa de abstracción sobre las llamadas de red (Axios) para
+ * las entidades del flujo "Order-to-Cash": Órdenes de Venta y Despachos.
+ * Aplica una capa de mapeo a las respuestas para estandarizar el modelo de datos.
  */
 
 // ==============================================================================
@@ -90,15 +89,11 @@ export const createShipmentAPI = async (orderId, shipmentData) => {
 /**
  * Obtiene una lista paginada y filtrada de todos los despachos.
  * @param {object} params - Objeto con parámetros de consulta (ej. { page, pageSize, search }).
- * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada **sin procesar**.
+ * @returns {Promise<object>} Una promesa que resuelve con la respuesta paginada y mapeada.
  */
 export const getShipmentsAPI = async (params) => {
   const response = await api.get('/sales/shipments', { params });
-  // (MODIFICADO) Se devuelve la respuesta 'cruda' del backend.
-  // La transformación de estos datos (aplanamiento) es responsabilidad de la capa
-  // de la UI (a través de la opción 'select' de useQuery) debido a su complejidad
-  // y a la necesidad específica de la vista del DataGrid.
-  return response.data;
+  return mapPaginatedResponse(response.data);
 };
 
 /**
