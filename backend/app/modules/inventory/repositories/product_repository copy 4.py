@@ -19,13 +19,13 @@ from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClientSession
 
 # --- Importaciones de la Aplicación ---
 from app.repositories.base_repository import BaseRepository
-from app.modules.inventory.product_models import ProductInDB
+from app.modules.inventory.product_models import Product
 
 # ==============================================================================
 # SECCIÓN 2: DEFINICIÓN DE LA CLASE DEL REPOSITORIO
 # ==============================================================================
 
-class ProductRepository(BaseRepository[ProductInDB]):
+class ProductRepository(BaseRepository[Product]):
     """
     Gestiona las operaciones de base de datos para la colección de productos.
 
@@ -43,10 +43,10 @@ class ProductRepository(BaseRepository[ProductInDB]):
         Inicializa el repositorio de productos.
         
         Llama al constructor de la clase base `BaseRepository` y le proporciona
-        el nombre de la colección ("products") y el modelo Pydantic (`ProductInDB`)
+        el nombre de la colección ("products") y el modelo Pydantic (`Product`)
         con el que operará.
         """
-        super().__init__(database, collection_name="products", model=ProductInDB)
+        super().__init__(database, collection_name="products", model=Product)
 
     # --------------------------------------------------------------------------
     # Subsección 2.2: Métodos de Consulta Específicos

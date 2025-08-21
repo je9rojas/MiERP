@@ -91,3 +91,7 @@ Vamos a poner una reglas generales que las manejaremos a lo largo de toda la con
 
 
 verías que tiene una propiedad _id pero no una propiedad id
+
+
+
+al momento de dar la solucionar por favor hacerlo uno por uno, archivo por archivo esto debe ser una regla general para todas las respuestas de la conversacion, entendido? antes de modificar un archivo muestrame la ruta y espera que te confirme. Una regla más es que todos los archivos deben tener como comentario dentro del codigo su ruta para una mejor referencia, ademas al final de todo hacer un pequeño resumen para saber si seguimos con el plan de accion o ya terminamos

@@ -5,7 +5,7 @@ Define la Clase Base para todos los Repositorios de la Aplicación.
 
 Este módulo introduce un patrón de Repositorio Genérico para estandarizar el acceso
 a la base de datos y eliminar código duplicado. La clase `BaseRepository` utiliza
-genéricos de Python (`Generic`, `TypeVar`) para proporcionar operaciones CRUD
+genéricos de Python para proporcionar operaciones CRUD y de agregación,
 fuertemente tipadas para cualquier modelo de Pydantic.
 """
 
@@ -13,7 +13,7 @@ fuertemente tipadas para cualquier modelo de Pydantic.
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
+from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
 from motor.motor_asyncio import AsyncIOMotorClientSession, AsyncIOMotorCollection, AsyncIOMotorDatabase
 from pydantic import BaseModel
 from pymongo.results import InsertOneResult, UpdateResult
@@ -24,8 +24,6 @@ from app.models.shared import PyObjectId
 # SECCIÓN 2: DEFINICIÓN DE TIPOS GENÉRICOS
 # ==============================================================================
 
-# TypeVar permite que la clase BaseRepository sea genérica y funcione con cualquier
-# modelo de Pydantic que herede de BaseModel.
 ModelType = TypeVar("ModelType", bound=BaseModel)
 
 # ==============================================================================
@@ -34,7 +32,8 @@ ModelType = TypeVar("ModelType", bound=BaseModel)
 
 class BaseRepository(Generic[ModelType]):
     """
-    Repositorio base con operaciones CRUD genéricas para una colección de MongoDB.
+    Repositorio base con operaciones CRUD genéricas y de agregación para una
+    colección de MongoDB.
     """
 
     def __init__(self, database: AsyncIOMotorDatabase, collection_name: str, model: Type[ModelType]):
@@ -43,26 +42,15 @@ class BaseRepository(Generic[ModelType]):
 
         Args:
             database: La instancia de la base de datos asíncrona de Motor.
-            collection_name: El nombre de la colección de MongoDB a la que
-                             este repositorio estará vinculado.
-            model: El modelo de Pydantic que representa los documentos en la
-                   colección.
+            collection_name: El nombre de la colección de MongoDB.
+            model: El modelo de Pydantic que representa los documentos.
         """
         self.db: AsyncIOMotorDatabase = database
         self.collection: AsyncIOMotorCollection = self.db[collection_name]
         self.model: Type[ModelType] = model
 
     async def find_one_by_id(self, document_id: str, session: Optional[AsyncIOMotorClientSession] = None) -> Optional[Dict[str, Any]]:
-        """
-        [ESTANDARIZADO] Busca un único documento por su _id.
-
-        Args:
-            document_id: El ID del documento en formato string.
-            session: Una sesión opcional de Motor para operaciones transaccionales.
-
-        Returns:
-            Un diccionario representando el documento si se encuentra, o None.
-        """
+        """Busca un único documento por su _id."""
         return await self.collection.find_one({"_id": PyObjectId(document_id)}, session=session)
 
     async def find_one_by(self, query: Dict[str, Any], session: Optional[AsyncIOMotorClientSession] = None) -> Optional[Dict[str, Any]]:
@@ -112,3 +100,23 @@ class BaseRepository(Generic[ModelType]):
         """Encuentra el primer documento según un criterio de ordenamiento."""
         query = query or {}
         return await self.collection.find_one(filter=query, sort=sort, session=session)
+
+    # --- (NUEVO) MÉTODO DE AGREGACIÓN ---
+    async def aggregate(self, pipeline: List[Dict[str, Any]], session: Optional[AsyncIOMotorClientSession] = None) -> List[Dict[str, Any]]:
+        """
+        Ejecuta un pipeline de agregación de MongoDB en la colección.
+
+        Este método es ideal para consultas complejas que requieren joins
+        (con $lookup), agrupaciones, o transformaciones de datos en la BD.
+
+        Args:
+            pipeline: Una lista de diccionarios que definen las etapas
+                      del pipeline de agregación.
+            session: Una sesión opcional de Motor para operaciones transaccionales.
+
+        Returns:
+            Una lista de diccionarios, donde cada diccionario es el resultado
+            del pipeline de agregación.
+        """
+        cursor = self.collection.aggregate(pipeline, session=session)
+        return await cursor.to_list(length=None)
