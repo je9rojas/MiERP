@@ -1,18 +1,15 @@
-// File: /frontend/src/features/purchasing/components/purchaseOrderGridConfig.js
+// /frontend/src/features/purchasing/components/purchaseOrderGridConfig.js
 
 /**
- * @file purchasing/components/purchaseOrderGridConfig.js
- * @description Archivo de configuración para el MUI DataGrid de Órdenes de Compra.
+ * @file Archivo de configuración para el MUI DataGrid de Órdenes de Compra.
  *
- * Este archivo centraliza la lógica de creación de columnas para la tabla.
- * Al aislar esta configuración, se mejora la separación de concerns y se facilita
- * la mantenibilidad. La función `createPurchaseOrderColumns` actúa como una
- * factoría que recibe las funciones de acción como dependencias, permitiendo que
- * las columnas sean interactivas sin acoplarse al estado del componente padre.
+ * Este archivo centraliza la lógica de creación de columnas y otras configuraciones
+ * específicas de la tabla de órdenes de compra. Al aislar esta lógica, se mejora la
+ * separación de concerns y se hace más fácil de mantener y probar.
  */
 
-// =omed=============================================================================
-// SECCIÓN 1: IMPORTACIONES DE MÓDULOS Y COMPONENTES
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
 import React from 'react';
@@ -23,64 +20,75 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale'; // Importar el locale en español
 
 // ==============================================================================
-// SECCIÓN 2: CONSTANTES DE CONFIGURACIÓN
+// SECCIÓN 2: CONSTANTES Y FUNCIONES DE AYUDA
 // ==============================================================================
 
-const STATUS_CONFIG = {
-    draft:              { label: 'Borrador',          color: 'default'   },
-    confirmed:          { label: 'Confirmado',        color: 'info'      },
-    partially_received: { label: 'Recibido Parcial',  color: 'secondary' },
-    fully_received:     { label: 'Recibido Completo', color: 'success'   },
-    billed:             { label: 'Facturado',         color: 'primary'   },
-    cancelled:          { label: 'Cancelado',         color: 'error'     },
+const statusColors = {
+    draft: 'default',
+    confirmed: 'info',
+    partially_received: 'secondary',
+    fully_received: 'success',
+    billed: 'primary',
+    cancelled: 'error',
 };
 
+const statusLabels = {
+    draft: 'Borrador',
+    confirmed: 'Confirmado',
+    partially_received: 'Recibido Parcial',
+    fully_received: 'Recibido Completo',
+    billed: 'Facturado',
+    cancelled: 'Cancelado',
+};
+
+
 // ==============================================================================
-// SECCIÓN 3: FUNCIÓN FACTORÍA PARA LA DEFINICIÓN DE COLUMNAS
+// SECCIÓN 3: FUNCIÓN FACTORY PARA COLUMNAS
 // ==============================================================================
 
 /**
- * Crea la configuración de columnas para la tabla de Órdenes de Compra.
- * @param {object} actions - Objeto que contiene los callbacks para las acciones de la fila.
- * @param {function(string)} actions.onEditOrder - Callback para editar/ver la orden.
- * @param {function(object)} actions.onConfirmOrder - Callback para confirmar la orden.
- * @param {function(string)} actions.onRegisterReceipt - Callback para registrar una recepción.
- * @param {function(string)} actions.onRegisterBill - Callback para registrar una factura.
- * @returns {Array<object>} Un array de objetos de definición de columnas para MUI DataGrid.
+ * Factory function para crear la configuración de las columnas de la DataGrid.
+ * @param {object} actions - Un objeto que contiene los callbacks para las acciones.
+ * @returns {Array<object>} Un array de objetos de definición de columnas.
  */
 export const createPurchaseOrderColumns = (actions) => [
     {
         field: 'order_number',
         headerName: 'N° Orden',
-        width: 150,
+        width: 150
     },
     {
-        field: 'supplier_name',
+        field: 'supplier',
         headerName: 'Proveedor',
         flex: 1,
         minWidth: 250,
+        valueGetter: (params) => {
+            // --- INICIO DE LOGS DE DEPURACIÓN ---
+            console.log("[DEBUG_GRID_CONFIG] valueGetter para 'supplier' ejecutado.");
+            console.log("[DEBUG_GRID_CONFIG] Fila completa (params.row):", params.row);
+            console.log("[DEBUG_GRID_CONFIG] Valor del campo 'supplier' (params.value):", params.value);
+            // --- FIN DE LOGS DE DEPURACIÓN ---
+            
+            // La lógica original se mantiene.
+            return params.row?.supplier?.business_name || 'N/A';
+        },
     },
     {
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Se simplifica la columna para aprovechar el manejo nativo de fechas del DataGrid.
-        // Dado que los datos ya llegan como objetos `Date` desde el componente padre,
-        // no se necesita un `valueGetter` para la conversión.
         field: 'order_date',
         headerName: 'Fecha de Emisión',
         width: 150,
         type: 'date',
-        // El `valueFormatter` se mantiene para asegurar un formato visual consistente (dd/MM/yyyy).
-        // Se añade un chequeo robusto para objetos Date válidos.
+        valueGetter: (params) => (params.value ? new Date(params.value) : null),
         valueFormatter: (value) => {
-            if (value instanceof Date && !isNaN(value)) {
-                return format(value, 'dd/MM/yyyy', { locale: es });
+            if (!value) return '';
+            try {
+                return format(new Date(value), 'dd/MM/yyyy');
+            } catch (error) {
+                return 'Fecha inválida';
             }
-            return ''; // Devuelve vacío si la fecha es nula o inválida.
         },
-        // --- FIN DE LA CORRECCIÓN ---
     },
     {
         field: 'total_amount',
@@ -89,22 +97,18 @@ export const createPurchaseOrderColumns = (actions) => [
         type: 'number',
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value) => {
-            const number = Number(value || 0);
-            return `S/ ${number.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        }
+        valueFormatter: (value) => `S/ ${Number(value || 0).toFixed(2)}`,
     },
     {
         field: 'status',
         headerName: 'Estado',
         width: 180,
         renderCell: (params) => {
-            const statusKey = params.value || 'draft';
-            const config = STATUS_CONFIG[statusKey] || { label: statusKey.toUpperCase(), color: 'default' };
+            const status = params.value || 'draft';
             return (
                 <Chip
-                    label={config.label}
-                    color={config.color}
+                    label={statusLabels[status] || status.toUpperCase()}
+                    color={statusColors[status] || 'default'}
                     size="small"
                     variant="outlined"
                 />
@@ -132,7 +136,7 @@ export const createPurchaseOrderColumns = (actions) => [
                             {isDraft ? <EditIcon /> : <VisibilityIcon />}
                         </IconButton>
                     </Tooltip>
-
+                    
                     {isDraft && (
                          <Tooltip title="Confirmar Orden">
                             <IconButton onClick={() => actions.onConfirmOrder(row)} color="success" size="small">
@@ -140,7 +144,7 @@ export const createPurchaseOrderColumns = (actions) => [
                             </IconButton>
                         </Tooltip>
                     )}
-
+                    
                     <Tooltip title="Registrar Recepción">
                         <span>
                             <IconButton onClick={() => actions.onRegisterReceipt(row.id)} size="small" disabled={!canBeReceived}>
@@ -148,7 +152,7 @@ export const createPurchaseOrderColumns = (actions) => [
                             </IconButton>
                         </span>
                     </Tooltip>
-
+                    
                     <Tooltip title="Registrar Factura">
                         <span>
                             <IconButton onClick={() => actions.onRegisterBill(row.id)} size="small" disabled={!canBeBilled}>

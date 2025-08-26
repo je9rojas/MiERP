@@ -25,8 +25,7 @@ import PurchaseOrderDataGrid from '../components/PurchaseOrderDataGrid';
 import PageHeader from '../../../components/common/PageHeader';
 import { formatApiError } from '../../../utils/errorUtils';
 import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
-// Asumiendo que tienes un contexto para mostrar notificaciones (Snackbars)
-// import { useSnackbar } from '../../../app/contexts/SnackbarContext';
+// import { useSnackbar } from 'notistack'; // Descomentar para usar notificaciones avanzadas
 
 // ==============================================================================
 // SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
@@ -36,19 +35,14 @@ const PurchaseOrderListPage = () => {
     // Sub-sección 2.1: Hooks y Estado
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    // const { showSnackbar } = useSnackbar(); // Descomentar si usas un contexto de Snackbar
+    // const { enqueueSnackbar } = useSnackbar();
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     const [confirmationDialog, setConfirmationDialog] = useState({ isOpen: false, title: '', content: '', onConfirm: () => {} });
 
     // Sub-sección 2.2: Lógica de Obtención de Datos con React Query
-    const {
-        data,
-        isLoading,
-        isError,
-        error
-    } = useQuery({
+    const { data, isLoading, isError, error } = useQuery({
         queryKey: ['purchaseOrders', paginationModel, debouncedSearchTerm],
         queryFn: () => getPurchaseOrdersAPI({
             page: paginationModel.page + 1,
@@ -56,21 +50,21 @@ const PurchaseOrderListPage = () => {
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
-        staleTime: 30000, // Aumentamos el staleTime para evitar refetches innecesarios
+        staleTime: 30000,
     });
 
     // Sub-sección 2.3: Lógica de Mutación de Datos (Actualización de Estado)
     const { mutate: updateOrderStatus, isPending: isUpdatingStatus } = useMutation({
         mutationFn: ({ orderId, newStatus }) => updatePurchaseOrderStatusAPI(orderId, newStatus),
         onSuccess: (updatedOrder) => {
-            // showSnackbar(`Orden de Compra #${updatedOrder.order_number} confirmada exitosamente.`, 'success');
-            alert(`Orden de Compra #${updatedOrder.order_number} confirmada exitosamente.`); // Alternativa simple a Snackbar
+            // enqueueSnackbar(`Orden de Compra #${updatedOrder.order_number} confirmada.`, { variant: 'success' });
+            alert(`Orden de Compra #${updatedOrder.order_number} confirmada exitosamente.`);
             queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
         },
         onError: (mutationError) => {
             const errorMessage = formatApiError(mutationError);
-            // showSnackbar(`Error al confirmar la orden: ${errorMessage}`, 'error');
-            alert(`Error al confirmar la orden: ${errorMessage}`); // Alternativa simple a Snackbar
+            // enqueueSnackbar(`Error al confirmar la orden: ${errorMessage}`, { variant: 'error' });
+            alert(`Error al confirmar la orden: ${errorMessage}`);
         },
         onSettled: () => {
             setConfirmationDialog({ isOpen: false, title: '', content: '', onConfirm: () => {} });
@@ -87,8 +81,13 @@ const PurchaseOrderListPage = () => {
     }, [navigate]);
 
     const handleRegisterReceipt = useCallback((orderId) => {
-        // La lógica de deshabilitación estará en el DataGrid, pero esta es la navegación.
         navigate(`/compras/ordenes/${orderId}/recepciones/nueva`);
+    }, [navigate]);
+    
+    // --- NUEVO MANEJADOR ---
+    // Navega a la página de creación de facturas, pasando el ID de la orden de compra.
+    const handleRegisterBill = useCallback((orderId) => {
+        navigate(`/compras/ordenes/${orderId}/facturar`);
     }, [navigate]);
 
     const handleConfirmOrder = useCallback((order) => {
@@ -96,9 +95,7 @@ const PurchaseOrderListPage = () => {
             isOpen: true,
             title: 'Confirmar Orden de Compra',
             content: `¿Está seguro de que desea confirmar la Orden de Compra #${order.order_number}? Esta acción no se puede deshacer.`,
-            onConfirm: () => {
-                updateOrderStatus({ orderId: order.id, newStatus: 'confirmed' });
-            }
+            onConfirm: () => updateOrderStatus({ orderId: order.id, newStatus: 'confirmed' })
         });
     }, [updateOrderStatus]);
 
@@ -107,7 +104,7 @@ const PurchaseOrderListPage = () => {
         <Container maxWidth="xl" sx={{ my: 4 }}>
             <PageHeader
                 title="Gestión de Órdenes de Compra"
-                subtitle="Cree, confirme y administre las órdenes de compra para sus proveedores."
+                subtitle="Cree, confirme, reciba y facture las órdenes de compra para sus proveedores."
                 addButtonText="Nueva Orden de Compra"
                 onAddClick={handleAddOrder}
             />
@@ -128,6 +125,7 @@ const PurchaseOrderListPage = () => {
                     onEditOrder={handleEditOrder}
                     onConfirmOrder={handleConfirmOrder}
                     onRegisterReceipt={handleRegisterReceipt}
+                    onRegisterBill={handleRegisterBill} // <- Se pasa la nueva prop
                     searchTerm={searchTerm}
                     onSearchChange={(event) => setSearchTerm(event.target.value)}
                 />
@@ -139,6 +137,7 @@ const PurchaseOrderListPage = () => {
                 onConfirm={confirmationDialog.onConfirm}
                 title={confirmationDialog.title}
                 content={confirmationDialog.content}
+                isLoading={isUpdatingStatus}
             />
         </Container>
     );

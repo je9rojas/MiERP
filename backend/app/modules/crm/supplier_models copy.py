@@ -15,7 +15,7 @@ las representaciones de los datos para diferentes casos de uso:
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_serializer
 from typing import Optional, List
 from datetime import datetime, timezone
 from enum import Enum
@@ -64,6 +64,7 @@ class SupplierBase(BaseModel):
 class SupplierCreate(SupplierBase):
     """
     DTO de Entrada para la creación de un nuevo proveedor.
+    Hereda todos los campos de SupplierBase.
     """
     model_config = ConfigDict(
         json_schema_extra={
@@ -90,6 +91,7 @@ class SupplierCreate(SupplierBase):
 class SupplierUpdate(BaseModel):
     """
     DTO de Entrada para la actualización parcial de un proveedor.
+    Todos los campos son opcionales.
     """
     business_name: Optional[str] = None
     trade_name: Optional[str] = None
@@ -114,11 +116,17 @@ class SupplierInDB(SupplierBase):
 class SupplierOut(SupplierBase):
     """
     DTO de Salida que define la estructura de datos que la API devuelve al cliente.
+    Es una representación segura y limpia del proveedor.
     """
     id: PyObjectId = Field(alias="_id")
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer('id')
+    def serialize_id(self, id_obj: PyObjectId, _info):
+        """Convierte el campo 'id' (ObjectId) a string al serializar a JSON."""
+        return str(id_obj)
 
     model_config = ConfigDict(
         populate_by_name=True,

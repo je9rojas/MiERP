@@ -1,4 +1,4 @@
-# File: /backend/app/modules/sales/sales_routes.py
+# /backend/app/modules/sales/sales_routes.py
 
 """
 Define los endpoints de la API para el Módulo de Ventas.
@@ -29,7 +29,7 @@ from app.modules.users.user_models import UserRole, UserOut
 # --- Importaciones del Módulo Local ---
 from . import sales_service
 from .sales_models import (
-    SalesOrderCreate, SalesOrderUpdate, SalesOrderOut, SalesOrderStatus,
+    SalesOrderCreate, SalesOrderOut, SalesOrderStatus,
     ShipmentCreate, ShipmentOut,
     SalesInvoiceCreate, SalesInvoiceOut
 )
@@ -84,29 +84,6 @@ async def create_new_sales_order(
     created_order = await sales_service.create_sales_order(database, order_payload, current_user)
     logger.info(f"Orden de Venta #{created_order.order_number} creada exitosamente.")
     return created_order
-
-@router.patch(
-    "/orders/{order_id}",
-    response_model=SalesOrderOut,
-    summary="Actualizar una Orden de Venta",
-    description="Actualiza los detalles de una orden de venta existente. Solo se permiten modificaciones en estado 'borrador'."
-)
-async def update_sales_order_details(
-    order_id: str,
-    update_payload: SalesOrderUpdate,
-    database: AsyncIOMotorDatabase = Depends(get_db),
-    current_user: UserOut = Depends(role_checker([
-        UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.SALES
-    ]))
-):
-    """
-    Gestiona la petición para actualizar los detalles de una orden de venta.
-    El método PATCH se utiliza para actualizaciones parciales.
-    """
-    logger.info(f"Petición de actualización para Orden de Venta ID '{order_id}' por usuario '{current_user.username}'.")
-    updated_order = await sales_service.update_sales_order(database, order_id, update_payload)
-    logger.info(f"Orden de Venta #{updated_order.order_number} actualizada exitosamente.")
-    return updated_order
 
 @router.patch(
     "/orders/{order_id}/confirm",

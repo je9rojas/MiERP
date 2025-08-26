@@ -32,21 +32,24 @@ const PurchaseOrderDataGrid = (props) => {
         paginationModel,
         onPaginationModelChange,
         onEditOrder,
-        onConfirmOrder, // <- Nueva prop para la acción de confirmar
+        onConfirmOrder,
         onRegisterReceipt,
+        onRegisterBill, // <- CORRECCIÓN: Se recibe la nueva prop
         searchTerm,
         onSearchChange,
     } = props;
 
-    // Se pasa la nueva función `onConfirmOrder` a la configuración de columnas.
+    // Se pasan todas las funciones de acción a la configuración de columnas.
     // useMemo asegura que la configuración no se recalcule innecesariamente.
     const columns = useMemo(
         () => createPurchaseOrderColumns({
             onEditOrder: onEditOrder,
             onConfirmOrder: onConfirmOrder,
             onRegisterReceipt: onRegisterReceipt,
+            onRegisterBill: onRegisterBill, // <- CORRECCIÓN: Se pasa la prop al factory
         }),
-        [onEditOrder, onConfirmOrder, onRegisterReceipt]
+        // CORRECCIÓN: Se añade `onRegisterBill` al array de dependencias de useMemo.
+        [onEditOrder, onConfirmOrder, onRegisterReceipt, onRegisterBill]
     );
 
     return (

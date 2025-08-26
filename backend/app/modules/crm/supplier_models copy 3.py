@@ -15,6 +15,7 @@ las representaciones de los datos para diferentes casos de uso:
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
+# --- CORRECCIÓN --- Se elimina 'field_serializer' ya que no se utiliza.
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, List
 from datetime import datetime, timezone
@@ -119,6 +120,11 @@ class SupplierOut(SupplierBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+    # --- CORRECCIÓN ---
+    # El serializador de campo '@field_serializer' se elimina. La serialización
+    # ahora es manejada globalmente por la clase PyObjectId en 'shared.py'.
+    # Esto simplifica el modelo y evita redundancia.
 
     model_config = ConfigDict(
         populate_by_name=True,

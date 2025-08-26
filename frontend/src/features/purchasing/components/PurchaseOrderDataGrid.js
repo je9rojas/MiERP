@@ -1,4 +1,4 @@
-// frontend/src/features/purchasing/components/PurchaseOrderDataGrid.js
+// /frontend/src/features/purchasing/components/PurchaseOrderDataGrid.js
 
 /**
  * @file Componente de presentación para mostrar las Órdenes de Compra en una tabla.
@@ -13,7 +13,7 @@
 // SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react'; // Se añade useEffect
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 
@@ -34,21 +34,30 @@ const PurchaseOrderDataGrid = (props) => {
         onEditOrder,
         onConfirmOrder,
         onRegisterReceipt,
-        onRegisterBill, // <- CORRECCIÓN: Se recibe la nueva prop
+        onRegisterBill,
         searchTerm,
         onSearchChange,
     } = props;
 
-    // Se pasan todas las funciones de acción a la configuración de columnas.
-    // useMemo asegura que la configuración no se recalcule innecesariamente.
+    // --- INICIO DE LOGS DE DEPURACIÓN ---
+    useEffect(() => {
+        if (orders && orders.length > 0) {
+            console.log("[DEBUG_DATA_GRID] Datos ('orders') recibidos como props:", orders);
+            console.log("[DEBUG_DATA_GRID] Verificando la primera fila:", orders[0]);
+            console.log(`[DEBUG_DATA_GRID] -> ¿Existe 'id' en la primera fila?`, 'id' in orders[0]);
+            console.log(`[DEBUG_DATA_GRID] -> Valor de 'id':`, orders[0].id);
+            console.log(`[DEBUG_DATA_GRID] -> ¿Existe '_id' en la primera fila?`, '_id' in orders[0]);
+        }
+    }, [orders]);
+    // --- FIN DE LOGS DE DEPURACIÓN ---
+
     const columns = useMemo(
         () => createPurchaseOrderColumns({
             onEditOrder: onEditOrder,
             onConfirmOrder: onConfirmOrder,
             onRegisterReceipt: onRegisterReceipt,
-            onRegisterBill: onRegisterBill, // <- CORRECCIÓN: Se pasa la prop al factory
+            onRegisterBill: onRegisterBill,
         }),
-        // CORRECCIÓN: Se añade `onRegisterBill` al array de dependencias de useMemo.
         [onEditOrder, onConfirmOrder, onRegisterReceipt, onRegisterBill]
     );
 

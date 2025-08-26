@@ -1,4 +1,4 @@
-# File: /backend/app/modules/sales/sales_service.py
+# /backend/app/modules/sales/sales_service.py
 
 """
 Capa de Servicio para la lógica de negocio del módulo de Ventas.
@@ -8,12 +8,12 @@ intermediario entre la capa de API (rutas) y la capa de acceso a datos (reposito
 Implementa la lógica de negocio, validaciones y coordinación entre diferentes entidades.
 """
 
-# =omed=============================================================================
+# ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
 import logging
-from datetime import datetime, timezone, date, time
+from datetime import datetime, timezone, date
 from typing import Any, Dict, List, Optional, Type
 
 from fastapi import HTTPException, status
@@ -30,8 +30,7 @@ from app.modules.users.repositories.user_repository import UserRepository
 from app.modules.users.user_models import UserOut
 from .sales_models import (
     SalesInvoiceCreate, SalesOrderCreate, SalesOrderInDB, SalesOrderItem,
-    SalesOrderOut, SalesOrderStatus, SalesOrderUpdate, ShipmentCreate, 
-    ShipmentInDB, ShipmentOut
+    SalesOrderOut, SalesOrderStatus, ShipmentCreate, ShipmentInDB, ShipmentOut
 )
 from .repositories.sales_invoice_repository import SalesInvoiceRepository
 from .repositories.sales_repository import SalesOrderRepository
@@ -150,70 +149,13 @@ async def create_sales_order(database: AsyncIOMotorDatabase, order_data: SalesOr
     inserted_id = await so_repo.insert_one(document_to_insert)
     return await get_sales_order_by_id(database, str(inserted_id))
 
-# --- INICIO DE LA CORRECCIÓN ---
-# Se añade la función `update_sales_order` que faltaba en el servicio.
-
-async def update_sales_order(database: AsyncIOMotorDatabase, order_id: str, update_data: SalesOrderUpdate) -> SalesOrderOut:
-    so_repo = SalesOrderRepository(database)
-    product_repo = ProductRepository(database)
-
-    order_doc = await so_repo.find_one_by_id(order_id)
-    if not order_doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La Orden de Venta no existe.")
-
-    if order_doc.get("status") != SalesOrderStatus.DRAFT.value:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Solo se pueden editar Órdenes de Venta en estado 'borrador'.")
-
-    update_payload = update_data.model_dump(exclude_unset=True)
-
-    # Conversión de `date` a `datetime` para compatibilidad con BSON/MongoDB
-    if "order_date" in update_payload and (order_date := update_payload["order_date"]):
-        if isinstance(order_date, date) and not isinstance(order_date, datetime):
-            update_payload["order_date"] = datetime.combine(order_date, time.min, tzinfo=timezone.utc)
-        elif isinstance(order_date, datetime) and order_date.tzinfo is None:
-            update_payload["order_date"] = order_date.replace(tzinfo=timezone.utc)
-
-    # Si los ítems se actualizan, se enriquecen y se recalcula el total
-    if "items" in update_payload:
-        enriched_items, total_amount = [], 0.0
-        product_ids = [str(item['product_id']) for item in update_payload.get("items", [])]
-        products_from_db = await product_repo.find_by_ids(product_ids)
-        product_map = {str(p["_id"]): p for p in products_from_db}
-
-        for item_data in update_payload.get("items", []):
-            product_doc = product_map.get(str(item_data['product_id']))
-            if not product_doc or not product_doc.get("is_active"):
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Producto con ID '{item_data['product_id']}' no existe o está inactivo.")
-            
-            subtotal = item_data['quantity'] * item_data['unit_price']
-            total_amount += subtotal
-            
-            item_data_dict = {
-                **item_data,
-                "sku": product_doc.get("sku", "N/A"),
-                "name": product_doc.get("name", "N/A"),
-                "subtotal": round(subtotal, 2)
-            }
-            enriched_items.append(item_data_dict)
-        
-        update_payload["items"] = enriched_items
-        update_payload["total_amount"] = round(total_amount, 2)
-
-    update_payload["updated_at"] = datetime.now(timezone.utc)
-    
-    update_operation = {"$set": update_payload}
-    await so_repo.execute_update_one_by_id(order_id, update_operation)
-    
-    return await get_sales_order_by_id(database, order_id)
-
-# --- FIN DE LA CORRECCIÓN ---
-
 async def get_sales_order_by_id(database: AsyncIOMotorDatabase, order_id: str) -> SalesOrderOut:
     so_repo = SalesOrderRepository(database)
     order_doc = await so_repo.find_one_by_id(order_id)
     if not order_doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Orden de Venta con ID '{order_id}' no encontrada.")
     
+    # --- CORRECCIÓN --- Se usa la función de populado en lote
     populated_list = await _populate_documents_with_details(database, [order_doc], SalesOrderOut)
     return populated_list[0]
 
@@ -232,6 +174,7 @@ async def get_sales_orders_paginated(
     total_count = await so_repo.count_documents(query_filter)
     order_docs = await so_repo.find_all_paginated(query_filter, (page - 1) * page_size, page_size, [("order_date", DESCENDING)])
     
+    # --- CORRECCIÓN --- Se reemplaza el bucle ineficiente por una única llamada a la función de populado.
     populated_items = await _populate_documents_with_details(database, order_docs, SalesOrderOut)
         
     return {"total_count": total_count, "items": populated_items}
@@ -261,6 +204,7 @@ async def update_sales_order_status(
     await so_repo.execute_update_one_by_id(order_id, update_operation)
     return await get_sales_order_by_id(database, order_id)
 
+# ... (El resto del archivo, SECCIÓN 5 y 6, permanecen sin cambios)
 # ==============================================================================
 # SECCIÓN 5: SERVICIO PARA DESPACHOS (SHIPMENT)
 # ==============================================================================

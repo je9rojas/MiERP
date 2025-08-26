@@ -26,7 +26,7 @@ import { es } from 'date-fns/locale/es';
 import { purchaseOrderFormValidationSchema } from '../../../constants/validationSchemas';
 
 // ==============================================================================
-// SECCIÓN 2: SUB-COMPONENTES DE UI
+// SECCIÓN 2: SUB-COMPONENTES DE UI MODULARIZADOS
 // ==============================================================================
 
 const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions, isLoadingSuppliers, isReadOnly }) => (
@@ -120,14 +120,14 @@ const OrderItemsArray = ({ values, setFieldValue, productsOptions, isReadOnly })
 );
 
 // ==============================================================================
-// SECCIÓN 3: COMPONENTE PRINCIPAL
+// SECCIÓN 3: COMPONENTE PRINCIPAL DEL FORMULARIO
 // ==============================================================================
 
 const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliersOptions = [], productsOptions = [], isLoadingSuppliers = false, isReadOnly = false }) => {
     const isEditMode = !!initialData.id;
 
     const initialValues = useMemo(() => {
-        const parseDate = (date) => date ? new Date(date) : null;
+        const parseDate = (dateString) => dateString ? new Date(dateString) : null;
 
         if (!isEditMode) {
             return {
@@ -139,10 +139,11 @@ const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliers
             };
         }
 
-        // --- CORRECCIÓN CRÍTICA ---
-        // Se asegura de que el objeto `supplier` y los `product`s en `items` sean las
-        // instancias exactas de las listas de opciones, no solo objetos con el mismo ID.
-        const supplierObject = suppliersOptions.find(s => s.id === initialData.supplier?.id) || null;
+        // --- CORRECCIÓN ---
+        // Se busca el objeto completo del proveedor utilizando el 'supplier_id'
+        // que viene en los datos iniciales, en lugar de un objeto anidado.
+        const supplierObject = suppliersOptions.find(s => s.id === initialData.supplier_id) || null;
+        
         const itemsWithProductObjects = (initialData.items || []).map(item => ({
             ...item,
             product: productsOptions.find(p => p.id === item.product_id) || null,

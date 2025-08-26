@@ -1,4 +1,4 @@
-// File: /frontend/src/features/purchasing/components/purchaseOrderGridConfig.js
+// frontend/src/features/purchasing/components/purchaseOrderGridConfig.js
 
 /**
  * @file purchasing/components/purchaseOrderGridConfig.js
@@ -11,7 +11,7 @@
  * las columnas sean interactivas sin acoplarse al estado del componente padre.
  */
 
-// =omed=============================================================================
+// ==============================================================================
 // SECCIÓN 1: IMPORTACIONES DE MÓDULOS Y COMPONENTES
 // ==============================================================================
 
@@ -23,7 +23,6 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale'; // Importar el locale en español
 
 // ==============================================================================
 // SECCIÓN 2: CONSTANTES DE CONFIGURACIÓN
@@ -64,23 +63,19 @@ export const createPurchaseOrderColumns = (actions) => [
         minWidth: 250,
     },
     {
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Se simplifica la columna para aprovechar el manejo nativo de fechas del DataGrid.
-        // Dado que los datos ya llegan como objetos `Date` desde el componente padre,
-        // no se necesita un `valueGetter` para la conversión.
         field: 'order_date',
         headerName: 'Fecha de Emisión',
         width: 150,
         type: 'date',
-        // El `valueFormatter` se mantiene para asegurar un formato visual consistente (dd/MM/yyyy).
-        // Se añade un chequeo robusto para objetos Date válidos.
+        valueGetter: (params) => (params.value ? new Date(params.value) : null),
         valueFormatter: (value) => {
-            if (value instanceof Date && !isNaN(value)) {
-                return format(value, 'dd/MM/yyyy', { locale: es });
+            if (!value) return '';
+            try {
+                return format(new Date(value), 'dd/MM/yyyy');
+            } catch (error) {
+                return 'Fecha inválida';
             }
-            return ''; // Devuelve vacío si la fecha es nula o inválida.
         },
-        // --- FIN DE LA CORRECCIÓN ---
     },
     {
         field: 'total_amount',
@@ -89,10 +84,7 @@ export const createPurchaseOrderColumns = (actions) => [
         type: 'number',
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value) => {
-            const number = Number(value || 0);
-            return `S/ ${number.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        }
+        valueFormatter: (value) => `S/ ${Number(value || 0).toFixed(2)}`,
     },
     {
         field: 'status',

@@ -18,17 +18,13 @@ import EditIcon from '@mui/icons-material/Edit';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import FactCheckIcon from '@mui/icons-material/FactCheck'; // Icono para registrar factura
+import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { format } from 'date-fns';
 
 // ==============================================================================
 // SECCIÓN 2: CONSTANTES Y FUNCIONES DE AYUDA
 // ==============================================================================
 
-/**
- * Mapeo de los estados de la orden de compra a los colores del componente Chip de MUI.
- * Esto asegura consistencia visual en toda la aplicación.
- */
 const statusColors = {
     draft: 'default',
     confirmed: 'info',
@@ -38,9 +34,6 @@ const statusColors = {
     cancelled: 'error',
 };
 
-/**
- * Traduce los identificadores de estado del backend a texto legible para el usuario.
- */
 const statusLabels = {
     draft: 'Borrador',
     confirmed: 'Confirmado',
@@ -61,6 +54,7 @@ const statusLabels = {
  * @param {function} actions.onEditOrder - Callback para ver/editar los detalles.
  * @param {function} actions.onConfirmOrder - Callback para confirmar una orden en borrador.
  * @param {function} actions.onRegisterReceipt - Callback para registrar la recepción.
+ * @param {function} actions.onRegisterBill - Callback para registrar la factura de la orden.
  * @returns {Array<object>} Un array de objetos de definición de columnas.
  */
 export const createPurchaseOrderColumns = (actions) => [
@@ -81,7 +75,6 @@ export const createPurchaseOrderColumns = (actions) => [
         valueFormatter: (value) => {
             if (!value) return '';
             try {
-                // Se usa el formato ISO para asegurar la correcta interpretación de la zona horaria
                 return format(new Date(value), 'dd/MM/yyyy');
             } catch (error) {
                 return 'Fecha inválida';
@@ -125,7 +118,8 @@ export const createPurchaseOrderColumns = (actions) => [
             const { row } = params;
             const isDraft = row.status === 'draft';
             const canBeReceived = ['confirmed', 'partially_received'].includes(row.status);
-            const canBeBilled = ['fully_received', 'partially_received'].includes(row.status); // Lógica de ejemplo
+            // Lógica de negocio: Se puede facturar si ya se ha recibido algo (parcial o totalmente).
+            const canBeBilled = ['partially_received', 'fully_received'].includes(row.status);
 
             return (
                 <Box>
@@ -144,7 +138,7 @@ export const createPurchaseOrderColumns = (actions) => [
                     )}
                     
                     <Tooltip title="Registrar Recepción">
-                        <span> {/* El <span> es necesario para que el Tooltip funcione en botones deshabilitados */}
+                        <span>
                             <IconButton onClick={() => actions.onRegisterReceipt(row.id)} size="small" disabled={!canBeReceived}>
                                 <ReceiptLongIcon />
                             </IconButton>
@@ -153,7 +147,9 @@ export const createPurchaseOrderColumns = (actions) => [
                     
                     <Tooltip title="Registrar Factura">
                         <span>
-                            <IconButton onClick={() => { /* Lógica futura para facturar */ }} size="small" disabled={!canBeBilled}>
+                            {/* --- CORRECCIÓN CRÍTICA --- */}
+                            {/* Se conecta el onClick a la nueva función `onRegisterBill` */}
+                            <IconButton onClick={() => actions.onRegisterBill(row.id)} size="small" disabled={!canBeBilled}>
                                 <FactCheckIcon />
                             </IconButton>
                         </span>

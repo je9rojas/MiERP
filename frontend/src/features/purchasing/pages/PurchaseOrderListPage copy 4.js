@@ -1,4 +1,4 @@
-// File: /frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
+// frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
 
 /**
  * @file purchasing/pages/PurchaseOrderListPage.js
@@ -12,7 +12,7 @@
  */
 
 // ==============================================================================
-// SECCIÓN 1: IMPORTACIONES DE MÓDulos Y COMPONENTES
+// SECCIÓN 1: IMPORTACIONES DE MÓDULOS Y COMPONENTES
 // ==============================================================================
 
 import React, { useState, useCallback, useMemo } from 'react';
@@ -70,11 +70,11 @@ const PurchaseOrderListPage = () => {
     // --------------------------------------------------------------------------
 
     /**
-     * Prepara los datos para el DataGrid. Transforma la data anidada y los
-     * tipos de datos de la API (ej: strings de fecha) en una estructura plana
-     * y con los tipos correctos (ej: objetos Date) que el componente
-     * DataGrid puede consumir de forma nativa y eficiente.
-     * Se memoriza con `useMemo` para un rendimiento óptimo.
+     * Prepara los datos para el DataGrid. Transforma la data anidada de la API
+     * (ej: order.supplier.business_name) en una estructura plana que el componente
+     * DataGrid puede consumir directamente y sin errores.
+     * Se memoriza con `useMemo` para un rendimiento óptimo, recalculando solo
+     * cuando la respuesta de la API cambia.
      */
     const flattenedOrders = useMemo(() => {
         if (!apiResponse?.items) {
@@ -82,14 +82,7 @@ const PurchaseOrderListPage = () => {
         }
         return apiResponse.items.map(order => ({
             ...order,
-            // Aplanar datos anidados del proveedor
             supplier_name: order.supplier?.business_name || 'No Asignado',
-            // --- INICIO DE LA CORRECCIÓN ---
-            // Convertir la cadena de texto de la fecha en un objeto Date.
-            // Esto asegura que el DataGrid pueda ordenar y filtrar correctamente.
-            // Si la fecha es nula o inválida, se establece como null.
-            order_date: order.order_date ? new Date(order.order_date) : null,
-            // --- FIN DE LA CORRECCIÓN ---
         }));
     }, [apiResponse]);
 

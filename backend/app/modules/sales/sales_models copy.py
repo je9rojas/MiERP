@@ -1,4 +1,4 @@
-# File: /backend/app/modules/sales/sales_models.py
+# /backend/app/modules/sales/sales_models.py
 
 """
 Define los modelos de datos de Pydantic para el Módulo de Ventas.
@@ -43,7 +43,7 @@ class SalesOrderStatus(str, Enum):
 # ==============================================================================
 
 class SalesOrderItemCreate(BaseModel):
-    """DTO para añadir un ítem al crear o actualizar una Orden de Venta."""
+    """DTO para añadir un ítem al crear una Orden de Venta."""
     product_id: PyObjectId
     quantity: int = Field(..., gt=0)
     unit_price: float = Field(..., ge=0)
@@ -68,21 +68,6 @@ class SalesOrderCreate(BaseModel):
     items: List[SalesOrderItemCreate] = Field(..., min_length=1)
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
-# --- INICIO DE LA CORRECCIÓN ---
-# Se añade el modelo `SalesOrderUpdate` que faltaba. Este modelo define los campos
-# que se pueden modificar en una orden de venta existente. Es similar a `SalesOrderCreate`
-# pero omite el `customer_id` ya que no debería cambiarse después de la creación.
-
-class SalesOrderUpdate(BaseModel):
-    """DTO para la actualización de una Orden de Venta existente."""
-    order_date: Optional[date] = None
-    notes: Optional[str] = None
-    shipping_address: Optional[str] = None
-    items: Optional[List[SalesOrderItemCreate]] = Field(None, min_length=1)
-    model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
-
-# --- FIN DE LA CORRECCIÓN ---
-
 class SalesOrderInDB(BaseModel):
     """Representa el documento completo de la OV en MongoDB."""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
@@ -105,9 +90,8 @@ class SalesOrderOut(BaseModel):
     """DTO para exponer los datos de una Orden de Venta a través de la API."""
     id: PyObjectId = Field(alias="_id")
     order_number: str
-    customer: Optional[CustomerOut] = None
-    customer_id: PyObjectId
-    created_by: Optional[UserOut] = None
+    customer: Optional[CustomerOut]
+    created_by: Optional[UserOut]
     order_date: datetime
     notes: Optional[str] = ""
     shipping_address: Optional[str] = ""
@@ -158,9 +142,8 @@ class ShipmentOut(BaseModel):
     id: PyObjectId = Field(alias="_id")
     shipment_number: str
     sales_order_id: PyObjectId
-    customer: Optional[CustomerOut] = None
-    customer_id: PyObjectId
-    created_by: Optional[UserOut] = None
+    customer: Optional[CustomerOut]
+    created_by: Optional[UserOut]
     shipping_date: datetime
     notes: Optional[str] = ""
     items: List[ShipmentItem]
@@ -209,9 +192,8 @@ class SalesInvoiceOut(BaseModel):
     id: PyObjectId = Field(alias="_id")
     invoice_number: str
     sales_order_id: PyObjectId
-    customer: Optional[CustomerOut] = None
-    customer_id: PyObjectId
-    created_by: Optional[UserOut] = None
+    customer: Optional[CustomerOut]
+    created_by: Optional[UserOut]
     invoice_date: datetime
     due_date: datetime
     notes: Optional[str] = ""

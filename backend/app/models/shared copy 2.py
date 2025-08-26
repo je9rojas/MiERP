@@ -50,28 +50,23 @@ class PyObjectId(ObjectId):
                 raise ValueError(f"'{value}' is not a valid ObjectId")
             return ObjectId(value)
 
-        # Esquema para cuando el dato de entrada es un string (común en JSON).
-        from_json_schema = core_schema.chain_schema(
-            [
-                core_schema.str_schema(),
-                core_schema.no_info_plain_validator_function(validate_from_str),
-            ]
-        )
-
-        # Esquema para cuando el dato de entrada es un objeto Python
-        # (puede ser un string o ya una instancia de ObjectId).
+        # Define un esquema que acepta una instancia de ObjectId o un string.
+        # Si es un string, se aplica la función de validación 'validate_from_str'.
         from_python_schema = core_schema.union_schema(
             [
                 core_schema.is_instance_schema(ObjectId),
-                from_json_schema, # Reutilizamos el validador de string.
+                core_schema.chain_schema([
+                    core_schema.str_schema(),
+                    core_schema.no_info_plain_validator_function(validate_from_str),
+                ]),
             ],
         )
 
         return core_schema.json_or_python_schema(
-            # --- CORRECCIÓN FINAL ---
-            # Se añade el argumento 'json_schema' que es requerido.
-            json_schema=from_json_schema,
+            # Define cómo validar los datos cuando vienen de Python.
             python_schema=from_python_schema,
+            # Define cómo serializar el objeto Python a un tipo JSON compatible (string).
+            # Esta es la configuración clave que resuelve el problema globalmente.
             serialization=core_schema.plain_serializer_function_ser_schema(
                 lambda instance: str(instance)
             ),

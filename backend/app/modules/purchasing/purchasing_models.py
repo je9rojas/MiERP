@@ -1,42 +1,33 @@
-# backend/app/modules/purchasing/purchasing_models.py
+# /backend/app/modules/purchasing/purchasing_models.py
 
 """
 Define los modelos de datos de Pydantic para el Módulo de Compras (Purchasing).
-
-Este módulo implementa el flujo "Procure-to-Pay" con tres entidades principales
-que siguen el principio de Separación de Concerns:
-
-1.  **Orden de Compra (Purchase Order):**
-    Representa el documento de acuerdo con un proveedor sobre los productos,
-    cantidades y precios. Es el documento que inicia el proceso de compra.
-
-2.  **Recepción de Mercancía (Goods Receipt):**
-    Registra el movimiento físico de entrada de productos al inventario. Este
-    documento está vinculado a una Orden de Compra y confirma qué se recibió
-    y en qué cantidad.
-
-3.  **Factura de Compra (Purchase Bill):**
-    Es el documento financiero que formaliza la deuda con el proveedor. Se genera
-    a partir de las recepciones y sirve como base para el módulo de Cuentas por Pagar.
+...
 """
 
 # ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
+import logging
+# --- CORRECCIÓN --- Se añaden 'Dict' y 'Any' a la importación.
+from typing import List, Optional, Dict, Any
 from datetime import datetime, date, timezone
 from enum import Enum
+from pydantic import BaseModel, Field, ConfigDict, root_validator
+
 
 from app.models.shared import PyObjectId
 from app.modules.crm.supplier_models import SupplierOut
 
+# --- Se añade un logger para depuración ---
+logger = logging.getLogger(__name__)
+
 # ==============================================================================
 # SECCIÓN 2: ENUMS PARA ESTADOS Y TIPOS
 # ==============================================================================
+# (Sin cambios en esta sección)
 
 class PurchaseOrderStatus(str, Enum):
-    """Define los estados del ciclo de vida de una Orden de Compra."""
     DRAFT = "draft"
     CONFIRMED = "confirmed"
     PARTIALLY_RECEIVED = "partially_received"
@@ -45,7 +36,6 @@ class PurchaseOrderStatus(str, Enum):
     CANCELLED = "cancelled"
 
 class PurchaseBillStatus(str, Enum):
-    """Define los estados financieros de una Factura de Compra."""
     UNPAID = "unpaid"
     PARTIALLY_PAID = "partially_paid"
     PAID = "paid"
@@ -53,34 +43,31 @@ class PurchaseBillStatus(str, Enum):
 # ==============================================================================
 # SECCIÓN 3: MODELOS PARA ITEMS (Sub-documentos)
 # ==============================================================================
+# (Sin cambios en esta sección)
 
 class PurchaseOrderItemCreate(BaseModel):
-    """Ítem para el payload de creación de una Orden de Compra."""
     product_id: PyObjectId
-    quantity_ordered: int = Field(..., gt=0, description="Cantidad del producto solicitada.")
-    unit_cost: float = Field(..., ge=0, description="Costo por unidad del producto.")
+    quantity_ordered: int = Field(..., gt=0)
+    unit_cost: float = Field(..., ge=0)
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
 class PurchaseOrderItem(PurchaseOrderItemCreate):
-    """Ítem completo dentro de una Orden de Compra, enriquecido con datos del producto."""
     sku: str
     name: str
 
 class GoodsReceiptItem(BaseModel):
-    """Ítem dentro de una Recepción de Mercancía."""
     product_id: PyObjectId
     sku: str
     name: str
     quantity_ordered: int = Field(..., gt=0)
-    quantity_received: int = Field(..., ge=0, description="Cantidad físicamente recibida.")
+    quantity_received: int = Field(..., ge=0)
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
 
 class PurchaseBillItem(BaseModel):
-    """Ítem dentro de una Factura de Compra."""
     product_id: PyObjectId
     sku: str
     name: str
-    quantity_billed: int = Field(..., gt=0, description="Cantidad que se está facturando.")
+    quantity_billed: int = Field(..., gt=0)
     unit_cost: float = Field(..., ge=0)
     subtotal: float
     model_config = ConfigDict(from_attributes=True, arbitrary_types_allowed=True)
@@ -88,9 +75,9 @@ class PurchaseBillItem(BaseModel):
 # ==============================================================================
 # SECCIÓN 4: MODELOS PARA LA ORDEN DE COMPRA (PURCHASE ORDER)
 # ==============================================================================
+# (Sin cambios en Create, Update, InDB)
 
 class PurchaseOrderCreate(BaseModel):
-    """Modelo para crear una nueva Orden de Compra."""
     supplier_id: PyObjectId
     order_date: date
     expected_delivery_date: Optional[date] = None
@@ -98,13 +85,11 @@ class PurchaseOrderCreate(BaseModel):
     items: List[PurchaseOrderItemCreate]
 
 class PurchaseOrderUpdate(BaseModel):
-    """Modelo para actualizar una Orden de Compra existente."""
     expected_delivery_date: Optional[date] = None
     notes: Optional[str] = None
     items: Optional[List[PurchaseOrderItemCreate]] = None
 
 class PurchaseOrderInDB(BaseModel):
-    """Modelo de la Orden de Compra tal como se almacena en la BD."""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     order_number: str
     supplier_id: PyObjectId
@@ -119,18 +104,14 @@ class PurchaseOrderInDB(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     receipt_ids: List[PyObjectId] = []
     bill_ids: List[PyObjectId] = []
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={PyObjectId: str}
-    )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
 
 class PurchaseOrderOut(BaseModel):
-    """Modelo de la Orden de Compra para respuestas de la API (corregido)."""
-    id: PyObjectId = Field(..., alias="_id", description="El ID único de la orden de compra.")
+    """Modelo de la Orden de Compra para respuestas de la API."""
+    id: PyObjectId = Field(..., alias="_id")
     order_number: str
-    supplier: SupplierOut
+    supplier: Optional[SupplierOut] = None
+    supplier_id: PyObjectId
     created_by_id: PyObjectId
     order_date: datetime
     expected_delivery_date: Optional[datetime] = None
@@ -145,23 +126,47 @@ class PurchaseOrderOut(BaseModel):
 
     model_config = ConfigDict(
         from_attributes=True,
+        populate_by_name=True,
         arbitrary_types_allowed=True,
         json_encoders={PyObjectId: str}
     )
 
+    @root_validator(pre=True)
+    @classmethod
+    def debug_check_supplier_data(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Este validador se usa solo para depuración. Imprime los datos que
+        recibe el modelo antes de la validación final.
+        """
+        order_num = values.get('order_number', 'N/A')
+        logger.info(f"[DEBUG_MODEL_PURCHASING] Validando PurchaseOrderOut para la orden: {order_num}")
+        
+        if 'supplier' in values:
+            supplier_data = values['supplier']
+            if supplier_data is not None:
+                logger.info(f"[DEBUG_MODEL_PURCHASING] -> El campo 'supplier' está PRESENTE y no es nulo.")
+                logger.info(f"[DEBUG_MODEL_PURCHASING] -> Tipo de 'supplier': {type(supplier_data)}")
+                logger.info(f"[DEBUG_MODEL_PURCHASING] -> Contenido de 'supplier': {supplier_data}")
+            else:
+                logger.warning(f"[DEBUG_MODEL_PURCHASING] -> El campo 'supplier' está presente, pero es NULO.")
+        else:
+            logger.error(f"[DEBUG_MODEL_PURCHASING] -> ¡ERROR CRÍTICO! El campo 'supplier' está AUSENTE en los datos de entrada.")
+        
+        logger.info(f"[DEBUG_MODEL_PURCHASING] -> Datos completos recibidos por el modelo: {values}")
+        return values
+
+# ... (El resto del archivo permanece sin cambios)
 # ==============================================================================
 # SECCIÓN 5: MODELOS PARA LA RECEPCIÓN DE MERCANCÍA (GOODS RECEIPT)
 # ==============================================================================
 
 class GoodsReceiptCreate(BaseModel):
-    """Modelo para crear una nueva Recepción de Mercancía."""
     purchase_order_id: PyObjectId
     received_date: date
     notes: Optional[str] = ""
     items: List[GoodsReceiptItem]
 
 class GoodsReceiptInDB(BaseModel):
-    """Modelo de la Recepción de Mercancía tal como se almacena en la BD."""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     receipt_number: str
     purchase_order_id: PyObjectId
@@ -171,37 +176,26 @@ class GoodsReceiptInDB(BaseModel):
     notes: Optional[str] = ""
     items: List[GoodsReceiptItem]
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={PyObjectId: str}
-    )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
 
 class GoodsReceiptOut(BaseModel):
-    """Modelo de la Recepción de Mercancía para respuestas de la API."""
-    id: PyObjectId = Field(..., alias="_id", description="El ID único de la recepción.")
+    id: PyObjectId = Field(..., alias="_id")
     receipt_number: str
     purchase_order_id: PyObjectId
-    supplier: SupplierOut
+    supplier: Optional[SupplierOut] = None
+    supplier_id: PyObjectId
     created_by_id: PyObjectId
     received_date: datetime
     notes: Optional[str] = ""
     items: List[GoodsReceiptItem]
     created_at: datetime
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        arbitrary_types_allowed=True,
-        json_encoders={PyObjectId: str}
-    )
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
 
 # ==============================================================================
 # SECCIÓN 6: MODELOS PARA LA FACTURA DE COMPRA (PURCHASE BILL)
 # ==============================================================================
 
 class PurchaseBillCreate(BaseModel):
-    """Modelo para crear una nueva Factura de Compra."""
     purchase_order_id: PyObjectId
     supplier_invoice_number: str
     invoice_date: date
@@ -210,7 +204,6 @@ class PurchaseBillCreate(BaseModel):
     items: List[PurchaseBillItem]
 
 class PurchaseBillInDB(BaseModel):
-    """Modelo de la Factura de Compra tal como se almacena en la BD."""
     id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
     bill_number: str
     purchase_order_id: PyObjectId
@@ -225,19 +218,14 @@ class PurchaseBillInDB(BaseModel):
     paid_amount: float = 0.0
     status: PurchaseBillStatus = PurchaseBillStatus.UNPAID
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        json_encoders={PyObjectId: str}
-    )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})
 
 class PurchaseBillOut(BaseModel):
-    """Modelo de la Factura de Compra para respuestas de la API."""
-    id: PyObjectId = Field(..., alias="_id", description="El ID único de la factura.")
+    id: PyObjectId = Field(..., alias="_id")
     bill_number: str
     purchase_order_id: PyObjectId
-    supplier: SupplierOut
+    supplier: Optional[SupplierOut] = None
+    supplier_id: PyObjectId
     created_by_id: PyObjectId
     supplier_invoice_number: str
     invoice_date: datetime
@@ -248,9 +236,4 @@ class PurchaseBillOut(BaseModel):
     paid_amount: float
     status: PurchaseBillStatus
     created_at: datetime
-
-    model_config = ConfigDict(
-        from_attributes=True,
-        arbitrary_types_allowed=True,
-        json_encoders={PyObjectId: str}
-    )
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, arbitrary_types_allowed=True, json_encoders={PyObjectId: str})

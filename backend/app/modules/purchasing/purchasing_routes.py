@@ -17,22 +17,20 @@ los datos de entrada y salida, y delegar toda la lógica de negocio a la capa de
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Query, status
-from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.dependencies.roles import role_checker
-from app.modules.users.user_models import UserRole, UserOut
+from app.models.shared import PyObjectId
 from app.modules.auth.dependencies import get_current_active_user
 from app.modules.purchasing import purchasing_service
-from app.models.shared import PyObjectId
-
+from app.modules.users.user_models import UserOut, UserRole
 from .purchasing_models import (
-    PurchaseOrderCreate, PurchaseOrderUpdate, PurchaseOrderOut, PurchaseOrderStatus,
-    GoodsReceiptCreate, GoodsReceiptOut,
-    PurchaseBillCreate, PurchaseBillOut
+    GoodsReceiptCreate, GoodsReceiptOut, PurchaseBillCreate, PurchaseBillOut,
+    PurchaseOrderCreate, PurchaseOrderOut, PurchaseOrderStatus, PurchaseOrderUpdate
 )
 
 # ==============================================================================
@@ -104,6 +102,24 @@ async def get_purchase_order_by_id_route(
     return await purchasing_service.get_purchase_order_by_id(database, order_id)
 
 @router.patch(
+    "/orders/{order_id}",
+    response_model=PurchaseOrderOut,
+    summary="Actualizar los detalles de una Orden de Compra",
+    dependencies=[Depends(role_checker([UserRole.ADMIN, UserRole.MANAGER]))]
+)
+async def update_purchase_order_details(
+    order_id: str,
+    update_data: PurchaseOrderUpdate,
+    database: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: UserOut = Depends(get_current_active_user)
+):
+    """
+    Actualiza los campos editables de una Orden de Compra, como sus ítems,
+    notas o fecha de entrega esperada. Solo puede realizarse en estado 'borrador'.
+    """
+    return await purchasing_service.update_purchase_order(database, order_id, update_data)
+
+@router.patch(
     "/orders/{order_id}/status",
     response_model=PurchaseOrderOut,
     summary="Actualizar el estado de una OC",
@@ -122,23 +138,18 @@ async def update_order_status_route(
 # ==============================================================================
 
 @router.post(
-    "/orders/{order_id}/receipts",  # <-- CORRECCIÓN: La ruta ahora está anidada y es consistente.
+    "/orders/{order_id}/receipts",
     response_model=GoodsReceiptOut,
     status_code=status.HTTP_201_CREATED,
     summary="Registrar una Recepción de Mercancía para una OC",
     dependencies=[Depends(role_checker([UserRole.ADMIN, UserRole.WAREHOUSE]))]
 )
 async def register_goods_receipt(
-    order_id: str,  # <-- CORRECCIÓN: Se acepta el ID de la orden desde la URL.
+    order_id: str,
     receipt_data: GoodsReceiptCreate,
     database: AsyncIOMotorDatabase = Depends(get_db),
     current_user: UserOut = Depends(get_current_active_user)
 ):
-    """
-    Crea una recepción de mercancía (Goods Receipt) vinculada a una OC.
-    Esta operación afecta directamente al stock del inventario.
-    """
-    # Se asigna el ID de la OC desde el parámetro de la URL para asegurar la consistencia.
     receipt_data.purchase_order_id = PyObjectId(order_id)
     return await purchasing_service.create_goods_receipt(database, receipt_data, current_user)
 
