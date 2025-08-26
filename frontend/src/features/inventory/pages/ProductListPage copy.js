@@ -1,4 +1,4 @@
-// frontend/src/features/inventory/pages/ProductListPage.js
+// /frontend/src/features/inventory/pages/ProductListPage.js
 
 /**
  * @file Página principal para la visualización y gestión del catálogo de productos.
@@ -6,7 +6,10 @@
  * filtrado y acciones como edición, desactivación y visualización de lotes de inventario.
  */
 
-// SECCIÓN 1: IMPORTACIONES DE MÓDULOS
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
+// ==============================================================================
+
 import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,23 +25,42 @@ import { getProductsAPI, deactivateProductAPI } from '../api/productsAPI';
 import useDebounce from '../../../hooks/useDebounce';
 import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
 import DataGridToolbar from '../../../components/common/DataGridToolbar';
-import InventoryLotsModal from '../components/InventoryLotsModal'; // <--- IMPORTACIÓN DEL NUEVO COMPONENTE
+import InventoryLotsModal from '../components/InventoryLotsModal';
+import { formatApiError } from '../../../utils/errorUtils';
 
-// SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
+// ==============================================================================
+// SECCIÓN 2: FUNCIONES DE AYUDA
+// ==============================================================================
+
+const formatCurrency = (value) => {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    return `S/ ${Number(value).toFixed(2)}`;
+};
+
+// ==============================================================================
+// SECCIÓN 3: COMPONENTE PRINCIPAL DE LA PÁGINA
+// ==============================================================================
+
 const ProductListPage = () => {
-    // Sub-sección 2.1: Hooks y Estado Local
+    // --------------------------------------------------------------------------
+    // Sub-sección 3.1: Hooks y Estado Local
+    // --------------------------------------------------------------------------
     const navigate = useNavigate();
     const { enqueueSnackbar } = useSnackbar();
     const queryClient = useQueryClient();
 
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
-    const [filters, setFilters] = useState({ search: '' });
-    const [modalState, setModalState] = useState({ open: false, product: null });
-    const [productToDeactivate, setProductToDeactivate] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [lotsModalState, setLotsModalState] = useState({ open: false, product: null });
+    const [deactivationState, setDeactivationState] = useState({ open: false, product: null });
 
-    const debouncedSearchTerm = useDebounce(filters.search, 500);
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-    // Sub-sección 2.2: Lógica de Fetching y Mutaciones de Datos (react-query)
+    // --------------------------------------------------------------------------
+    // Sub-sección 3.2: Lógica de Obtención y Mutación de Datos
+    // --------------------------------------------------------------------------
     const { data, isLoading, isFetching, error } = useQuery({
         queryKey: ['products', paginationModel, debouncedSearchTerm],
         queryFn: () => getProductsAPI({
@@ -50,38 +72,49 @@ const ProductListPage = () => {
     });
 
     const { mutate: deactivateProduct, isPending: isDeactivating } = useMutation({
-        mutationFn: deactivateProductAPI,
+        mutationFn: (sku) => deactivateProductAPI(sku),
         onSuccess: (data, sku) => {
             enqueueSnackbar(`Producto '${sku}' desactivado correctamente.`, { variant: 'success' });
             queryClient.invalidateQueries({ queryKey: ['products'] });
         },
         onError: (err) => {
-            const errorMessage = err.response?.data?.detail || 'Ocurrió un error al desactivar el producto.';
-            enqueueSnackbar(errorMessage, { variant: 'error' });
+            enqueueSnackbar(formatApiError(err), { variant: 'error' });
         },
     });
 
-    // Sub-sección 2.3: Manejadores de Eventos y Callbacks
-    const handleFilterChange = useCallback((event) => {
-        setFilters(prev => ({ ...prev, search: event.target.value }));
+    // --------------------------------------------------------------------------
+    // Sub-sección 3.3: Manejadores de Eventos
+    // --------------------------------------------------------------------------
+    const handleSearchChange = useCallback((event) => {
+        setSearchTerm(event.target.value);
         setPaginationModel(prev => ({ ...prev, page: 0 }));
     }, []);
     
     const handleConfirmDeactivation = useCallback(() => {
-        if (productToDeactivate) {
-            deactivateProduct(productToDeactivate.sku);
-            setProductToDeactivate(null);
+        if (deactivationState.product) {
+            deactivateProduct(deactivationState.product.sku);
+            setDeactivationState({ open: false, product: null });
         }
-    }, [productToDeactivate, deactivateProduct]);
+    }, [deactivationState.product, deactivateProduct]);
 
-    // Sub-sección 2.4: Definición de Columnas para la DataGrid (Memoizada)
+    const handleOpenDeactivationDialog = (product) => {
+        setDeactivationState({ open: true, product });
+    };
+
+    const handleCloseDeactivationDialog = () => {
+        setDeactivationState({ open: false, product: null });
+    };
+    
+    // --------------------------------------------------------------------------
+    // Sub-sección 3.4: Configuración de la DataGrid
+    // --------------------------------------------------------------------------
     const columns = useMemo(() => [
         { field: 'sku', headerName: 'SKU', width: 150 },
         { field: 'name', headerName: 'Nombre', flex: 1, minWidth: 250 },
         { field: 'brand', headerName: 'Marca', width: 120 },
         { field: 'stock_quantity', headerName: 'Stock Total', type: 'number', width: 110, align: 'center', headerAlign: 'center' },
-        { field: 'average_cost', headerName: 'Costo Prom.', type: 'number', width: 120, align: 'right', headerAlign: 'right', valueFormatter: (value) => `$${Number(value).toFixed(2)}` },
-        { field: 'price', headerName: 'Precio Venta', type: 'number', width: 120, align: 'right', headerAlign: 'right', valueFormatter: (value) => `$${Number(value).toFixed(2)}` },
+        { field: 'average_cost', headerName: 'Costo Prom.', type: 'number', width: 120, align: 'right', headerAlign: 'right', valueFormatter: (params) => formatCurrency(params.value) },
+        { field: 'price', headerName: 'Precio Venta', type: 'number', width: 120, align: 'right', headerAlign: 'right', valueFormatter: (params) => formatCurrency(params.value) },
         {
             field: 'actions',
             headerName: 'Acciones',
@@ -90,58 +123,44 @@ const ProductListPage = () => {
             align: 'center',
             headerAlign: 'center',
             getActions: ({ row }) => [
-                <Tooltip title="Ver Lotes de Inventario" key="lots">
-                    <IconButton onClick={() => setModalState({ open: true, product: row })} size="small"><WarehouseIcon /></IconButton>
-                </Tooltip>,
-                <Tooltip title="Editar Producto" key="edit">
-                    <IconButton onClick={() => navigate(`/inventario/productos/editar/${encodeURIComponent(row.sku)}`)} size="small"><EditIcon /></IconButton>
-                </Tooltip>,
-                <Tooltip title="Desactivar Producto" key="delete">
-                    <IconButton onClick={() => setProductToDeactivate(row)} size="small" color="error"><DeleteIcon /></IconButton>
-                </Tooltip>,
+                <Tooltip title="Ver Lotes de Inventario" key="lots"><IconButton onClick={() => setLotsModalState({ open: true, product: row })} size="small"><WarehouseIcon /></IconButton></Tooltip>,
+                <Tooltip title="Editar Producto" key="edit"><IconButton onClick={() => navigate(`/inventario/productos/editar/${encodeURIComponent(row.sku)}`)} size="small"><EditIcon /></IconButton></Tooltip>,
+                <Tooltip title="Desactivar Producto" key="delete"><IconButton onClick={() => handleOpenDeactivationDialog(row)} size="small" color="error"><DeleteIcon /></IconButton></Tooltip>,
             ],
         },
     ], [navigate]);
 
-    // Sub-sección 2.5: Configuración de la Barra de Herramientas
-    const toolbarProps = {
-        title: "Catálogo de Productos",
-        addButtonText: "Añadir Producto",
-        onAddClick: () => navigate('/inventario/productos/nuevo'),
-        searchTerm: filters.search,
-        onSearchChange: handleFilterChange,
-        searchPlaceholder: "Buscar por SKU, Nombre o Marca...",
-    };
-
-    // Sub-sección 2.6: Renderizado del Componente
+    // --------------------------------------------------------------------------
+    // Sub-sección 3.5: Renderizado del Componente
+    // --------------------------------------------------------------------------
     return (
         <>
             <Container maxWidth="xl" sx={{ my: 4 }}>
                 <Paper sx={{ height: '75vh', width: '100%', borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                    {error && <Alert severity="error" sx={{ m: 2 }}>{`Error al cargar productos: ${error.message}`}</Alert>}
+                    {error && <Alert severity="error" sx={{ m: 2 }}>{`Error al cargar productos: ${formatApiError(error)}`}</Alert>}
                     <DataGrid
-                        // --- PROPIEDADES ESENCIALES ---
                         rows={data?.items || []}
                         columns={columns}
-                        getRowId={(row) => row._id} // CORRECCIÓN #1 APLICADA AQUÍ
-                        
-                        // --- PAGINACIÓN ---
+                        getRowId={(row) => row._id}
                         rowCount={data?.total_count || 0}
                         paginationModel={paginationModel}
                         onPaginationModelChange={setPaginationModel}
                         paginationMode="server"
                         pageSizeOptions={[10, 25, 50, 100]}
-                        
-                        // --- ESTADO Y ESTILO ---
                         loading={isLoading || isFetching}
                         density="compact"
                         localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-                        
-                        // --- COMPONENTES PERSONALIZADOS ---
                         slots={{ toolbar: DataGridToolbar }}
-                        slotProps={{ toolbar: toolbarProps }}
-                        
-                        // --- OTROS ---
+                        slotProps={{
+                            toolbar: {
+                                title: "Catálogo de Productos",
+                                addButtonText: "Añadir Producto",
+                                onAddClick: () => navigate('/inventario/productos/nuevo'),
+                                searchTerm: searchTerm,
+                                onSearchChange: handleSearchChange,
+                                searchPlaceholder: "Buscar por SKU, Nombre o Marca...",
+                            }
+                        }}
                         disableRowSelectionOnClick
                         sx={{ border: 'none' }}
                     />
@@ -149,19 +168,19 @@ const ProductListPage = () => {
             </Container>
 
             <InventoryLotsModal
-                open={modalState.open}
-                onClose={() => setModalState({ open: false, product: null })}
-                productId={modalState.product?._id}
-                productName={modalState.product?.name}
+                open={lotsModalState.open}
+                onClose={() => setLotsModalState({ open: false, product: null })}
+                productId={lotsModalState.product?._id}
+                productName={lotsModalState.product?.name}
             />
 
             <ConfirmationDialog
-                open={!!productToDeactivate}
-                onClose={() => setProductToDeactivate(null)}
+                isOpen={deactivationState.open}
+                onClose={handleCloseDeactivationDialog}
                 onConfirm={handleConfirmDeactivation}
-                isConfirming={isDeactivating}
+                isLoading={isDeactivating}
                 title="Confirmar Desactivación"
-                message={`¿Está seguro que desea desactivar el producto '${productToDeactivate?.name}' (SKU: ${productToDeactivate?.sku})? Esta acción no se puede revertir fácilmente.`}
+                content={`¿Está seguro que desea desactivar el producto '${deactivationState.product?.name}' (SKU: ${deactivationState.product?.sku})?`}
             />
         </>
     );

@@ -1,18 +1,17 @@
 // File: /frontend/src/features/purchasing/components/purchaseOrderGridConfig.js
 
 /**
- * @file purchasing/components/purchaseOrderGridConfig.js
- * @description Archivo de configuración para el MUI DataGrid de Órdenes de Compra.
+ * @file Archivo de configuración para el MUI DataGrid de Órdenes de Compra.
  *
- * Este archivo centraliza la lógica de creación de columnas para la tabla.
+ * @description Este archivo centraliza la lógica de creación de columnas para la tabla.
  * Al aislar esta configuración, se mejora la separación de concerns y se facilita
  * la mantenibilidad. La función `createPurchaseOrderColumns` actúa como una
  * factoría que recibe las funciones de acción como dependencias, permitiendo que
  * las columnas sean interactivas sin acoplarse al estado del componente padre.
  */
 
-// =omed=============================================================================
-// SECCIÓN 1: IMPORTACIONES DE MÓDULOS Y COMPONENTES
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
 import React from 'react';
@@ -23,7 +22,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import FactCheckIcon from '@mui/icons-material/FactCheck';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale'; // Importar el locale en español
+import { es } from 'date-fns/locale';
 
 // ==============================================================================
 // SECCIÓN 2: CONSTANTES DE CONFIGURACIÓN
@@ -51,7 +50,7 @@ const STATUS_CONFIG = {
  * @param {function(string)} actions.onRegisterBill - Callback para registrar una factura.
  * @returns {Array<object>} Un array de objetos de definición de columnas para MUI DataGrid.
  */
-export const createPurchaseOrderColumns = (actions) => [
+export const createPurchaseOrderColumns = ({ onEditOrder, onConfirmOrder, onRegisterReceipt, onRegisterBill }) => [
     {
         field: 'order_number',
         headerName: 'N° Orden',
@@ -64,23 +63,16 @@ export const createPurchaseOrderColumns = (actions) => [
         minWidth: 250,
     },
     {
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Se simplifica la columna para aprovechar el manejo nativo de fechas del DataGrid.
-        // Dado que los datos ya llegan como objetos `Date` desde el componente padre,
-        // no se necesita un `valueGetter` para la conversión.
         field: 'order_date',
         headerName: 'Fecha de Emisión',
         width: 150,
         type: 'date',
-        // El `valueFormatter` se mantiene para asegurar un formato visual consistente (dd/MM/yyyy).
-        // Se añade un chequeo robusto para objetos Date válidos.
         valueFormatter: (value) => {
             if (value instanceof Date && !isNaN(value)) {
                 return format(value, 'dd/MM/yyyy', { locale: es });
             }
-            return ''; // Devuelve vacío si la fecha es nula o inválida.
+            return '';
         },
-        // --- FIN DE LA CORRECCIÓN ---
     },
     {
         field: 'total_amount',
@@ -128,14 +120,14 @@ export const createPurchaseOrderColumns = (actions) => [
             return (
                 <Box>
                     <Tooltip title={isDraft ? "Editar Orden" : "Ver Detalles"}>
-                        <IconButton onClick={() => actions.onEditOrder(row.id)} size="small">
+                        <IconButton onClick={() => onEditOrder(row.id)} size="small">
                             {isDraft ? <EditIcon /> : <VisibilityIcon />}
                         </IconButton>
                     </Tooltip>
 
                     {isDraft && (
                          <Tooltip title="Confirmar Orden">
-                            <IconButton onClick={() => actions.onConfirmOrder(row)} color="success" size="small">
+                            <IconButton onClick={() => onConfirmOrder(row)} color="success" size="small">
                                 <CheckCircleOutlineIcon />
                             </IconButton>
                         </Tooltip>
@@ -143,7 +135,7 @@ export const createPurchaseOrderColumns = (actions) => [
 
                     <Tooltip title="Registrar Recepción">
                         <span>
-                            <IconButton onClick={() => actions.onRegisterReceipt(row.id)} size="small" disabled={!canBeReceived}>
+                            <IconButton onClick={() => onRegisterReceipt(row.id)} size="small" disabled={!canBeReceived}>
                                 <ReceiptLongIcon />
                             </IconButton>
                         </span>
@@ -151,7 +143,7 @@ export const createPurchaseOrderColumns = (actions) => [
 
                     <Tooltip title="Registrar Factura">
                         <span>
-                            <IconButton onClick={() => actions.onRegisterBill(row.id)} size="small" disabled={!canBeBilled}>
+                            <IconButton onClick={() => onRegisterBill(row.id)} size="small" disabled={!canBeBilled}>
                                 <FactCheckIcon />
                             </IconButton>
                         </span>

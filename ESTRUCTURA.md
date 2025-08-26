@@ -143,9 +143,11 @@ backend/app/modules/sales/repositories/sales_invoice_repository.py
 /frontend/src/components/common/DataGridToolbar.js
 /frontend/src/components/common/Logo.js
 /frontend/src/components/common/PageHeader.js
+
 /frontend/src/components/layout/AuthLayout.js
 /frontend/src/components/layout/DashboardLayout.js
 /frontend/src/components/layout/DashboardSidebar.js
+/frontend/src/components/layout/sidebarConfig.js
 
 # --- Constantes Globales ---
 /frontend/src/constants/crmConstants.js
@@ -173,6 +175,7 @@ backend/app/modules/sales/repositories/sales_invoice_repository.py
 frontend/src/features/crm/components/customerGridConfig.js
 frontend/src/features/crm/components/CustomerDataGrid.js
 frontend/src/features/crm/components/CustomerForm.js
+/frontend/src/features/crm/components/supplierGridConfig.js
 
 /frontend/src/features/crm/pages/NewSupplierPage.js
 /frontend/src/features/crm/pages/SupplierListPage.js
@@ -181,16 +184,21 @@ frontend/src/features/crm/pages/CustomerListPage.js
 
 # --- Módulo: Inventario ---
 /frontend/src/features/inventory/api/productsAPI.js
-/frontend/src/features/inventory/mappers/productMappers.js           (*) # Mappers en su propia carpeta para mayor claridad
+
 /frontend/src/features/inventory/components/ProductForm.js
 /frontend/src/features/inventory/components/InventoryLotsModal.js
 /frontend/src/features/inventory/components/product/ProductPrimaryInfoSection.js
 /frontend/src/features/inventory/components/product/ProductCommercialDataSection.js
 /frontend/src/features/inventory/components/product/ProductSpecificationsSection.js
 /frontend/src/features/inventory/components/product/ProductReferenceSection.js
+/frontend/src/features/inventory/components/productGridConfig.js
+/frontend/src/features/inventory/components/inventoryGridConfig.js
+
+
 /frontend/src/features/inventory/pages/ProductListPage.js
 /frontend/src/features/inventory/pages/NewProductPage.js
 /frontend/src/features/inventory/pages/EditProductPage.js
+/frontend/src/features/inventory/mappers/inventoryMappers.js
 
 # --- Módulo: Compras ---
 
@@ -226,6 +234,15 @@ frontend/src/features/purchasing/pages/GoodsReceiptDetailsPage.js
 /frontend/src/features/reports/api/reportsAPI.js
 /frontend/src/features/reports/pages/ProductCatalogPage.js
 
+# --- Módulo: Roles ---
+
+/frontend/src/features/roles/api/rolesAPI.js
+
+# --- Módulo: Users ---
+/frontend/src/features/users/api/usersAPI.js
+
+
+
 # --- Módulo: Ventas ---
 /frontend/src/features/sales/api/salesAPI.js
 /frontend/src/features/sales/components/SalesOrderDataGrid.js
@@ -256,7 +273,7 @@ frontend/src/features/sales/mappers/salesMappers.js
 /frontend/src/utils/errorUtils.js
 /frontend/src/utils/formatters.js    
 frontend/src/utils/dataMappers.js                 
-
+/frontend/src/utils/formatters.js
 
 (+) # Centralizar formateadores (moneda, fecha)
 

@@ -1,4 +1,4 @@
-// /frontend/src/features/inventory/pages/ProductListPage.js
+// File: /frontend/src/features/inventory/pages/ProductListPage.js
 
 /**
  * @file Página principal para la visualización y gestión del catálogo de productos.
@@ -14,39 +14,28 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
-import { Box, Container, Paper, Alert, IconButton, Tooltip } from '@mui/material';
+import { Container, Paper, Alert } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import WarehouseIcon from '@mui/icons-material/Warehouse';
 
 import { getProductsAPI, deactivateProductAPI } from '../api/productsAPI';
 import useDebounce from '../../../hooks/useDebounce';
 import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
 import DataGridToolbar from '../../../components/common/DataGridToolbar';
 import InventoryLotsModal from '../components/InventoryLotsModal';
+import PageHeader from '../../../components/common/PageHeader';
 import { formatApiError } from '../../../utils/errorUtils';
+import { createProductColumns } from '../components/productGridConfig';
 
 // ==============================================================================
-// SECCIÓN 2: FUNCIONES DE AYUDA
-// ==============================================================================
-
-const formatCurrency = (value) => {
-    if (value === null || value === undefined) {
-        return '';
-    }
-    return `S/ ${Number(value).toFixed(2)}`;
-};
-
-// ==============================================================================
-// SECCIÓN 3: COMPONENTE PRINCIPAL DE LA PÁGINA
+// SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
 // ==============================================================================
 
 const ProductListPage = () => {
     // --------------------------------------------------------------------------
-    // Sub-sección 3.1: Hooks y Estado Local
+    // Sub-sección 2.1: Hooks y Estado Local
     // --------------------------------------------------------------------------
+    
     const navigate = useNavigate();
     const { enqueueSnackbar } = useSnackbar();
     const queryClient = useQueryClient();
@@ -59,89 +48,74 @@ const ProductListPage = () => {
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
     // --------------------------------------------------------------------------
-    // Sub-sección 3.2: Lógica de Obtención y Mutación de Datos
+    // Sub-sección 2.2: Lógica de Obtención y Mutación de Datos
     // --------------------------------------------------------------------------
+    
     const { data, isLoading, isFetching, error } = useQuery({
         queryKey: ['products', paginationModel, debouncedSearchTerm],
         queryFn: () => getProductsAPI({
             page: paginationModel.page + 1,
-            page_size: paginationModel.pageSize,
+            pageSize: paginationModel.pageSize, // Consistente con otros módulos
             search: debouncedSearchTerm,
         }),
-        keepPreviousData: true,
+        placeholderData: (previousData) => previousData,
     });
 
     const { mutate: deactivateProduct, isPending: isDeactivating } = useMutation({
-        mutationFn: (sku) => deactivateProductAPI(sku),
-        onSuccess: (data, sku) => {
-            enqueueSnackbar(`Producto '${sku}' desactivado correctamente.`, { variant: 'success' });
+        mutationFn: (productId) => deactivateProductAPI(productId),
+        onSuccess: (data, productId) => {
+            enqueueSnackbar(`Producto ID '${productId}' desactivado correctamente.`, { variant: 'success' });
             queryClient.invalidateQueries({ queryKey: ['products'] });
         },
-        onError: (err) => {
-            enqueueSnackbar(formatApiError(err), { variant: 'error' });
+        onError: (error) => {
+            enqueueSnackbar(formatApiError(error), { variant: 'error' });
         },
     });
 
     // --------------------------------------------------------------------------
-    // Sub-sección 3.3: Manejadores de Eventos
+    // Sub-sección 2.3: Manejadores de Eventos
     // --------------------------------------------------------------------------
+    
     const handleSearchChange = useCallback((event) => {
         setSearchTerm(event.target.value);
-        setPaginationModel(prev => ({ ...prev, page: 0 }));
     }, []);
     
     const handleConfirmDeactivation = useCallback(() => {
         if (deactivationState.product) {
-            deactivateProduct(deactivationState.product.sku);
+            deactivateProduct(deactivationState.product.id); // Se usa `id`
             setDeactivationState({ open: false, product: null });
         }
     }, [deactivationState.product, deactivateProduct]);
 
-    const handleOpenDeactivationDialog = (product) => {
-        setDeactivationState({ open: true, product });
-    };
-
-    const handleCloseDeactivationDialog = () => {
-        setDeactivationState({ open: false, product: null });
-    };
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.4: Configuración de la DataGrid
+    // --------------------------------------------------------------------------
     
-    // --------------------------------------------------------------------------
-    // Sub-sección 3.4: Configuración de la DataGrid
-    // --------------------------------------------------------------------------
-    const columns = useMemo(() => [
-        { field: 'sku', headerName: 'SKU', width: 150 },
-        { field: 'name', headerName: 'Nombre', flex: 1, minWidth: 250 },
-        { field: 'brand', headerName: 'Marca', width: 120 },
-        { field: 'stock_quantity', headerName: 'Stock Total', type: 'number', width: 110, align: 'center', headerAlign: 'center' },
-        { field: 'average_cost', headerName: 'Costo Prom.', type: 'number', width: 120, align: 'right', headerAlign: 'right', valueFormatter: (params) => formatCurrency(params.value) },
-        { field: 'price', headerName: 'Precio Venta', type: 'number', width: 120, align: 'right', headerAlign: 'right', valueFormatter: (params) => formatCurrency(params.value) },
-        {
-            field: 'actions',
-            headerName: 'Acciones',
-            type: 'actions',
-            width: 150,
-            align: 'center',
-            headerAlign: 'center',
-            getActions: ({ row }) => [
-                <Tooltip title="Ver Lotes de Inventario" key="lots"><IconButton onClick={() => setLotsModalState({ open: true, product: row })} size="small"><WarehouseIcon /></IconButton></Tooltip>,
-                <Tooltip title="Editar Producto" key="edit"><IconButton onClick={() => navigate(`/inventario/productos/editar/${encodeURIComponent(row.sku)}`)} size="small"><EditIcon /></IconButton></Tooltip>,
-                <Tooltip title="Desactivar Producto" key="delete"><IconButton onClick={() => handleOpenDeactivationDialog(row)} size="small" color="error"><DeleteIcon /></IconButton></Tooltip>,
-            ],
-        },
-    ], [navigate]);
+    const columns = useMemo(() => createProductColumns({
+        onEdit: (productId) => navigate(`/inventario/productos/${productId}`),
+        onDeactivate: (product) => setDeactivationState({ open: true, product }),
+        onViewLots: (product) => setLotsModalState({ open: true, product }),
+    }), [navigate]);
 
     // --------------------------------------------------------------------------
-    // Sub-sección 3.5: Renderizado del Componente
+    // Sub-sección 2.5: Renderizado del Componente
     // --------------------------------------------------------------------------
+    
     return (
         <>
             <Container maxWidth="xl" sx={{ my: 4 }}>
-                <Paper sx={{ height: '75vh', width: '100%', borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+                <PageHeader
+                    title="Catálogo de Productos"
+                    subtitle="Visualice y gestione todos los artículos registrados en el sistema."
+                    addButtonText="Añadir Producto"
+                    onAddClick={() => navigate('/inventario/productos/nuevo')}
+                />
+                <Paper sx={{ height: '75vh', width: '100%', mt: 3, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
                     {error && <Alert severity="error" sx={{ m: 2 }}>{`Error al cargar productos: ${formatApiError(error)}`}</Alert>}
                     <DataGrid
                         rows={data?.items || []}
                         columns={columns}
-                        getRowId={(row) => row._id}
+                        getRowId={(row) => row.id} // Se usa `id`
                         rowCount={data?.total_count || 0}
                         paginationModel={paginationModel}
                         onPaginationModelChange={setPaginationModel}
@@ -153,9 +127,7 @@ const ProductListPage = () => {
                         slots={{ toolbar: DataGridToolbar }}
                         slotProps={{
                             toolbar: {
-                                title: "Catálogo de Productos",
-                                addButtonText: "Añadir Producto",
-                                onAddClick: () => navigate('/inventario/productos/nuevo'),
+                                showAddButton: false, // El botón ya está en PageHeader
                                 searchTerm: searchTerm,
                                 onSearchChange: handleSearchChange,
                                 searchPlaceholder: "Buscar por SKU, Nombre o Marca...",
@@ -167,21 +139,25 @@ const ProductListPage = () => {
                 </Paper>
             </Container>
 
-            <InventoryLotsModal
-                open={lotsModalState.open}
-                onClose={() => setLotsModalState({ open: false, product: null })}
-                productId={lotsModalState.product?._id}
-                productName={lotsModalState.product?.name}
-            />
+            {lotsModalState.open && (
+                <InventoryLotsModal
+                    open={lotsModalState.open}
+                    onClose={() => setLotsModalState({ open: false, product: null })}
+                    productId={lotsModalState.product?.id} // Se usa `id`
+                    productName={lotsModalState.product?.name}
+                />
+            )}
 
-            <ConfirmationDialog
-                isOpen={deactivationState.open}
-                onClose={handleCloseDeactivationDialog}
-                onConfirm={handleConfirmDeactivation}
-                isLoading={isDeactivating}
-                title="Confirmar Desactivación"
-                content={`¿Está seguro que desea desactivar el producto '${deactivationState.product?.name}' (SKU: ${deactivationState.product?.sku})?`}
-            />
+            {deactivationState.open && (
+                <ConfirmationDialog
+                    isOpen={deactivationState.open}
+                    onClose={() => setDeactivationState({ open: false, product: null })}
+                    onConfirm={handleConfirmDeactivation}
+                    isLoading={isDeactivating}
+                    title="Confirmar Desactivación"
+                    content={`¿Está seguro que desea desactivar el producto '${deactivationState.product?.name}' (SKU: ${deactivationState.product?.sku})?`}
+                />
+            )}
         </>
     );
 };

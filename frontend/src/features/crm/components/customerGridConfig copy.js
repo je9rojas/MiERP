@@ -1,4 +1,4 @@
-// frontend/src/features/crm/components/customerGridConfig.js
+// /frontend/src/features/crm/components/customerGridConfig.js
 
 /**
  * @file Archivo de configuración para el MUI DataGrid de Clientes (Customers).
@@ -37,7 +37,8 @@ export const createCustomerColumns = (actions) => [
         field: 'doc_type',
         headerName: 'Tipo Doc.',
         width: 100,
-        valueFormatter: (value) => value?.toUpperCase() || '',
+        // Se usa 'valueFormatter' para mostrar el texto en mayúsculas.
+        valueFormatter: (value) => value?.toUpperCase() || 'N/A',
     },
     {
         field: 'doc_number',
@@ -49,14 +50,19 @@ export const createCustomerColumns = (actions) => [
         headerName: 'Teléfono',
         width: 150,
         sortable: false,
+        // Se usa 'valueFormatter' para mostrar un guion si no hay valor.
+        valueFormatter: (value) => value || '—',
     },
     {
         field: 'contact_person',
         headerName: 'Persona de Contacto',
         flex: 1,
         minWidth: 200,
-        valueGetter: (params) => params.value?.name || 'No asignado',
         sortable: false,
+        // (CORRECCIÓN CLAVE) Se utiliza un valueGetter robusto.
+        // Accede a 'params.row.contact_person' y, solo si no es nulo,
+        // intenta leer la propiedad 'name'. Esto previene el error.
+        valueGetter: (value, row) => row.contact_person?.name || 'No asignado',
     },
     {
         field: 'is_active',

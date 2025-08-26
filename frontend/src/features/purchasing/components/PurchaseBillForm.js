@@ -1,4 +1,4 @@
-// frontend/src/features/purchasing/components/PurchaseBillForm.js
+// File: /frontend/src/features/purchasing/components/PurchaseBillForm.js
 
 /**
  * @file Componente reutilizable para el formulario de Factura de Compra.
@@ -13,12 +13,14 @@
 // ==============================================================================
 
 import React, { useMemo } from 'react';
-import { Formik, Form, FieldArray } from 'formik';
+import PropTypes from 'prop-types';
+import { Formik, Form, Field, FieldArray } from 'formik';
 import * as yup from 'yup';
 import {
-    Box, Grid, TextField, Button, Typography, Paper, Divider,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, FormHelperText
+    Box, Grid, Button, Typography, Paper, Divider,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
+import { TextField } from 'formik-material-ui';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { es } from 'date-fns/locale/es';
@@ -32,27 +34,25 @@ const purchaseBillValidationSchema = yup.object().shape({
     supplier_invoice_number: yup.string().trim().required('El N° de factura del proveedor es obligatorio.'),
     invoice_date: yup.date().required('La fecha de factura es requerida.').typeError('Formato inválido.'),
     due_date: yup.date().required('La fecha de vencimiento es requerida.').typeError('Formato inválido.')
-        .min(yup.ref('invoice_date'), 'La fecha de vencimiento no puede ser anterior a la fecha de factura.'),
+        .min(yup.ref('invoice_date'), 'La fecha de vencimiento no puede ser anterior a la de factura.'),
     items: yup.array().of(yup.object().shape({
         quantity_billed: yup.number()
             .min(0, 'No puede ser negativo.')
-            // Validar que no se facture más de lo pedido.
-            // Una validación más avanzada compararía contra 'cantidad recibida - cantidad ya facturada'.
-            .max(yup.ref('quantity_ordered'), 'No se puede facturar más de lo pedido en la OC.')
+            .max(yup.ref('quantity_ordered'), 'No se puede facturar más de lo pedido.')
             .typeError('Debe ser un número.'),
         unit_cost: yup.number()
             .min(0, 'El costo no puede ser negativo.')
             .typeError('Debe ser un número.')
             .required('El costo es requerido.'),
     })).min(1, 'Debe haber al menos un ítem en la factura.'),
+    notes: yup.string().nullable(),
 });
 
 // ==============================================================================
 // SECCIÓN 3: COMPONENTE PRINCIPAL DEL FORMULARIO
 // ==============================================================================
 
-const PurchaseBillForm = ({ initialData: purchaseOrder, onSubmit, isSubmitting }) => {
-    // `initialData` ahora es la Orden de Compra completa.
+const PurchaseBillForm = ({ initialData: purchaseOrder, onSubmit, isSubmitting = false }) => {
     const initialValues = useMemo(() => {
         const invoiceDate = new Date();
         return {
@@ -60,15 +60,12 @@ const PurchaseBillForm = ({ initialData: purchaseOrder, onSubmit, isSubmitting }
             invoice_date: invoiceDate,
             due_date: addDays(invoiceDate, 30),
             notes: '',
-            // Se mapean los ítems de la OC para el formulario de factura.
             items: (purchaseOrder?.items || []).map(item => ({
                 product_id: item.product_id,
                 sku: item.sku,
                 name: item.name,
                 quantity_ordered: item.quantity_ordered,
-                // Por defecto, se propone facturar la cantidad total pedida.
-                quantity_billed: item.quantity_ordered, 
-                // El costo se toma de la OC como referencia, pero es editable.
+                quantity_billed: item.quantity_ordered,
                 unit_cost: item.unit_cost,
             })),
         };
@@ -82,7 +79,7 @@ const PurchaseBillForm = ({ initialData: purchaseOrder, onSubmit, isSubmitting }
                 onSubmit={onSubmit}
                 enableReinitialize
             >
-                {({ values, errors, touched, setFieldValue, handleChange, handleBlur }) => {
+                {({ values, setFieldValue, isSubmitting: formikIsSubmitting }) => {
                     const totalAmount = values.items.reduce((acc, item) => acc + (Number(item.quantity_billed || 0) * Number(item.unit_cost || 0)), 0);
 
                     return (
@@ -90,9 +87,15 @@ const PurchaseBillForm = ({ initialData: purchaseOrder, onSubmit, isSubmitting }
                             <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
                                 <Typography variant="h6" gutterBottom>Información de la Factura</Typography>
                                 <Grid container spacing={3}>
-                                    <Grid item xs={12} md={4}><TextField fullWidth label="N° Factura Proveedor" name="supplier_invoice_number" value={values.supplier_invoice_number} onChange={handleChange} onBlur={handleBlur} required error={touched.supplier_invoice_number && Boolean(errors.supplier_invoice_number)} helperText={touched.supplier_invoice_number && errors.supplier_invoice_number} disabled={isSubmitting} /></Grid>
-                                    <Grid item xs={12} md={4}><DatePicker label="Fecha de Factura" value={values.invoice_date} onChange={(date) => setFieldValue('invoice_date', date)} slotProps={{ textField: { fullWidth: true, required: true, error: touched.invoice_date && Boolean(errors.invoice_date), helperText: touched.invoice_date && errors.invoice_date } }} disabled={isSubmitting} /></Grid>
-                                    <Grid item xs={12} md={4}><DatePicker label="Fecha de Vencimiento" value={values.due_date} onChange={(date) => setFieldValue('due_date', date)} slotProps={{ textField: { fullWidth: true, required: true, error: touched.due_date && Boolean(errors.due_date), helperText: touched.due_date && errors.due_date } }} disabled={isSubmitting} /></Grid>
+                                    <Grid item xs={12} md={4}>
+                                        <Field component={TextField} name="supplier_invoice_number" label="N° Factura Proveedor" fullWidth required disabled={isSubmitting || formikIsSubmitting} />
+                                    </Grid>
+                                    <Grid item xs={12} md={4}>
+                                        <DatePicker label="Fecha de Factura" value={values.invoice_date} onChange={(date) => setFieldValue('invoice_date', date)} slotProps={{ textField: { fullWidth: true, required: true } }} disabled={isSubmitting || formikIsSubmitting} />
+                                    </Grid>
+                                    <Grid item xs={12} md={4}>
+                                        <DatePicker label="Fecha de Vencimiento" value={values.due_date} onChange={(date) => setFieldValue('due_date', date)} slotProps={{ textField: { fullWidth: true, required: true } }} disabled={isSubmitting || formikIsSubmitting} />
+                                    </Grid>
                                 </Grid>
                             </Paper>
 
@@ -115,12 +118,10 @@ const PurchaseBillForm = ({ initialData: purchaseOrder, onSubmit, isSubmitting }
                                                     <TableCell>{item.name} ({item.sku})</TableCell>
                                                     <TableCell align="center">{item.quantity_ordered}</TableCell>
                                                     <TableCell align="center">
-                                                        <TextField type="number" name={`items.${index}.quantity_billed`} value={item.quantity_billed} onChange={handleChange} onBlur={handleBlur} error={touched.items?.[index]?.quantity_billed && Boolean(errors.items?.[index]?.quantity_billed)} sx={{ width: 100 }} inputProps={{ min: 0 }} disabled={isSubmitting} />
-                                                        {touched.items?.[index]?.quantity_billed && errors.items?.[index]?.quantity_billed && <FormHelperText error>{errors.items[index].quantity_billed}</FormHelperText>}
+                                                        <Field component={TextField} type="number" name={`items.${index}.quantity_billed`} sx={{ width: 100 }} inputProps={{ min: 0 }} disabled={isSubmitting || formikIsSubmitting} />
                                                     </TableCell>
                                                     <TableCell align="center">
-                                                        <TextField type="number" name={`items.${index}.unit_cost`} value={item.unit_cost} onChange={handleChange} onBlur={handleBlur} error={touched.items?.[index]?.unit_cost && Boolean(errors.items?.[index]?.unit_cost)} sx={{ width: 120 }} inputProps={{ min: 0 }} disabled={isSubmitting} />
-                                                        {touched.items?.[index]?.unit_cost && errors.items?.[index]?.unit_cost && <FormHelperText error>{errors.items[index].unit_cost}</FormHelperText>}
+                                                        <Field component={TextField} type="number" name={`items.${index}.unit_cost`} sx={{ width: 120 }} inputProps={{ min: 0 }} disabled={isSubmitting || formikIsSubmitting} />
                                                     </TableCell>
                                                     <TableCell align="right" sx={{ fontWeight: 'bold' }}>
                                                         {`S/ ${(Number(item.quantity_billed || 0) * Number(item.unit_cost || 0)).toFixed(2)}`}
@@ -136,7 +137,7 @@ const PurchaseBillForm = ({ initialData: purchaseOrder, onSubmit, isSubmitting }
 
                             <Grid container justifyContent="space-between" alignItems="flex-start" spacing={3}>
                                 <Grid item xs={12} md={7}>
-                                    <TextField fullWidth label="Notas Adicionales de la Factura" name="notes" value={values.notes} onChange={handleChange} onBlur={handleBlur} multiline rows={3} disabled={isSubmitting} />
+                                    <Field component={TextField} name="notes" label="Notas Adicionales de la Factura" fullWidth multiline rows={3} disabled={isSubmitting || formikIsSubmitting} />
                                 </Grid>
                                 <Grid item xs={12} md={5}>
                                     <Typography variant="h4" align="right" fontWeight="bold">TOTAL: S/ {totalAmount.toFixed(2)}</Typography>
@@ -144,8 +145,8 @@ const PurchaseBillForm = ({ initialData: purchaseOrder, onSubmit, isSubmitting }
                             </Grid>
 
                             <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-                                <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
-                                    {isSubmitting ? 'Registrando Factura...' : 'Crear Factura de Compra'}
+                                <Button type="submit" variant="contained" size="large" disabled={isSubmitting || formikIsSubmitting}>
+                                    {isSubmitting || formikIsSubmitting ? 'Registrando Factura...' : 'Crear Factura de Compra'}
                                 </Button>
                             </Box>
                         </Form>
@@ -154,6 +155,12 @@ const PurchaseBillForm = ({ initialData: purchaseOrder, onSubmit, isSubmitting }
             </Formik>
         </LocalizationProvider>
     );
+};
+
+PurchaseBillForm.propTypes = {
+    initialData: PropTypes.object.isRequired,
+    onSubmit: PropTypes.func.isRequired,
+    isSubmitting: PropTypes.bool,
 };
 
 export default PurchaseBillForm;

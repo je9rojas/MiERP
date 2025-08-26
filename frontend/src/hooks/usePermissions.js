@@ -1,45 +1,55 @@
-// /frontend/src/hooks/usePermissions.js
+// File: /frontend/src/hooks/usePermissions.js
 
 /**
  * @file Hook personalizado que centraliza y simplifica la lógica de verificación de permisos.
- * Abstrae la necesidad de acceder directamente al contexto de autenticación y a la
+ * @description Abstrae la necesidad de acceder directamente al contexto de autenticación y a la
  * función 'hasPermission' en cada componente que requiere una comprobación de roles.
  */
 
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
+// ==============================================================================
+
 import { useAuth } from '../app/contexts/AuthContext';
-import { hasPermission as checkPermission } from '../constants/rolesAndPermissions';
+import { hasPermission as checkUserPermission } from '../utils/auth/roles'; // Importar con alias
+
+// ==============================================================================
+// SECCIÓN 2: DEFINICIÓN DEL HOOK
+// ==============================================================================
 
 /**
  * Proporciona un conjunto de herramientas para verificar los permisos del usuario actual.
  * 
- * @param {string[]} allowedRoles - Un array de constantes de roles (ej. CAN_CRUD_PURCHASE_ORDERS).
- * @returns {object} Un objeto que contiene:
- *  - `user`: El objeto completo del usuario autenticado.
- *  - `hasPermission`: Una función que toma un array de roles y devuelve true/false.
- *  - Banderas de conveniencia como `isSuperAdmin`, `isAdmin`, etc.
+ * @returns {{
+ *  user: object | null,
+ *  userRole: string | undefined,
+ *  hasPermission: (requiredPermission: string) => boolean,
+ *  isSuperAdmin: boolean,
+ *  isAdmin: boolean
+ * }} Un objeto con el usuario, su rol y funciones de ayuda para la verificación.
  */
 export const usePermissions = () => {
-  const { user } = useAuth();
-  const userRole = user?.role;
+    const { user } = useAuth();
+    const userRole = user?.role;
 
-  /**
-   * Verifica si el rol del usuario actual está incluido en una lista de roles permitidos.
-   * La lógica real (incluyendo el acceso universal del superadmin) está delegada
-   * a la función 'checkPermission' centralizada.
-   * 
-   * @param {string[]} allowedRoles - El array de roles a verificar.
-   * @returns {boolean} - True si el usuario tiene permiso, false en caso contrario.
-   */
-  const hasPermission = (allowedRoles) => {
-    return checkPermission(allowedRoles, userRole);
-  };
+    /**
+     * Verifica si el usuario actual tiene un permiso específico.
+     * La lógica real (incluyendo el acceso universal del superadmin) está delegada
+     * a la función 'checkUserPermission' centralizada.
+     * 
+     * @param {string} requiredPermission - El permiso requerido (ej. PERMISSIONS.CRM_VIEW_CUSTOMERS).
+     * @returns {boolean} - True si el usuario tiene el permiso, false en caso contrario.
+     */
+    const hasPermission = (requiredPermission) => {
+        return checkUserPermission(userRole, requiredPermission);
+    };
 
-  return {
-    user,
-    userRole,
-    hasPermission,
-    // Puedes añadir más helpers aquí para los roles más comunes
-    isSuperAdmin: userRole === 'superadmin',
-    isAdmin: userRole === 'admin',
-  };
+    return {
+        user,
+        userRole,
+        hasPermission,
+        // Banderas de conveniencia para los roles más comunes.
+        isSuperAdmin: userRole === 'superadmin',
+        isAdmin: userRole === 'admin',
+    };
 };

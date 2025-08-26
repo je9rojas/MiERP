@@ -1,4 +1,4 @@
-// /frontend/src/features/crm/components/customerGridConfig.js
+// File: /frontend/src/features/crm/components/customerGridConfig.js
 
 /**
  * @file Archivo de configuración para el MUI DataGrid de Clientes (Customers).
@@ -17,16 +17,16 @@ import { Box, Chip, Tooltip, IconButton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 
 // ==============================================================================
-// SECCIÓN 2: FUNCIÓN FACTORY PARA COLUMNAS
+// SECCIÓN 2: FUNCIÓN FACTORÍA PARA LA DEFINICIÓN DE COLUMNAS
 // ==============================================================================
 
 /**
- * Factory function para crear la configuración de las columnas de la DataGrid de Clientes.
- * @param {object} actions - Un objeto que contiene los callbacks para las acciones.
- * @param {function} actions.onEditCustomer - Callback para navegar a la página de edición.
+ * Crea la configuración de columnas para la tabla de Clientes.
+ * @param {object} actions - Objeto que contiene los callbacks para las acciones de la fila.
+ * @param {function(string)} actions.onEditCustomer - Callback para navegar a la página de edición.
  * @returns {Array<object>} Un array de objetos de definición de columnas para MUI DataGrid.
  */
-export const createCustomerColumns = (actions) => [
+export const createCustomerColumns = ({ onEditCustomer }) => [
     {
         field: 'business_name',
         headerName: 'Razón Social',
@@ -37,7 +37,6 @@ export const createCustomerColumns = (actions) => [
         field: 'doc_type',
         headerName: 'Tipo Doc.',
         width: 100,
-        // Se usa 'valueFormatter' para mostrar el texto en mayúsculas.
         valueFormatter: (value) => value?.toUpperCase() || 'N/A',
     },
     {
@@ -50,19 +49,15 @@ export const createCustomerColumns = (actions) => [
         headerName: 'Teléfono',
         width: 150,
         sortable: false,
-        // Se usa 'valueFormatter' para mostrar un guion si no hay valor.
         valueFormatter: (value) => value || '—',
     },
     {
-        field: 'contact_person',
+        field: 'contact_person_name',
         headerName: 'Persona de Contacto',
         flex: 1,
         minWidth: 200,
         sortable: false,
-        // (CORRECCIÓN CLAVE) Se utiliza un valueGetter robusto.
-        // Accede a 'params.row.contact_person' y, solo si no es nulo,
-        // intenta leer la propiedad 'name'. Esto previene el error.
-        valueGetter: (value, row) => row.contact_person?.name || 'No asignado',
+        // Este campo es aplanado en la página contenedora, por lo que no se necesita valueGetter.
     },
     {
         field: 'is_active',
@@ -90,7 +85,7 @@ export const createCustomerColumns = (actions) => [
         renderCell: (params) => (
             <Box>
                 <Tooltip title="Editar Cliente">
-                    <IconButton onClick={() => actions.onEditCustomer(params.row.id)} size="small">
+                    <IconButton onClick={() => onEditCustomer(params.row.id)} size="small">
                         <EditIcon />
                     </IconButton>
                 </Tooltip>

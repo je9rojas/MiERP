@@ -1,4 +1,4 @@
-// frontend/src/features/purchasing/components/GoodsReceiptForm.js
+// File: /frontend/src/features/purchasing/components/GoodsReceiptForm.js
 
 /**
  * @file Componente reutilizable para el formulario de Creación de Recepción de Mercancía.
@@ -13,12 +13,14 @@
 // ==============================================================================
 
 import React, { useMemo } from 'react';
-import { Formik, Form } from 'formik';
+import PropTypes from 'prop-types';
+import { Formik, Form, Field } from 'formik';
 import * as yup from 'yup';
 import {
-    Box, Grid, TextField, Button, Typography, Paper, Divider,
+    Box, Grid, Button, Typography, Paper, Divider,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow
 } from '@mui/material';
+import { TextField } from 'formik-material-ui';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFnsV3';
 import { es } from 'date-fns/locale/es';
@@ -28,37 +30,43 @@ import { es } from 'date-fns/locale/es';
 // ==============================================================================
 
 const goodsReceiptValidationSchema = yup.object().shape({
-    received_date: yup.date().required('La fecha de recepción es requerida.').typeError('Formato de fecha inválido.'),
+    received_date: yup.date()
+        .required('La fecha de recepción es requerida.')
+        .typeError('Formato de fecha inválido.'),
     items: yup.array().of(yup.object().shape({
         quantity_received: yup.number()
             .min(0, 'La cantidad no puede ser negativa.')
             .typeError('Debe ser un número.')
             .required('La cantidad es requerida.')
             .test(
-                'is-less-than-or-equal-to-ordered',
-                'No puede recibir más de lo ordenado.',
+                'is-less-than-pending',
+                'No puede recibir más de lo pendiente.',
                 function(value) {
-                    // 'this.parent' se refiere al objeto item actual (ej. { quantity_ordered: 10, quantity_received: 12 })
-                    return value <= this.parent.quantity_ordered;
+                    const { quantity_ordered = 0, quantity_already_received = 0 } = this.parent;
+                    const pendingQuantity = quantity_ordered - quantity_already_received;
+                    return value <= pendingQuantity;
                 }
             ),
     })),
+    notes: yup.string().nullable(),
 });
 
 // ==============================================================================
 // SECCIÓN 3: COMPONENTE PRINCIPAL DEL FORMULARIO
 // ==============================================================================
 
-const GoodsReceiptForm = ({ initialData, onSubmit, isSubmitting }) => {
+const GoodsReceiptForm = ({ initialData, onSubmit, isSubmitting = false }) => {
     const initialValues = useMemo(() => {
         return {
             received_date: new Date(),
             notes: '',
-            items: (initialData?.items || []).map(item => ({
-                ...item,
-                // Por defecto, se asume que se recibe la cantidad total pedida.
-                quantity_received: item.quantity_ordered,
-            })),
+            items: (initialData?.items || []).map(item => {
+                const pendingQuantity = (item.quantity_ordered || 0) - (item.quantity_already_received || 0);
+                return {
+                    ...item,
+                    quantity_received: Math.max(0, pendingQuantity), // Sugerir la cantidad pendiente
+                };
+            }),
         };
     }, [initialData]);
 
@@ -70,7 +78,7 @@ const GoodsReceiptForm = ({ initialData, onSubmit, isSubmitting }) => {
                 onSubmit={onSubmit}
                 enableReinitialize
             >
-                {({ values, errors, touched, setFieldValue, setFieldTouched }) => (
+                {({ values, setFieldValue, isSubmitting: formikIsSubmitting }) => (
                     <Form noValidate>
                         <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
                             <Grid container spacing={3}>
@@ -80,7 +88,7 @@ const GoodsReceiptForm = ({ initialData, onSubmit, isSubmitting }) => {
                                         value={values.received_date}
                                         onChange={(newValue) => setFieldValue('received_date', newValue)}
                                         slotProps={{ textField: { fullWidth: true, required: true } }}
-                                        disabled={isSubmitting}
+                                        disabled={isSubmitting || formikIsSubmitting}
                                     />
                                 </Grid>
                             </Grid>
@@ -95,26 +103,24 @@ const GoodsReceiptForm = ({ initialData, onSubmit, isSubmitting }) => {
                                     <TableRow>
                                         <TableCell>Producto (SKU)</TableCell>
                                         <TableCell align="right">Cant. Ordenada</TableCell>
+                                        <TableCell align="right">Cant. Ya Recibida</TableCell>
                                         <TableCell align="center">Cant. a Recibir</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {values.items.map((item, index) => (
                                         <TableRow key={item.product_id}>
-                                            <TableCell>{item.name} ({item.sku})</TableCell>
+                                            <TableCell component="th" scope="row">{item.name} ({item.sku})</TableCell>
                                             <TableCell align="right">{item.quantity_ordered}</TableCell>
+                                            <TableCell align="right">{item.quantity_already_received || 0}</TableCell>
                                             <TableCell align="center">
-                                                <TextField
+                                                <Field
+                                                    component={TextField}
                                                     type="number"
                                                     name={`items.${index}.quantity_received`}
-                                                    value={item.quantity_received}
-                                                    onChange={(e) => setFieldValue(`items.${index}.quantity_received`, Number(e.target.value))}
-                                                    onBlur={() => setFieldTouched(`items.${index}.quantity_received`, true)}
-                                                    error={touched.items?.[index]?.quantity_received && Boolean(errors.items?.[index]?.quantity_received)}
-                                                    helperText={touched.items?.[index]?.quantity_received && errors.items?.[index]?.quantity_received}
-                                                    disabled={isSubmitting}
+                                                    disabled={isSubmitting || formikIsSubmitting}
                                                     sx={{ width: 120 }}
-                                                    inputProps={{ min: 0, max: item.quantity_ordered }}
+                                                    inputProps={{ min: 0, max: (item.quantity_ordered - (item.quantity_already_received || 0)) }}
                                                 />
                                             </TableCell>
                                         </TableRow>
@@ -125,20 +131,19 @@ const GoodsReceiptForm = ({ initialData, onSubmit, isSubmitting }) => {
 
                         <Divider sx={{ my: 4 }} />
 
-                        <TextField
-                            fullWidth
-                            label="Notas Adicionales de la Recepción"
+                        <Field
+                            component={TextField}
                             name="notes"
-                            value={values.notes}
-                            onChange={(e) => setFieldValue('notes', e.target.value)}
+                            label="Notas Adicionales de la Recepción"
+                            fullWidth
                             multiline
                             rows={3}
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || formikIsSubmitting}
                         />
 
                         <Box sx={{ mt: 4, display: 'flex', justifyContent: 'flex-end' }}>
-                            <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
-                                {isSubmitting ? 'Procesando Recepción...' : 'Registrar Recepción'}
+                            <Button type="submit" variant="contained" size="large" disabled={isSubmitting || formikIsSubmitting}>
+                                {isSubmitting || formikIsSubmitting ? 'Procesando Recepción...' : 'Registrar Recepción'}
                             </Button>
                         </Box>
                     </Form>
@@ -146,6 +151,12 @@ const GoodsReceiptForm = ({ initialData, onSubmit, isSubmitting }) => {
             </Formik>
         </LocalizationProvider>
     );
+};
+
+GoodsReceiptForm.propTypes = {
+    initialData: PropTypes.object.isRequired,
+    onSubmit: PropTypes.func.isRequired,
+    isSubmitting: PropTypes.bool,
 };
 
 export default GoodsReceiptForm;

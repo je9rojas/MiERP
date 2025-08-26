@@ -1,74 +1,103 @@
-// frontend/src/features/purchasing/mappers/purchaseOrderMappers.js
+// File: /frontend/src/features/purchasing/mappers/purchaseOrderMappers.js
 
 /**
  * @file Mappers específicos para el Módulo de Compras (Purchasing).
  *
  * @description Este archivo centraliza la lógica de transformación de datos
- * desde los formularios de la UI del módulo de Compras hacia los payloads que
- * la API del backend espera recibir. Sigue el principio de Separación de Concerns,
- * aislando esta lógica de "traducción" de los componentes y las llamadas a la API.
+ * para el flujo de compras, convirtiendo datos entre la UI y la API.
  */
 
 // ==============================================================================
-// SECCIÓN 1: MAPEADORES DE PAYLOAD (UI -> API)
+// SECCIÓN 1: FUNCIONES DE AYUDA
 // ==============================================================================
 
-// --------------------------------------------------------------------------
-// Sub-sección 1.1: Mapeadores de Órdenes de Compra (Purchase Order)
-// --------------------------------------------------------------------------
+const formatDateForAPI = (date) => {
+    if (date instanceof Date && !isNaN(date)) {
+        return date.toISOString().split('T')[0];
+    }
+    return null;
+};
+
+// ==============================================================================
+// SECCIÓN 2: MAPEADORES (API -> UI)
+// ==============================================================================
+
+/**
+ * Transforma los datos de una Orden de Compra (de la API) a la estructura
+ * que el formulario (PurchaseOrderForm) espera para sus 'initialValues'.
+ * @param {object} orderData - El objeto de la orden de compra ya transformado por la capa de API.
+ * @param {Array<object>} allProducts - Un array con todos los productos disponibles.
+ * @returns {object|null} Un objeto formateado y listo para ser usado por Formik.
+ */
+export const mapPurchaseOrderToFormValues = (orderData, allProducts) => {
+    if (!orderData) return null;
+
+    const productsMap = new Map(allProducts.map(p => [p.id, p]));
+
+    const mappedItems = (orderData.items || []).map(item => ({
+        product: productsMap.get(item.product_id) || null,
+        quantity_ordered: item.quantity_ordered,
+        unit_cost: item.unit_cost,
+    }));
+
+    return {
+        supplier: orderData.supplier || null,
+        order_date: orderData.order_date ? new Date(orderData.order_date) : new Date(),
+        expected_delivery_date: orderData.expected_delivery_date ? new Date(orderData.expected_delivery_date) : null,
+        notes: orderData.notes || '',
+        items: mappedItems.length > 0 ? mappedItems : [{ product: null, quantity_ordered: 1, unit_cost: 0 }],
+    };
+};
+
+// ==============================================================================
+// SECCIÓN 3: MAPEADORES (UI -> API)
+// ==============================================================================
 
 /**
  * Transforma los valores del formulario de creación de OC al payload de la API.
  */
-export const mapFormValuesToCreatePayload = (formValues) => {
+export const mapFormToCreatePurchaseOrderPayload = (formValues) => {
   return {
-    supplier_id: formValues.supplier?.id,
-    order_date: formValues.order_date.toISOString().split('T')[0],
-    expected_delivery_date: formValues.expected_delivery_date
-      ? formValues.expected_delivery_date.toISOString().split('T')[0]
-      : null,
-    notes: formValues.notes,
-    items: formValues.items.map(item => ({
-      product_id: item.product?.id,
-      quantity_ordered: Number(item.quantity_ordered) || 0,
-      unit_cost: Number(item.unit_cost) || 0,
-    })),
+    supplier_id: formValues.supplier?.id || null,
+    order_date: formatDateForAPI(formValues.order_date),
+    expected_delivery_date: formatDateForAPI(formValues.expected_delivery_date),
+    notes: formValues.notes || '',
+    items: (formValues.items || [])
+        .filter(item => item.product?.id && Number(item.quantity_ordered) > 0)
+        .map(item => ({
+            product_id: item.product.id,
+            quantity_ordered: Number(item.quantity_ordered),
+            unit_cost: Number(item.unit_cost) || 0,
+        })),
   };
 };
 
 /**
  * Transforma los valores del formulario de actualización de OC al payload de la API.
  */
-export const mapFormValuesToUpdatePayload = (formValues) => {
+export const mapFormToUpdatePurchaseOrderPayload = (formValues) => {
   return {
-    expected_delivery_date: formValues.expected_delivery_date
-      ? formValues.expected_delivery_date.toISOString().split('T')[0]
-      : null,
-    notes: formValues.notes,
-    items: formValues.items.map(item => ({
-      product_id: item.product?.id,
-      quantity_ordered: Number(item.quantity_ordered) || 0,
-      unit_cost: Number(item.unit_cost) || 0,
-    })),
+    expected_delivery_date: formatDateForAPI(formValues.expected_delivery_date),
+    notes: formValues.notes || '',
+    items: (formValues.items || [])
+        .filter(item => item.product?.id && Number(item.quantity_ordered) > 0)
+        .map(item => ({
+            product_id: item.product.id,
+            quantity_ordered: Number(item.quantity_ordered),
+            unit_cost: Number(item.unit_cost) || 0,
+        })),
   };
 };
 
-// --------------------------------------------------------------------------
-// Sub-sección 1.2: Mapeadores de Recepción de Mercancía (Goods Receipt)
-// --------------------------------------------------------------------------
-
 /**
  * Transforma los valores del formulario de recepción al payload de la API.
- * @param {object} formValues - Los valores del formulario de Formik.
- * @param {string} orderId - El ID de la Orden de Compra asociada.
- * @returns {object} El payload para el endpoint `POST /purchasing/orders/{id}/receipts`.
  */
-export const mapFormValuesToGoodsReceiptPayload = (formValues, orderId) => {
+export const mapFormToGoodsReceiptPayload = (formValues, orderId) => {
   return {
     purchase_order_id: orderId,
-    received_date: formValues.received_date.toISOString().split('T')[0],
-    notes: formValues.notes,
-    items: formValues.items
+    received_date: formatDateForAPI(formValues.received_date),
+    notes: formValues.notes || '',
+    items: (formValues.items || [])
       .filter(item => Number(item.quantity_received) > 0)
       .map(item => ({
         product_id: item.product_id,
@@ -80,35 +109,24 @@ export const mapFormValuesToGoodsReceiptPayload = (formValues, orderId) => {
   };
 };
 
-// --------------------------------------------------------------------------
-// Sub-sección 1.3: Mapeadores de Factura de Compra (Purchase Bill)
-// --------------------------------------------------------------------------
-
 /**
  * Transforma los valores del formulario de factura al payload de la API.
- * @param {object} formValues - Los valores del formulario de Formik.
- * @param {string} orderId - El ID de la Orden de Compra que se está facturando.
- * @returns {object} El payload para el endpoint `POST /purchasing/bills`.
  */
-export const mapFormValuesToBillPayload = (formValues, orderId) => {
+export const mapFormToBillPayload = (formValues, orderId) => {
   return {
-    // --- CORRECCIÓN CRÍTICA ---
-    // Se asegura de que el ID de la OC se tome del argumento y no de los valores del formulario.
     purchase_order_id: orderId,
-    
     supplier_invoice_number: formValues.supplier_invoice_number,
-    invoice_date: formValues.invoice_date.toISOString().split('T')[0],
-    due_date: formValues.due_date.toISOString().split('T')[0],
-    notes: formValues.notes,
-    items: formValues.items
-      // Se añade un filtro para enviar solo los ítems que se están facturando.
+    invoice_date: formatDateForAPI(formValues.invoice_date),
+    due_date: formatDateForAPI(formValues.due_date),
+    notes: formValues.notes || '',
+    items: (formValues.items || [])
       .filter(item => Number(item.quantity_billed) > 0)
       .map(item => ({
         product_id: item.product_id,
         sku: item.sku,
         name: item.name,
         quantity_billed: Number(item.quantity_billed),
-        unit_cost: Number(item.unit_cost), // Aquí se captura el precio final
+        unit_cost: Number(item.unit_cost),
         subtotal: Number(item.quantity_billed) * Number(item.unit_cost),
       })),
   };

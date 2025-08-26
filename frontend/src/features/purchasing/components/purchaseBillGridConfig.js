@@ -1,11 +1,10 @@
-// frontend/src/features/purchasing/components/purchaseBillGridConfig.js
+// File: /frontend/src/features/purchasing/components/purchaseBillGridConfig.js
 
 /**
  * @file Archivo de configuración para el MUI DataGrid de Facturas de Compra.
  *
- * Este archivo centraliza la lógica de creación de columnas y otras configuraciones
- * específicas de la tabla de facturas de compra. Al aislar esta lógica, se mejora la
- * separación de concerns y se hace más fácil de mantener y probar.
+ * Este archivo centraliza la lógica de creación de columnas para la tabla de
+ * facturas de compra, mejorando la separación de concerns y la mantenibilidad.
  */
 
 // ==============================================================================
@@ -15,20 +14,19 @@
 import React from 'react';
 import { Box, Tooltip, IconButton } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { formatDate, formatCurrency } from '../../../utils/formatters';
 
 // ==============================================================================
-// SECCIÓN 2: FACTORY FUNCTION PARA LAS COLUMNAS
+// SECCIÓN 2: FUNCIÓN FACTORÍA PARA LA DEFINICIÓN DE COLUMNAS
 // ==============================================================================
 
 /**
- * Factory function para crear la configuración de las columnas de la DataGrid.
+ * Crea la configuración de columnas para la tabla de Facturas de Compra.
  * @param {object} actions - Un objeto que contiene los callbacks para las acciones.
- * @param {function} actions.onViewDetails - Callback para ver los detalles de una factura.
+ * @param {function(string)} actions.onViewDetails - Callback para ver los detalles de una factura.
  * @returns {Array<object>} Un array de objetos de definición de columnas.
  */
-export const createPurchaseBillColumns = (actions) => [
+export const createPurchaseBillColumns = ({ onViewDetails }) => [
     { 
         field: 'bill_number', 
         headerName: 'N° Factura (Interno)', 
@@ -40,35 +38,22 @@ export const createPurchaseBillColumns = (actions) => [
         width: 180 
     },
     {
-        field: 'supplier',
+        field: 'supplier_name',
         headerName: 'Proveedor',
         flex: 1,
         minWidth: 250,
-        // CORRECCIÓN DEFINITIVA: Se utiliza la firma correcta (value, row) para valueGetter.
-        valueGetter: (_value, row) => row.supplier?.business_name || 'N/A',
     },
     {
         field: 'purchase_order_number',
         headerName: 'Orden de Compra',
         width: 150,
-        // CORRECCIÓN DEFINITIVA: Se utiliza la firma correcta (value, row) para valueGetter.
-        valueGetter: (_value, row) => row.purchase_order_number || 'N/A',
     },
     {
-        field: 'received_date',
-        headerName: 'Fecha de Recepción',
-        width: 180,
+        field: 'invoice_date',
+        headerName: 'Fecha de Factura',
+        width: 150,
         type: 'date',
-        // Para esta columna, 'value' ya es el dato correcto (row.received_date), por lo que no necesita 'row'.
-        valueGetter: (value) => (value ? new Date(value) : null),
-        valueFormatter: (value) => {
-            if (!value) return '';
-            try {
-                return format(value, 'dd MMM yyyy, HH:mm', { locale: es });
-            } catch (error) {
-                return 'Fecha inválida';
-            }
-        },
+        valueFormatter: (value) => formatDate(value),
     },
     {
         field: 'total_amount',
@@ -77,7 +62,7 @@ export const createPurchaseBillColumns = (actions) => [
         type: 'number',
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value) => `S/ ${Number(value || 0).toFixed(2)}`,
+        valueFormatter: (value) => formatCurrency(value),
     },
     {
         field: 'actions',
@@ -90,7 +75,7 @@ export const createPurchaseBillColumns = (actions) => [
         renderCell: (params) => (
             <Box>
                 <Tooltip title="Ver Detalles de la Factura">
-                    <IconButton onClick={() => actions.onViewDetails(params.id)} size="small">
+                    <IconButton onClick={() => onViewDetails(params.row.id)} size="small">
                         <VisibilityIcon />
                     </IconButton>
                 </Tooltip>

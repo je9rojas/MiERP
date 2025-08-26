@@ -1,4 +1,4 @@
-// /frontend/src/features/sales/components/ShipmentDataGrid.js
+// File: /frontend/src/features/sales/components/ShipmentDataGrid.js
 
 /**
  * @file Componente reutilizable y configurable para mostrar una tabla de Despachos.
@@ -10,66 +10,83 @@
 // SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React from 'react';
-import { Box } from '@mui/material';
+import React, { useMemo } from 'react';
+import PropTypes from 'prop-types';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
 
-import { shipmentColumns } from './shipmentGridConfig';
 import DataGridToolbar from '../../../components/common/DataGridToolbar';
+import { createShipmentColumns } from './shipmentGridConfig';
 
 // ==============================================================================
-// SECCIÓN 2: COMPONENTE PRINCIPAL
+// SECCIÓN 2: DEFINICIÓN DEL COMPONENTE PRINCIPAL
 // ==============================================================================
 
 const ShipmentDataGrid = ({
-    rows, // (CORREGIDO) Se cambia el nombre de la prop de 'shipments' a 'rows' para seguir la convención.
-    onRowClick,
+    shipments,
     rowCount,
+    isLoading,
     paginationModel,
     onPaginationModelChange,
-    isLoading,
+    onViewDetails,
+    searchTerm,
+    onSearchChange,
 }) => {
-    return (
-        <Box sx={{ height: 650, width: '100%' }}>
-            <DataGrid
-                // La prop 'rows' del DataGrid ahora se alimenta directamente de la prop 'rows' del componente.
-                rows={rows}
-                columns={shipmentColumns}
-                getRowId={(row) => row.id}
-                rowCount={rowCount}
-                pageSizeOptions={[10, 25, 50]}
-                paginationMode="server"
-                paginationModel={paginationModel}
-                onPaginationModelChange={onPaginationModelChange}
-                loading={isLoading}
-                onRowClick={(params) => onRowClick(params.id)}
-                localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-                slots={{
-                    toolbar: DataGridToolbar,
-                }}
-                slotProps={{
-                    toolbar: {
-                        // Aquí se pueden pasar props específicas al toolbar en el futuro,
-                        // como funciones para activar filtros, exportar datos, etc.
-                    },
-                    row: {
-                        style: { cursor: 'pointer' },
-                    },
-                }}
-                sx={{
-                    // Estilos para mejorar la accesibilidad y la experiencia de usuario,
-                    // eliminando el contorno de foco por defecto que puede ser molesto.
-                    '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': {
-                        outline: 'none',
-                    },
-                    '& .MuiDataGrid-columnHeader:focus, & .MuiDataGrid-columnHeader:focus-within': {
-                        outline: 'none',
-                    },
-                }}
-            />
-        </Box>
+    const columns = useMemo(
+        () => createShipmentColumns({
+            onViewDetails,
+        }),
+        [onViewDetails]
     );
+
+    return (
+        <DataGrid
+            // --- Props de Datos y Estructura ---
+            rows={shipments}
+            columns={columns}
+            getRowId={(row) => row.id}
+
+            // --- Props de Estado y Control ---
+            loading={isLoading}
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={onPaginationModelChange}
+            paginationMode="server"
+            pageSizeOptions={[10, 25, 50]}
+            disableRowSelectionOnClick
+            
+            // --- Props de Componentes y Estilo ---
+            slots={{ toolbar: DataGridToolbar }}
+            slotProps={{
+                toolbar: {
+                    showAddButton: false, // Los despachos se crean desde una OV.
+                    searchTerm,
+                    onSearchChange,
+                    searchPlaceholder: "Buscar por N° de Despacho..."
+                },
+            }}
+            localeText={esES.components.MuiDataGrid.defaultProps.localeText}
+            sx={{ border: 'none' }}
+        />
+    );
+};
+
+// ==============================================================================
+// SECCIÓN 3: DEFINICIÓN DE PROPTYPES
+// ==============================================================================
+
+ShipmentDataGrid.propTypes = {
+    shipments: PropTypes.arrayOf(PropTypes.object).isRequired,
+    rowCount: PropTypes.number.isRequired,
+    isLoading: PropTypes.bool,
+    paginationModel: PropTypes.shape({
+        page: PropTypes.number.isRequired,
+        pageSize: PropTypes.number.isRequired,
+    }).isRequired,
+    onPaginationModelChange: PropTypes.func.isRequired,
+    onViewDetails: PropTypes.func.isRequired,
+    searchTerm: PropTypes.string,
+    onSearchChange: PropTypes.func.isRequired,
 };
 
 export default ShipmentDataGrid;

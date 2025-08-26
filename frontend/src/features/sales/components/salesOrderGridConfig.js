@@ -1,4 +1,4 @@
-// frontend/src/features/sales/components/salesOrderGridConfig.js
+// File: /frontend/src/features/sales/components/salesOrderGridConfig.js
 
 /**
  * @file Archivo de configuración para el MUI DataGrid de Órdenes de Venta.
@@ -16,53 +16,50 @@ import { Box, Chip, Tooltip, IconButton } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { formatDate, formatCurrency } from '../../../utils/formatters';
 
 // ==============================================================================
-// SECCIÓN 2: CONSTANTES Y FUNCIONES DE AYUDA
+// SECCIÓN 2: CONSTANTES DE CONFIGURACIÓN
 // ==============================================================================
 
-const statusConfig = {
+const STATUS_CONFIG = {
     draft: { label: 'BORRADOR', color: 'default' },
     confirmed: { label: 'CONFIRMADO', color: 'info' },
     partially_shipped: { label: 'DESPACHADO PARCIAL', color: 'secondary' },
-    fully_shipped: { label: 'DESPACHADO TOTAL', color: 'primary' },
+    shipped: { label: 'DESPACHADO TOTAL', color: 'primary' },
     invoiced: { label: 'FACTURADO', color: 'success' },
     cancelled: { label: 'CANCELADO', color: 'error' },
 };
 
 // ==============================================================================
-// SECCIÓN 3: FACTORY FUNCTION PARA LAS COLUMNAS
+// SECCIÓN 3: FUNCIÓN FACTORÍA PARA LA DEFINICIÓN DE COLUMNAS
 // ==============================================================================
 
 /**
- * Factory function para crear la configuración de las columnas de la DataGrid.
+ * Crea la configuración de columnas para la tabla de Órdenes de Venta.
  * @param {object} actions - Callbacks para los botones de acción.
- * @param {function} actions.onViewDetails - Callback para ver/editar los detalles.
- * @param {function} actions.onCreateShipment - Callback para crear un despacho.
+ * @param {function(string)} actions.onViewDetails - Callback para ver/editar los detalles.
+ * @param {function(string)} actions.onCreateShipment - Callback para crear un despacho.
  * @returns {Array<object>} Un array de objetos de definición de columnas.
  */
-export const createSalesOrderColumns = (actions) => [
+export const createSalesOrderColumns = ({ onViewDetails, onCreateShipment }) => [
     {
         field: 'order_number',
         headerName: 'N° Orden',
         width: 150,
     },
     {
-        field: 'customer',
+        field: 'customer_name',
         headerName: 'Cliente',
         flex: 1,
         minWidth: 250,
-        valueGetter: (value, row) => row.customer?.name || 'N/A',
     },
     {
         field: 'order_date',
         headerName: 'Fecha de Emisión',
         width: 150,
         type: 'date',
-        valueGetter: (value) => value ? new Date(value) : null,
-        valueFormatter: (value) => value ? format(value, 'dd/MM/yyyy') : '',
+        valueFormatter: (value) => formatDate(value),
     },
     {
         field: 'total_amount',
@@ -71,14 +68,14 @@ export const createSalesOrderColumns = (actions) => [
         type: 'number',
         align: 'right',
         headerAlign: 'right',
-        valueFormatter: (value) => `S/ ${Number(value || 0).toFixed(2)}`,
+        valueFormatter: (value) => formatCurrency(value),
     },
     {
         field: 'status',
         headerName: 'Estado',
         width: 200,
         renderCell: (params) => {
-            const config = statusConfig[params.value] || { label: params.value, color: 'default' };
+            const config = STATUS_CONFIG[params.value] || { label: params.value?.toUpperCase(), color: 'default' };
             return <Chip label={config.label} color={config.color} size="small" variant="outlined" />;
         },
     },
@@ -92,17 +89,18 @@ export const createSalesOrderColumns = (actions) => [
         disableColumnMenu: true,
         renderCell: (params) => {
             const canBeShipped = ['confirmed', 'partially_shipped'].includes(params.row.status);
+            const isDraft = params.row.status === 'draft';
 
             return (
                 <Box>
-                    <Tooltip title={params.row.status === 'draft' ? "Editar Orden" : "Ver Detalles"}>
-                        <IconButton onClick={() => actions.onViewDetails(params.row.id)} size="small">
-                            {params.row.status === 'draft' ? <EditIcon /> : <VisibilityIcon />}
+                    <Tooltip title={isDraft ? "Editar Orden" : "Ver Detalles"}>
+                        <IconButton onClick={() => onViewDetails(params.row.id)} size="small">
+                            {isDraft ? <EditIcon /> : <VisibilityIcon />}
                         </IconButton>
                     </Tooltip>
                     <Tooltip title="Crear Despacho">
                         <span>
-                            <IconButton onClick={() => actions.onCreateShipment(params.row.id)} size="small" disabled={!canBeShipped}>
+                            <IconButton onClick={() => onCreateShipment(params.row.id)} size="small" disabled={!canBeShipped}>
                                 <LocalShippingIcon />
                             </IconButton>
                         </span>

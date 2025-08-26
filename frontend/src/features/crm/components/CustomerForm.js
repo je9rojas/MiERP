@@ -1,4 +1,4 @@
-// frontend/src/features/crm/components/CustomerForm.js
+// File: /frontend/src/features/crm/components/CustomerForm.js
 
 /**
  * @file Componente reutilizable con el formulario para crear o editar un Cliente.
@@ -37,26 +37,24 @@ const customerValidationSchema = yup.object().shape({
         .max(20, 'El N° de Documento no puede exceder los 20 caracteres.')
         .required('El N° de Documento es obligatorio.'),
     
-    // --- CORRECCIONES DE VALIDACIÓN ---
-    // Los siguientes campos son opcionales y solo se validan si tienen valor.
-    
     doc_type: yup.string()
         .oneOf(['ruc', 'dni', 'ce', 'other'], 'Tipo de documento no válido.'),
 
     address: yup.string()
         .trim()
-        .max(255, 'La dirección no puede exceder los 255 caracteres.'),
+        .max(255, 'La dirección no puede exceder los 255 caracteres.')
+        .nullable(),
 
     phone: yup.string()
         .trim()
-        .max(20, 'El teléfono no puede exceder los 20 caracteres.'),
+        .max(20, 'El teléfono no puede exceder los 20 caracteres.')
+        .nullable(),
     
     contact_person: yup.object().shape({
-        name: yup.string().trim().max(100, 'El nombre del contacto no puede exceder los 100 caracteres.'),
-        // Yup no aplicará la validación .email() si el string está vacío, solucionando el error.
-        email: yup.string().email('Formato de correo inválido.'),
-        phone: yup.string().trim().max(20, 'El teléfono del contacto no puede exceder los 20 caracteres.'),
-        position: yup.string().trim().max(100, 'El cargo del contacto no puede exceder los 100 caracteres.'),
+        name: yup.string().trim().max(100, 'El nombre del contacto no puede exceder los 100 caracteres.').nullable(),
+        email: yup.string().email('Formato de correo inválido.').nullable(),
+        phone: yup.string().trim().max(20, 'El teléfono del contacto no puede exceder los 20 caracteres.').nullable(),
+        position: yup.string().trim().max(100, 'El cargo del contacto no puede exceder los 100 caracteres.').nullable(),
     }),
 });
 
@@ -69,6 +67,8 @@ const CustomerForm = ({
     onSubmit,
     isSubmitting = false
 }) => {
+    const isEditMode = Boolean(initialData);
+
     const initialValues = useMemo(() => ({
         business_name: initialData?.business_name || '',
         doc_type: initialData?.doc_type || 'ruc',
@@ -146,7 +146,7 @@ const CustomerForm = ({
                             size="large"
                             disabled={isSubmitting || formikIsSubmitting}
                         >
-                            {isSubmitting || formikIsSubmitting ? 'Guardando...' : 'Guardar Cliente'}
+                            {isSubmitting || formikIsSubmitting ? 'Guardando...' : (isEditMode ? 'Guardar Cambios' : 'Crear Cliente')}
                         </Button>
                     </Box>
                 </Form>

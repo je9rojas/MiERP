@@ -1,55 +1,79 @@
-// /frontend/src/features/sales/components/shipmentGridConfig.js
+// File: /frontend/src/features/sales/components/shipmentGridConfig.js
 
 /**
  * @file Define la configuración de columnas para la tabla de Despachos (Shipments).
- * @description Esta configuración está diseñada para funcionar con datos aplanados
- * provenientes del mapper 'mapShipmentToDataGridRow'.
+ * @description Esta configuración está diseñada para funcionar con los datos enriquecidos
+ * y transformados por la capa de API.
  */
 
-// Ya no se necesitan importaciones de 'date-fns' aquí, la lógica de formato
-// se ha movido al mapper para una mejor separación de concerns.
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
+// ==============================================================================
 
-export const shipmentColumns = [
+import React from 'react';
+import { Box, Tooltip, IconButton } from '@mui/material';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { formatDate } from '../../../utils/formatters';
+
+// ==============================================================================
+// SECCIÓN 2: FUNCIÓN FACTORÍA PARA LA DEFINICIÓN DE COLUMNAS
+// ==============================================================================
+
+/**
+ * Crea la configuración de columnas para la tabla de Despachos.
+ * @param {object} actions - Callbacks para los botones de acción.
+ * @param {function(string)} actions.onViewDetails - Callback para ver los detalles del despacho.
+ * @returns {Array<object>} Un array de objetos de definición de columnas.
+ */
+export const createShipmentColumns = ({ onViewDetails }) => [
     {
-        // (MODIFICADO) El 'field' ahora apunta a la propiedad aplanada.
-        field: 'shipmentNumber',
+        field: 'shipment_number',
         headerName: 'N° Despacho',
-        width: 150,
-        // (ELIMINADO) 'valueGetter' ya no es necesario.
+        width: 180,
     },
     {
-        // (MODIFICADO)
-        field: 'salesOrderNumber',
+        field: 'sales_order_number',
         headerName: 'N° Orden de Venta',
         width: 180,
+        // Este campo se aplana en la página contenedora (ShipmentListPage)
     },
     {
-        // (MODIFICADO)
-        field: 'customerName',
+        field: 'customer_name',
         headerName: 'Cliente',
         flex: 1,
-        minWidth: 200,
+        minWidth: 250,
+        // Este campo se aplana en la página contenedora (ShipmentListPage)
     },
     {
-        // (MODIFICADO)
-        field: 'shipmentDate',
+        field: 'shipping_date',
         headerName: 'Fecha de Despacho',
         width: 180,
-        // (ELIMINADO) 'valueGetter' y 'renderCell' ya no son necesarios
-        // porque el mapper ya ha formateado la fecha.
+        type: 'date',
+        valueFormatter: (value) => formatDate(value),
     },
     {
-        // (MODIFICADO)
-        field: 'itemCount',
-        headerName: 'Ítems',
+        field: 'items',
+        headerName: 'N° Ítems',
         width: 100,
         align: 'center',
         headerAlign: 'center',
+        sortable: false,
+        valueGetter: (value) => (Array.isArray(value) ? value.length : 0),
     },
     {
-        // (MODIFICADO)
-        field: 'createdByName',
-        headerName: 'Creado Por',
-        width: 200,
+        field: 'actions',
+        headerName: 'Acciones',
+        width: 100,
+        align: 'center',
+        headerAlign: 'center',
+        sortable: false,
+        disableColumnMenu: true,
+        renderCell: (params) => (
+            <Tooltip title="Ver Detalles del Despacho">
+                <IconButton onClick={() => onViewDetails(params.row.id)} size="small">
+                    <VisibilityIcon />
+                </IconButton>
+            </Tooltip>
+        ),
     },
 ];

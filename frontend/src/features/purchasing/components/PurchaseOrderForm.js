@@ -1,4 +1,4 @@
-// /frontend/src/features/purchasing/components/PurchaseOrderForm.js
+// File: /frontend/src/features/purchasing/components/PurchaseOrderForm.js
 
 /**
  * @file Componente reutilizable y profesional para el formulario de Órdenes de Compra.
@@ -37,9 +37,8 @@ const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions,
                 <Autocomplete
                     options={suppliersOptions}
                     loading={isLoadingSuppliers}
-                    value={values.supplier}
+                    value={values.supplier || null}
                     getOptionLabel={(option) => option?.business_name ? `${option.business_name} (RUC: ${option.tax_id})` : ""}
-                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     onChange={(_, newValue) => setFieldValue('supplier', newValue)}
                     readOnly={isReadOnly}
                     renderInput={(params) => (
@@ -84,9 +83,8 @@ const OrderItemsArray = ({ values, setFieldValue, productsOptions, isReadOnly })
                                 <Grid item xs={12} md={5}>
                                     <Autocomplete
                                         options={productsOptions}
-                                        value={item.product}
+                                        value={item.product || null}
                                         getOptionLabel={(option) => option?.sku ? `[${option.sku}] ${option.name}` : ""}
-                                        isOptionEqualToValue={(option, value) => option?.id === value?.id}
                                         onChange={(_, newValue) => {
                                             setFieldValue(`items.${index}.product`, newValue);
                                             setFieldValue(`items.${index}.unit_cost`, newValue?.average_cost || 0);
@@ -95,15 +93,9 @@ const OrderItemsArray = ({ values, setFieldValue, productsOptions, isReadOnly })
                                         renderInput={(params) => <MuiTextField {...params} name={`items.${index}.product`} label="Producto" required />}
                                     />
                                 </Grid>
-                                <Grid item xs={6} md={2}>
-                                    <Field component={TextField} fullWidth label="Cantidad" type="number" name={`items.${index}.quantity_ordered`} InputProps={{ readOnly: isReadOnly }} />
-                                </Grid>
-                                <Grid item xs={6} md={2}>
-                                    <Field component={TextField} fullWidth label="Costo Unit." type="number" name={`items.${index}.unit_cost`} InputProps={{ readOnly: isReadOnly }} />
-                                </Grid>
-                                <Grid item xs={10} md={2}>
-                                    <Typography align="right" variant="h6">S/ {(Number(item.quantity_ordered) * Number(item.unit_cost)).toFixed(2)}</Typography>
-                                </Grid>
+                                <Grid item xs={6} md={2}><Field component={TextField} fullWidth label="Cantidad" type="number" name={`items.${index}.quantity_ordered`} InputProps={{ readOnly: isReadOnly }} /></Grid>
+                                <Grid item xs={6} md={2}><Field component={TextField} fullWidth label="Costo Unit." type="number" name={`items.${index}.unit_cost`} InputProps={{ readOnly: isReadOnly }} /></Grid>
+                                <Grid item xs={10} md={2}><Typography align="right" variant="h6">S/ {(Number(item.quantity_ordered || 0) * Number(item.unit_cost || 0)).toFixed(2)}</Typography></Grid>
                                 {!isReadOnly && (
                                     <Grid item xs={2} md={1}><IconButton disabled={values.items.length <= 1} onClick={() => remove(index)} color="error"><RemoveCircleOutlineIcon /></IconButton></Grid>
                                 )}
@@ -123,40 +115,34 @@ const OrderItemsArray = ({ values, setFieldValue, productsOptions, isReadOnly })
 // SECCIÓN 3: COMPONENTE PRINCIPAL DEL FORMULARIO
 // ==============================================================================
 
-const PurchaseOrderForm = ({ initialData = {}, onSubmit, isSubmitting, suppliersOptions = [], productsOptions = [], isLoadingSuppliers = false, isReadOnly = false }) => {
-    const isEditMode = !!initialData.id;
+const PurchaseOrderForm = ({ initialData = null, onSubmit, isSubmitting, suppliersOptions = [], productsOptions = [], isLoadingSuppliers = false, isReadOnly = false }) => {
+    const isEditMode = Boolean(initialData?.id);
 
     const initialValues = useMemo(() => {
         const parseDate = (dateString) => dateString ? new Date(dateString) : null;
+        
+        const defaults = {
+            supplier: null,
+            order_date: new Date(),
+            expected_delivery_date: null,
+            notes: '',
+            items: [{ product: null, quantity_ordered: 1, unit_cost: 0 }],
+        };
 
         if (!isEditMode) {
-            return {
-                supplier: null,
-                order_date: new Date(),
-                expected_delivery_date: null,
-                notes: '',
-                items: [{ product: null, quantity_ordered: 1, unit_cost: 0 }],
-            };
+            return defaults;
         }
 
-        // --- CORRECCIÓN ---
-        // Se busca el objeto completo del proveedor utilizando el 'supplier_id'
-        // que viene en los datos iniciales, en lugar de un objeto anidado.
-        const supplierObject = suppliersOptions.find(s => s.id === initialData.supplier_id) || null;
-        
-        const itemsWithProductObjects = (initialData.items || []).map(item => ({
-            ...item,
-            product: productsOptions.find(p => p.id === item.product_id) || null,
-        }));
-
         return {
-            supplier: supplierObject,
+            ...defaults,
+            ...initialData,
             order_date: parseDate(initialData.order_date) || new Date(),
             expected_delivery_date: parseDate(initialData.expected_delivery_date),
-            notes: initialData.notes || '',
-            items: itemsWithProductObjects.length > 0 ? itemsWithProductObjects : [{ product: null, quantity_ordered: 1, unit_cost: 0 }],
+            // El `initialData` ahora se asume que llega con el objeto `supplier` completo
+            // y con los `items` ya conteniendo los objetos `product` completos.
+            // Esto elimina la necesidad de búsquedas `.find()` en el frontend.
         };
-    }, [initialData, isEditMode, suppliersOptions, productsOptions]);
+    }, [initialData, isEditMode]);
 
     return (
         <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={es}>

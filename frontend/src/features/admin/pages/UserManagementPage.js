@@ -1,162 +1,205 @@
-// /frontend/src/features/admin/pages/UserManagementPage.js
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Typography, Button, CircularProgress, Alert, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip } from '@mui/material';
+// File: /frontend/src/features/admin/pages/UserManagementPage.js
+
+/**
+ * @file Página para la administración de usuarios del sistema.
+ * @description Este componente actúa como el "cerebro" (Container) de la vista de
+ * gestión de usuarios. Utiliza React Query para orquestar la obtención y mutación
+ * de datos, y delega la renderización del formulario a un componente modal de presentación.
+ */
+
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
+// ==============================================================================
+
+import React, { useState, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+    Box, Typography, Button, CircularProgress, Alert, Paper, Table,
+    TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip
+} from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import BlockIcon from '@mui/icons-material/Block';
-import { getUsers, getRoles, createUser, updateUser, deleteUser } from '../../../api/adminAPI';
-import UserFormModal from '../components/UserFormModal'; // Importamos el nuevo modal
+import { useSnackbar } from 'notistack';
+
+// Importaciones de los nuevos archivos de API
+import { getUsersAPI, createUserAPI, updateUserAPI, deactivateUserAPI } from '../../users/api/usersAPI';
+import { getRolesAPI } from '../../roles/api/rolesAPI';
+
+import UserFormModal from '../components/UserFormModal';
+import PageHeader from '../../../components/common/PageHeader';
+import { formatApiError } from '../../../utils/errorUtils';
+
+// ==============================================================================
+// SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
+// ==============================================================================
 
 const UserManagementPage = () => {
-  const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.1: Hooks y Estado de la UI
+    // --------------------------------------------------------------------------
+    
+    const queryClient = useQueryClient();
+    const { enqueueSnackbar } = useSnackbar();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingUser, setEditingUser] = useState(null);
 
-  const fetchUsers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const usersResponse = await getUsers();
-      setUsers(usersResponse.data);
-    } catch (err) {
-      setError('Error al cargar los usuarios.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.2: Lógica de Obtención de Datos con React Query
+    // --------------------------------------------------------------------------
+    
+    const { data: usersData, isLoading: isLoadingUsers, isError: isErrorUsers, error: usersError } = useQuery({
+        queryKey: ['users'],
+        queryFn: () => getUsersAPI(),
+        select: (data) => data.items || [], // Asumimos que la API devuelve un objeto paginado
+    });
 
-  useEffect(() => {
-    const initialLoad = async () => {
-      try {
-        setLoading(true);
-        const rolesResponse = await getRoles();
-        setRoles(rolesResponse.data);
-        await fetchUsers();
-      } catch (err) {
-        setError('Error al cargar datos iniciales.');
-      } finally {
-        setLoading(false);
-      }
+    const { data: roles = [], isLoading: isLoadingRoles } = useQuery({
+        queryKey: ['roles'],
+        queryFn: getRolesAPI,
+        staleTime: 300000, // Cache de 5 minutos para los roles
+    });
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.3: Lógica de Mutaciones de Datos con React Query
+    // --------------------------------------------------------------------------
+
+    const { mutate: performUserAction, isPending: isMutating } = useMutation({
+        mutationFn: ({ action, userData, userId }) => {
+            switch (action) {
+                case 'create':
+                    return createUserAPI(userData);
+                case 'update':
+                    return updateUserAPI(userId, userData);
+                case 'deactivate':
+                    return deactivateUserAPI(userId);
+                default:
+                    throw new Error('Acción de usuario no válida.');
+            }
+        },
+        onSuccess: (_, variables) => {
+            const successMessages = {
+                create: 'Usuario creado exitosamente.',
+                update: 'Usuario actualizado exitosamente.',
+                deactivate: 'Usuario desactivado exitosamente.'
+            };
+            enqueueSnackbar(successMessages[variables.action], { variant: 'success' });
+            queryClient.invalidateQueries({ queryKey: ['users'] });
+        },
+        onError: (error) => {
+            enqueueSnackbar(formatApiError(error), { variant: 'error', persist: true });
+        },
+        onSettled: () => {
+            handleCloseModal();
+        }
+    });
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.4: Manejadores de Eventos
+    // --------------------------------------------------------------------------
+
+    const handleOpenCreateModal = () => {
+        setEditingUser(null);
+        setIsModalOpen(true);
     };
-    initialLoad();
-  }, [fetchUsers]);
 
-  const handleOpenCreateModal = () => {
-    setEditingUser(null);
-    setIsModalOpen(true);
-  };
+    const handleOpenEditModal = (user) => {
+        setEditingUser(user);
+        setIsModalOpen(true);
+    };
 
-  const handleOpenEditModal = (user) => {
-    setEditingUser(user);
-    setIsModalOpen(true);
-  };
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingUser(null);
+    };
 
-  const handleCloseModal = () => {
-    setIsModalOpen(false);
-    setEditingUser(null);
-  };
+    const handleFormSubmit = useCallback((formValues) => {
+        if (editingUser) {
+            performUserAction({ action: 'update', userData: formValues, userId: editingUser.id });
+        } else {
+            performUserAction({ action: 'create', userData: formValues });
+        }
+    }, [editingUser, performUserAction]);
+    
+    const handleDeactivateUser = useCallback((user) => {
+        if (window.confirm(`¿Está seguro de que desea desactivar al usuario ${user.username}?`)) {
+            performUserAction({ action: 'deactivate', userId: user.id });
+        }
+    }, [performUserAction]);
+    
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.5: Renderizado de la UI
+    // --------------------------------------------------------------------------
 
-  const handleFormSubmit = async (values) => {
-    try {
-      if (editingUser) {
-        // Lógica de actualización
-        await updateUser(editingUser.username, values);
-      } else {
-        // Lógica de creación
-        await createUser(values);
-      }
-      handleCloseModal();
-      await fetchUsers(); // Recargar la lista de usuarios
-    } catch (err) {
-      setError(err.response?.data?.detail || 'Ocurrió un error al guardar el usuario.');
-    }
-  };
-  
-  const handleDeactivateUser = async (username) => {
-    if (window.confirm(`¿Estás seguro de que quieres desactivar al usuario ${username}?`)) {
-      try {
-        await deleteUser(username);
-        await fetchUsers();
-      } catch (err) {
-        setError(err.response?.data?.detail || 'Error al desactivar el usuario.');
-      }
-    }
-  };
-  
-  const getStatusChip = (status) => {
-    return status === 'active' 
-      ? <Chip label="Activo" color="success" size="small" /> 
-      : <Chip label="Inactivo" color="error" size="small" />;
-  }
-
-  if (loading && users.length === 0) {
-    return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
-  }
-
-  return (
-    <Box sx={{ p: 3 }}>
-      {error && <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>{error}</Alert>}
+    const getStatusChip = (status) => (
+        status === 'active' 
+          ? <Chip label="Activo" color="success" size="small" variant="outlined" /> 
+          : <Chip label="Inactivo" color="error" size="small" variant="outlined" />
+    );
       
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1" fontWeight="bold">
-          Gestión de Usuarios
-        </Typography>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleOpenCreateModal}>
-          Crear Usuario
-        </Button>
-      </Box>
+    if (isLoadingUsers || isLoadingRoles) {
+        return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}><CircularProgress /></Box>;
+    }
 
-      <Paper sx={{ boxShadow: 3, borderRadius: 2 }}>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Nombre</TableCell>
-                <TableCell>Username</TableCell>
-                <TableCell>Rol</TableCell>
-                <TableCell>Sucursal</TableCell>
-                <TableCell>Estado</TableCell>
-                <TableCell align="right">Acciones</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.username} hover>
-                  <TableCell>{user.name}</TableCell>
-                  <TableCell>{user.username}</TableCell>
-                  <TableCell>{user.role}</TableCell>
-                  <TableCell>{user.branch.name}</TableCell>
-                  <TableCell>{getStatusChip(user.status)}</TableCell>
-                  <TableCell align="right">
-                    <IconButton size="small" color="primary" onClick={() => handleOpenEditModal(user)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton size="small" color="error" onClick={() => handleDeactivateUser(user.username)}>
-                      <BlockIcon />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </Paper>
-      
-      {isModalOpen && (
-        <UserFormModal 
-          open={isModalOpen}
-          onClose={handleCloseModal}
-          onSubmit={handleFormSubmit}
-          // Si estamos editando, pasamos los datos del usuario. Si no, un objeto vacío con la estructura base.
-          initialValues={editingUser || { name: '', username: '', tax_id: '', role: '', branch: { name: '', is_main: true }, password: '' }}
-          roles={roles}
-        />
-      )}
-    </Box>
-  );
+    if (isErrorUsers) {
+        return <Alert severity="error" sx={{ m: 3 }}>{formatApiError(usersError)}</Alert>;
+    }
+
+    return (
+        <Box sx={{ p: 3 }}>
+            <PageHeader
+                title="Gestión de Usuarios"
+                subtitle="Cree, edite y gestione los permisos de los usuarios del sistema."
+                addButtonText="Crear Usuario"
+                onAddClick={handleOpenCreateModal}
+            />
+
+            <Paper sx={{ boxShadow: 3, borderRadius: 2, mt: 3 }}>
+                <TableContainer>
+                    <Table>
+                        <TableHead>
+                            <TableRow>
+                                <TableCell>Nombre</TableCell>
+                                <TableCell>Username</TableCell>
+                                <TableCell>Rol</TableCell>
+                                <TableCell>Estado</TableCell>
+                                <TableCell align="right">Acciones</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {usersData?.map((user) => (
+                                <TableRow key={user.id} hover>
+                                    <TableCell>{user.name}</TableCell>
+                                    <TableCell>{user.username}</TableCell>
+                                    <TableCell sx={{ textTransform: 'capitalize' }}>{user.role}</TableCell>
+                                    <TableCell>{getStatusChip(user.status)}</TableCell>
+                                    <TableCell align="right">
+                                        <IconButton size="small" color="primary" onClick={() => handleOpenEditModal(user)}>
+                                            <EditIcon />
+                                        </IconButton>
+                                        <IconButton size="small" color="error" onClick={() => handleDeactivateUser(user)}>
+                                            <BlockIcon />
+                                        </IconButton>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Paper>
+            
+            {isModalOpen && (
+                <UserFormModal 
+                    open={isModalOpen}
+                    onClose={handleCloseModal}
+                    onSubmit={handleFormSubmit}
+                    isSubmitting={isMutating}
+                    initialValues={editingUser || { name: '', username: '', role: '', status: 'active', password: '' }}
+                    roles={roles}
+                />
+            )}
+        </Box>
+    );
 };
 
 export default UserManagementPage;

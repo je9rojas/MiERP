@@ -1,72 +1,123 @@
-// /frontend/src/features/crm/pages/SupplierListPage.js
+// File: /frontend/src/features/crm/pages/SupplierListPage.js
 
 /**
- * @file Página contenedora para listar, buscar y gestionar proveedores.
+ * @file Página para listar y gestionar todos los Proveedores del sistema.
  *
- * Actúa como el "cerebro", gestionando la obtención de datos y el estado,
- * y pasando toda la información necesaria a los componentes de presentación.
+ * @description Este componente orquesta la visualización de la lista de proveedores.
+ * Se encarga de la obtención de datos paginados desde la API, gestiona los
+ * estados de la UI, prepara los datos para la tabla y maneja la navegación.
  */
 
-import React, { useState } from 'react';
+// ==============================================================================
+// SECCIÓN 1: IMPORTACIONES
+// ==============================================================================
+
+import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Container, Paper, Box, Alert } from '@mui/material';
+import { Container, Paper, Alert } from '@mui/material';
 
 import { getSuppliersAPI } from '../api/suppliersAPI';
 import useDebounce from '../../../hooks/useDebounce';
 import SupplierDataGrid from '../components/SupplierDataGrid';
+import PageHeader from '../../../components/common/PageHeader';
+import { formatApiError } from '../../../utils/errorUtils';
+
+// ==============================================================================
+// SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
+// ==============================================================================
 
 const SupplierListPage = () => {
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.1: Hooks y Gestión de Estado
+    // --------------------------------------------------------------------------
+    
     const navigate = useNavigate();
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-    const { data, isLoading, isError, error } = useQuery({
-        queryKey: ['suppliers', paginationModel.page + 1, paginationModel.pageSize, debouncedSearchTerm],
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.2: Lógica de Obtención de Datos
+    // --------------------------------------------------------------------------
+    
+    const {
+        data: apiResponse,
+        isLoading,
+        isError,
+        error
+    } = useQuery({
+        queryKey: ['suppliers', paginationModel, debouncedSearchTerm],
         queryFn: () => getSuppliersAPI({
             page: paginationModel.page + 1,
             pageSize: paginationModel.pageSize,
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
-        staleTime: 5000,
+        staleTime: 30000,
     });
 
-    const handleAddSupplier = () => {
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.3: Preparación y Aplanamiento de Datos para la UI
+    // --------------------------------------------------------------------------
+    
+    const flattenedSuppliers = useMemo(() => {
+        if (!apiResponse?.items) {
+            return [];
+        }
+        // Aunque el `DataGrid` podría manejar esto con un `valueGetter`, aplanar los
+        // datos aquí hace que el componente de la tabla sea más simple y reutilizable.
+        return apiResponse.items.map(supplier => ({
+            ...supplier,
+            main_email: (supplier.emails && supplier.emails.length > 0) ? supplier.emails[0].address : '—',
+        }));
+    }, [apiResponse]);
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.4: Manejadores de Eventos
+    // --------------------------------------------------------------------------
+    
+    const handleAddSupplier = useCallback(() => {
         navigate('/crm/proveedores/nuevo');
-    };
+    }, [navigate]);
 
-    const handleEditSupplier = (supplierId) => {
-        navigate(`/crm/proveedores/editar/${supplierId}`);
-    };
+    const handleEditSupplier = useCallback((supplierId) => {
+        navigate(`/crm/proveedores/${supplierId}`);
+    }, [navigate]);
 
-    // Objeto con todas las props que nuestro toolbar personalizado necesita.
-    const toolbarProps = {
-        title: "Gestión de Proveedores",
-        addButtonText: "Añadir Nuevo Proveedor",
-        onAddClick: handleAddSupplier,
-        searchTerm: searchTerm,
-        onSearchChange: (event) => setSearchTerm(event.target.value),
-        searchPlaceholder: "Buscar por RUC o Razón Social..."
-    };
+    const handleSearchChange = useCallback((event) => {
+        setSearchTerm(event.target.value);
+    }, []);
 
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.5: Renderizado de la Interfaz de Usuario
+    // --------------------------------------------------------------------------
+    
     return (
         <Container maxWidth="xl" sx={{ my: 4 }}>
-            <Paper sx={{ p: 0, borderRadius: 2, boxShadow: 3, overflow: 'hidden' }}>
+            <PageHeader
+                title="Gestión de Proveedores"
+                subtitle="Consulte, cree y administre la información de sus proveedores."
+                addButtonText="Nuevo Proveedor"
+                onAddClick={handleAddSupplier}
+            />
+            
+            <Paper sx={{ height: 700, width: '100%', mt: 3, borderRadius: 2, boxShadow: 3 }}>
                 {isError && (
-                    <Alert severity="error" sx={{ m: 2 }}>Error al cargar los proveedores: {error.message}</Alert>
+                    <Alert severity="error" sx={{ m: 2 }}>
+                        {`Error al cargar los proveedores: ${formatApiError(error)}`}
+                    </Alert>
                 )}
                 
-                {/* El componente DataGrid ahora es autónomo y recibe todo lo que necesita */}
                 <SupplierDataGrid
-                    suppliers={data?.items || []}
-                    rowCount={data?.total_count || 0}
+                    suppliers={flattenedSuppliers}
+                    rowCount={apiResponse?.total_count || 0}
                     isLoading={isLoading}
                     paginationModel={paginationModel}
                     onPaginationModelChange={setPaginationModel}
                     onEditSupplier={handleEditSupplier}
-                    toolbarProps={toolbarProps}
+                    searchTerm={searchTerm}
+                    onSearchChange={handleSearchChange}
                 />
             </Paper>
         </Container>

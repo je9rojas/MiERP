@@ -1,7 +1,10 @@
-// /frontend/src/app/contexts/AuthContext.js
+// File: /frontend/src/app/contexts/AuthContext.js
 
 /**
- * @file [VERSIÓN DE DEPURACIÓN EXHAUSTIVA] Proveedor de Contexto de Autenticación.
+ * @file Proveedor de Contexto para la Autenticación global de la aplicación.
+ * @description Este módulo gestiona el estado de autenticación (usuario, token, etc.)
+ * y proporciona funciones para `login` y `logout`. Actúa como la única fuente de verdad
+ * para el estado de la sesión del usuario en toda la aplicación.
  */
 
 // ==============================================================================
@@ -9,6 +12,8 @@
 // ==============================================================================
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback, useMemo } from 'react';
+import PropTypes from 'prop-types';
+
 import { loginAPI, verifyTokenAPI } from '../../features/auth/api/authAPI';
 import { setAuthToken, getAuthToken, removeAuthToken } from '../../utils/auth/auth';
 import { formatApiError } from '../../utils/errorUtils';
@@ -19,35 +24,55 @@ import { formatApiError } from '../../utils/errorUtils';
 
 const AuthContext = createContext(null);
 
-const authReducer = (state, action) => {
-    // LOG DETALLADO DEL REDUCER
-    console.log(`[AUTH_DEBUG] A. REDUCER INVOCADO con acción: ${action.type}`, { payload: action.payload });
-    const newState = (() => {
-        switch (action.type) {
-            case 'INITIALIZE':
-                return { ...state, isAuthenticated: !!action.payload.user, user: action.payload.user, isInitialized: true, isLoading: false };
-            case 'LOGIN_REQUEST':
-                return { ...state, isLoading: true, error: null };
-            case 'LOGIN_SUCCESS':
-                return { ...state, isAuthenticated: true, user: action.payload.user, isLoading: false, error: null };
-            case 'LOGIN_FAILURE':
-                return { ...state, isLoading: false, error: action.payload };
-            case 'LOGOUT':
-                return { ...state, isAuthenticated: false, user: null };
-            default:
-                return state;
-        }
-    })();
-    console.log(`[AUTH_DEBUG] B. REDUCER TERMINADO. Nuevo estado:`, newState);
-    return newState;
-};
-
 const initialState = {
     isAuthenticated: false,
-    isInitialized: false,
+    isInitialized: false, // Flag para saber si la verificación inicial del token ya se ejecutó.
     isLoading: false,
     user: null,
     error: null,
+};
+
+const authReducer = (state, action) => {
+    switch (action.type) {
+        case 'INITIALIZE':
+            return {
+                ...state,
+                isAuthenticated: Boolean(action.payload.user),
+                user: action.payload.user,
+                isInitialized: true,
+                isLoading: false,
+            };
+        case 'LOGIN_REQUEST':
+            return {
+                ...state,
+                isLoading: true,
+                error: null,
+            };
+        case 'LOGIN_SUCCESS':
+            return {
+                ...state,
+                isAuthenticated: true,
+                user: action.payload.user,
+                isLoading: false,
+                error: null,
+            };
+        case 'LOGIN_FAILURE':
+            return {
+                ...state,
+                isAuthenticated: false,
+                user: null,
+                isLoading: false,
+                error: action.payload.error,
+            };
+        case 'LOGOUT':
+            return {
+                ...state,
+                isAuthenticated: false,
+                user: null,
+            };
+        default:
+            return state;
+    }
 };
 
 // ==============================================================================
@@ -57,45 +82,23 @@ const initialState = {
 export const AuthProvider = ({ children }) => {
     const [state, dispatch] = useReducer(authReducer, initialState);
 
-    console.log("[AUTH_DEBUG] 1. AuthProvider RENDERIZADO. Estado actual:", state);
-
     useEffect(() => {
-        console.log("[AUTH_DEBUG] 2. useEffect de inicialización INICIADO.");
-        let isMounted = true;
-
         const initializeAuth = async () => {
-            console.log("[AUTH_DEBUG] 3. Función initializeAuth() EJECUTADA.");
             const token = getAuthToken();
-            let user = null;
-
             if (token) {
                 try {
-                    console.log("[AUTH_DEBUG] 4. Token encontrado. Llamando a verifyTokenAPI...");
-                    user = await verifyTokenAPI();
-                    console.log("[AUTH_DEBUG] 5. ÉXITO en verifyTokenAPI. Usuario:", user);
+                    const user = await verifyTokenAPI();
+                    dispatch({ type: 'INITIALIZE', payload: { user } });
                 } catch (error) {
-                    console.error("[AUTH_DEBUG] 5. ERROR en verifyTokenAPI.", error);
                     removeAuthToken();
-                    user = null;
+                    dispatch({ type: 'INITIALIZE', payload: { user: null } });
                 }
             } else {
-                 console.log("[AUTH_DEBUG] 4. No se encontró token.");
-            }
-            
-            if (isMounted) {
-                console.log("[AUTH_DEBUG] 6. Componente montado. Despachando INITIALIZE...");
-                dispatch({ type: 'INITIALIZE', payload: { user } });
-            } else {
-                console.log("[AUTH_DEBUG] 6. Componente DESMONTADO. NO se despacha INITIALIZE.");
+                dispatch({ type: 'INITIALIZE', payload: { user: null } });
             }
         };
 
         initializeAuth();
-
-        return () => {
-            console.log("[AUTH_DEBUG] 7. Limpieza de useEffect. isMounted -> false.");
-            isMounted = false;
-        };
     }, []);
 
     const login = useCallback(async (credentials) => {
@@ -105,8 +108,8 @@ export const AuthProvider = ({ children }) => {
             setAuthToken(access_token);
             dispatch({ type: 'LOGIN_SUCCESS', payload: { user } });
         } catch (error) {
-            const errorMessage = formatApiError(error) || 'Credenciales incorrectas o error de red.';
-            dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
+            const errorMessage = formatApiError(error);
+            dispatch({ type: 'LOGIN_FAILURE', payload: { error: errorMessage } });
             throw new Error(errorMessage);
         }
     }, []);
@@ -116,16 +119,21 @@ export const AuthProvider = ({ children }) => {
         dispatch({ type: 'LOGOUT' });
     }, []);
 
-    const value = useMemo(() => {
-        console.log(`[AUTH_DEBUG] 8. useMemo recalculado. isInitialized ahora es: ${state.isInitialized}`);
-        return { ...state, login, logout };
-    }, [state, login, logout]);
+    const value = useMemo(() => ({
+        ...state,
+        login,
+        logout,
+    }), [state, login, logout]);
 
     return (
         <AuthContext.Provider value={value}>
             {children}
         </AuthContext.Provider>
     );
+};
+
+AuthProvider.propTypes = {
+    children: PropTypes.node.isRequired,
 };
 
 // ==============================================================================

@@ -1,4 +1,4 @@
-// frontend/src/features/purchasing/components/goodsReceiptGridConfig.js
+// File: /frontend/src/features/purchasing/components/goodsReceiptGridConfig.js
 
 /**
  * @file Archivo de configuración para el MUI DataGrid de Recepciones de Mercancía.
@@ -14,20 +14,19 @@
 import React from 'react';
 import { Box, Tooltip, IconButton } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { formatDate } from '../../../utils/formatters';
 
 // ==============================================================================
-// SECCIÓN 2: FACTORY FUNCTION PARA LAS COLUMNAS
+// SECCIÓN 2: FUNCIÓN FACTORÍA PARA LA DEFINICIÓN DE COLUMNAS
 // ==============================================================================
 
 /**
- * Factory function para crear la configuración de las columnas de la DataGrid.
+ * Crea la configuración de columnas para la tabla de Recepciones de Mercancía.
  * @param {object} actions - Un objeto que contiene los callbacks para las acciones.
- * @param {function} actions.onViewDetails - Callback para ver los detalles de una recepción.
+ * @param {function(string)} actions.onViewDetails - Callback para ver los detalles de una recepción.
  * @returns {Array<object>} Un array de objetos de definición de columnas.
  */
-export const createGoodsReceiptColumns = (actions) => [
+export const createGoodsReceiptColumns = ({ onViewDetails }) => [
     { 
         field: 'receipt_number', 
         headerName: 'N° Recepción', 
@@ -37,32 +36,20 @@ export const createGoodsReceiptColumns = (actions) => [
         field: 'purchase_order_number',
         headerName: 'Orden de Compra',
         width: 180,
-        // Este campo se añade en el servicio del backend.
-        valueGetter: (_value, row) => row.purchase_order_number || 'N/A',
     },
     {
-        field: 'supplier',
+        field: 'supplier_name',
         headerName: 'Proveedor',
         flex: 1,
         minWidth: 250,
-        valueGetter: (_value, row) => row.supplier?.business_name || 'N/A',
     },
     {
         field: 'received_date',
         headerName: 'Fecha de Recepción',
         width: 180,
         type: 'date',
-        valueGetter: (value) => (value ? new Date(value) : null),
-        valueFormatter: (value) => {
-            if (!value) return '';
-            try {
-                return format(value, 'dd MMM yyyy, HH:mm', { locale: es });
-            } catch (error) {
-                return 'Fecha inválida';
-            }
-        },
+        valueFormatter: (value) => formatDate(value),
     },
-    // Podríamos añadir una columna de "Estado" si las recepciones tuvieran un ciclo de vida.
     {
         field: 'actions',
         headerName: 'Acciones',
@@ -74,7 +61,7 @@ export const createGoodsReceiptColumns = (actions) => [
         renderCell: (params) => (
             <Box>
                 <Tooltip title="Ver Detalles de la Recepción">
-                    <IconButton onClick={() => actions.onViewDetails(params.id)} size="small">
+                    <IconButton onClick={() => onViewDetails(params.row.id)} size="small">
                         <VisibilityIcon />
                     </IconButton>
                 </Tooltip>

@@ -1,4 +1,4 @@
-// frontend/src/routes/AppRoutes.js
+// File: /frontend/src/routes/AppRoutes.js
 
 /**
  * @file Gestor principal de rutas de la aplicación.
@@ -35,15 +35,20 @@ const FullScreenLoader = () => (
 const HomePage = lazy(() => import('../features/home/pages/HomePage'));
 const LoginPage = lazy(() => import('../features/auth/pages/LoginPage'));
 const DashboardPage = lazy(() => import('../features/dashboard/pages/DashboardPage'));
+// CRM
 const SupplierListPage = lazy(() => import('../features/crm/pages/SupplierListPage'));
 const NewSupplierPage = lazy(() => import('../features/crm/pages/NewSupplierPage'));
+const EditSupplierPage = lazy(() => import('../features/crm/pages/EditSupplierPage')); // Asumiendo que existirá
 const CustomerListPage = lazy(() => import('../features/crm/pages/CustomerListPage'));
 const NewCustomerPage = lazy(() => import('../features/crm/pages/NewCustomerPage'));
+const EditCustomerPage = lazy(() => import('../features/crm/pages/EditCustomerPage')); // Asumiendo que existirá
+// Sales
 const SalesOrderListPage = lazy(() => import('../features/sales/pages/SalesOrderListPage'));
 const NewSalesOrderPage = lazy(() => import('../features/sales/pages/NewSalesOrderPage'));
 const EditSalesOrderPage = lazy(() => import('../features/sales/pages/EditSalesOrderPage'));
 const CreateShipmentPage = lazy(() => import('../features/sales/pages/CreateShipmentPage'));
-const ShipmentListPage = lazy(() => import('../features/sales/pages/ShipmentListPage')); // <-- NUEVA IMPORTACIÓN
+const ShipmentListPage = lazy(() => import('../features/sales/pages/ShipmentListPage'));
+// Purchasing
 const PurchaseOrderListPage = lazy(() => import('../features/purchasing/pages/PurchaseOrderListPage'));
 const NewPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/NewPurchaseOrderPage'));
 const EditPurchaseOrderPage = lazy(() => import('../features/purchasing/pages/EditPurchaseOrderPage'));
@@ -53,10 +58,13 @@ const GoodsReceiptDetailsPage = lazy(() => import('../features/purchasing/pages/
 const PurchaseBillListPage = lazy(() => import('../features/purchasing/pages/PurchaseBillListPage'));
 const PurchaseBillDetailsPage = lazy(() => import('../features/purchasing/pages/PurchaseBillDetailsPage'));
 const CreatePurchaseBillPage = lazy(() => import('../features/purchasing/pages/CreatePurchaseBillPage'));
+// Inventory
 const ProductListPage = lazy(() => import('../features/inventory/pages/ProductListPage'));
 const NewProductPage = lazy(() => import('../features/inventory/pages/NewProductPage'));
 const EditProductPage = lazy(() => import('../features/inventory/pages/EditProductPage'));
+// Reports
 const ProductCatalogPage = lazy(() => import('../features/reports/pages/ProductCatalogPage'));
+// Admin
 const UserManagementPage = lazy(() => import('../features/admin/pages/UserManagementPage'));
 const DataManagementPage = lazy(() => import('../features/admin/pages/DataManagementPage'));
 
@@ -68,29 +76,16 @@ const PermissionGuard = ({ requiredPermission }) => {
   const { isAuthenticated, user, isInitialized } = useAuth();
   const location = useLocation();
 
-  if (!isInitialized) {
-    return <FullScreenLoader />;
-  }
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  if (requiredPermission && !hasPermission(user?.role, requiredPermission)) {
-    return <Navigate to="/unauthorized" replace />;
-  }
-
+  if (!isInitialized) return <FullScreenLoader />;
+  if (!isAuthenticated) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (requiredPermission && !hasPermission(user?.role, requiredPermission)) return <Navigate to="/unauthorized" replace />;
   return <Outlet />;
 };
 
 const PublicRouteGuard = () => {
   const { isAuthenticated, isInitialized } = useAuth();
-
-  if (!isInitialized) {
-    return <FullScreenLoader />;
-  }
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  
+  if (!isInitialized) return <FullScreenLoader />;
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
   return <Outlet />;
 };
 
@@ -110,50 +105,64 @@ const AppRoutes = () => {
           </Route>
         </Route>
 
-        {/* --- Rutas Privadas --- */}
-        <Route element={<PermissionGuard />}>
+        {/* --- Rutas Privadas y Protegidas --- */}
+        <Route path="/" element={<PermissionGuard />}>
           <Route element={<DashboardLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
 
             {/* Módulo de CRM */}
-            <Route path="crm/proveedores" element={<SupplierListPage />} />
-            <Route path="crm/proveedores/nuevo" element={<NewSupplierPage />} />
-            <Route path="crm/clientes" element={<CustomerListPage />} />
-            <Route path="crm/clientes/nuevo" element={<NewCustomerPage />} />
-
+            <Route path="crm">
+              <Route path="proveedores" element={<SupplierListPage />} />
+              <Route path="proveedores/nuevo" element={<NewSupplierPage />} />
+              <Route path="proveedores/:supplierId" element={<EditSupplierPage />} />
+              <Route path="clientes" element={<CustomerListPage />} />
+              <Route path="clientes/nuevo" element={<NewCustomerPage />} />
+              <Route path="clientes/:customerId" element={<EditCustomerPage />} />
+            </Route>
+            
             {/* Módulo de Ventas */}
-            <Route path="ventas/ordenes" element={<SalesOrderListPage />} />
-            <Route path="ventas/ordenes/nueva" element={<NewSalesOrderPage />} />
-            <Route path="ventas/ordenes/:orderId" element={<EditSalesOrderPage />} />
-            <Route path="ventas/ordenes/:orderId/despachar" element={<CreateShipmentPage />} />
-            <Route path="ventas/despachos" element={<ShipmentListPage />} /> {/* <-- NUEVA RUTA */}
+            <Route path="ventas">
+              <Route path="ordenes" element={<SalesOrderListPage />} />
+              <Route path="ordenes/nueva" element={<NewSalesOrderPage />} />
+              <Route path="ordenes/:orderId" element={<EditSalesOrderPage />} />
+              <Route path="ordenes/:orderId/despachar" element={<CreateShipmentPage />} />
+              <Route path="despachos" element={<ShipmentListPage />} />
+            </Route>
 
             {/* Módulo de Compras */}
-            <Route path="compras/ordenes" element={<PurchaseOrderListPage />} />
-            <Route path="compras/ordenes/nueva" element={<NewPurchaseOrderPage />} />
-            <Route path="compras/ordenes/editar/:orderId" element={<EditPurchaseOrderPage />} />
-            <Route path="compras/ordenes/:orderId/recepciones/nueva" element={<CreateReceiptPage />} />
-            <Route path="compras/ordenes/:orderId/facturar" element={<CreatePurchaseBillPage />} />
-            <Route path="compras/recepciones" element={<GoodsReceiptListPage />} />
-            <Route path="compras/recepciones/:receiptId" element={<GoodsReceiptDetailsPage />} />
-            <Route path="compras/facturas" element={<PurchaseBillListPage />} />
-            <Route path="compras/facturas/:billId" element={<PurchaseBillDetailsPage />} />
+            <Route path="compras">
+                <Route path="ordenes" element={<PurchaseOrderListPage />} />
+                <Route path="ordenes/nueva" element={<NewPurchaseOrderPage />} />
+                <Route path="ordenes/:orderId" element={<EditPurchaseOrderPage />} />
+                <Route path="ordenes/:orderId/recepciones/nueva" element={<CreateReceiptPage />} />
+                <Route path="ordenes/:orderId/facturar" element={<CreatePurchaseBillPage />} />
+                <Route path="recepciones" element={<GoodsReceiptListPage />} />
+                <Route path="recepciones/:receiptId" element={<GoodsReceiptDetailsPage />} />
+                <Route path="facturas" element={<PurchaseBillListPage />} />
+                <Route path="facturas/:billId" element={<PurchaseBillDetailsPage />} />
+            </Route>
 
             {/* Módulo de Inventario */}
-            <Route path="inventario/productos" element={<ProductListPage />} />
-            <Route path="inventario/productos/nuevo" element={<NewProductPage />} />
-            <Route path="inventario/productos/editar/:sku" element={<EditProductPage />} />
+            <Route path="inventario">
+              <Route path="productos" element={<ProductListPage />} />
+              <Route path="productos/nuevo" element={<NewProductPage />} />
+              <Route path="productos/:productId" element={<EditProductPage />} />
+            </Route>
 
             {/* Módulo de Reportes */}
-            <Route path="reportes/catalogo" element={<ProductCatalogPage />} />
+            <Route path="reportes">
+              <Route path="catalogo" element={<ProductCatalogPage />} />
+            </Route>
 
             {/* Rutas de Administración */}
-            <Route element={<PermissionGuard requiredPermission={PERMISSIONS.ADMIN_VIEW_USER_MANAGEMENT} />}>
-              <Route path="admin/usuarios" element={<UserManagementPage />} />
-            </Route>
-            <Route element={<PermissionGuard requiredPermission={PERMISSIONS.ADMIN_VIEW_DATA_MANAGEMENT} />}>
-              <Route path="admin/gestion-datos" element={<DataManagementPage />} />
+            <Route path="admin">
+                <Route element={<PermissionGuard requiredPermission={PERMISSIONS.ADMIN_VIEW_USER_MANAGEMENT} />}>
+                    <Route path="usuarios" element={<UserManagementPage />} />
+                </Route>
+                <Route element={<PermissionGuard requiredPermission={PERMISSIONS.ADMIN_VIEW_DATA_MANAGEMENT} />}>
+                    <Route path="gestion-datos" element={<DataManagementPage />} />
+                </Route>
             </Route>
           </Route>
         </Route>

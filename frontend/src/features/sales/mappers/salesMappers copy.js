@@ -61,10 +61,17 @@ export const mapSalesOrderToFormValues = (orderData, allProducts) => {
             unit_price: item.unit_price,
         };
     });
+    
+    // (CORREGIDO) Se estandariza el objeto 'customer' para que siempre use 'id'.
+    // El objeto 'customer' anidado en la orden de venta viene con '_id', mientras que
+    // la lista de 'customerOptions' usa 'id'. Esta función unifica el formato.
+    const standardizedCustomer = orderData.customer 
+        ? { ...orderData.customer, id: orderData.customer._id } 
+        : null;
 
     return {
-        // El Autocomplete del cliente espera el objeto 'customer' completo.
-        customer: orderData.customer || null,
+        // Se utiliza el objeto de cliente estandarizado.
+        customer: standardizedCustomer,
         
         // Se asegura que la fecha sea un objeto Date válido.
         order_date: orderData.order_date ? new Date(orderData.order_date) : new Date(),
@@ -169,6 +176,7 @@ export const mapShipmentToDataGridRow = (shipment) => {
         customerName: shipment.customer?.business_name || 'Cliente no encontrado',
         shipmentDate: shipment.shipping_date 
             ? new Date(shipment.shipping_date).toLocaleDateString() 
+            // Maneja el caso de que la fecha sea nula o inválida
             : 'N/A',
         itemCount: shipment.items?.length || 0,
         createdByName: shipment.created_by?.name || 'Usuario desconocido',

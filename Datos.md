@@ -98,3 +98,6 @@ al momento de dar la solucionar por favor hacerlo uno por uno, archivo por archi
 
 
 Hay muchos problema con el id y el _id, cuanod se usa MongoDB Atlas, hay alguna forma de mejorar eso?
+
+
+tu modelo de de respues es muy bueno y acertado con el estilo de trabajo que tengo. Cada vez que comienzo un nuevo chat me cuesta encontrar un modelo asi como este, qe le puedo decir a la Ia cuando abra un nuevo chat para que tenga tu modelo de respuesta?

@@ -6,7 +6,7 @@
  * Este módulo encapsula las llamadas de Axios a los endpoints de proveedores,
  * proporcionando una capa de abstracción entre la red y la interfaz de usuario.
  *
- * Todas las respuestas de la API son procesadas por una capa de mapeo para
+ * Todas las respuestas de la API son procesadas por una capa de mapeo genérica para
  * estandarizar la estructura de datos (ej. '_id' a 'id'). Esto asegura
  * que los componentes reciban un modelo de datos consistente y predecible.
  */
@@ -16,8 +16,8 @@
 // ==============================================================================
 
 import api from '../../../app/axiosConfig';
-// Se importan los mapeadores compartidos para transformar las respuestas.
-import { mapPaginatedResponse, mapPurchaseOrderResponse as mapItemToId } from '../../purchasing/mappers/purchaseOrderMappers';
+// Se importan los mapeadores genéricos desde la nueva ubicación centralizada.
+import { mapPaginatedResponse, mapItemToId } from '../../../utils/dataMappers';
 
 // ==============================================================================
 // SECCIÓN 2: FUNCIONES DE LA API

@@ -1,27 +1,26 @@
-// /frontend/src/features/sales/pages/ShipmentListPage.js
+// File: /frontend/src/features/sales/pages/ShipmentListPage.js
 
 /**
  * @file Página para listar todos los Despachos (Shipments).
  *
  * @description Este componente es responsable de:
  * 1. Obtener una lista paginada de todos los despachos desde la API.
- * 2. Transformar los datos para la UI usando un mapper.
+ * 2. Aplanar y preparar los datos para la UI.
  * 3. Mostrar los datos en un componente de tabla (DataGrid).
- * 4. Gestionar los estados de carga, error y paginación.
+ * 4. Gestionar los estados de carga, error, búsqueda y paginación.
  */
 
 // ==============================================================================
 // SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Container, Paper, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
-// API, Mappers, Componentes y Utilitarios
 import { getShipmentsAPI } from '../api/salesAPI';
-import { mapPaginatedShipmentsForUI } from '../mappers/salesMappers'; // <--- (MODIFICADO) Importamos el mapper
+import useDebounce from '../../../hooks/useDebounce';
 import PageHeader from '../../../components/common/PageHeader';
 import { formatApiError } from '../../../utils/errorUtils';
 import ShipmentDataGrid from '../components/ShipmentDataGrid';
@@ -31,55 +30,66 @@ import ShipmentDataGrid from '../components/ShipmentDataGrid';
 // ==============================================================================
 
 const ShipmentListPage = () => {
-    const navigate = useNavigate();
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.1: Hooks y Gestión de Estado
+    // --------------------------------------------------------------------------
     
-    // --- 2.1: Gestión de Estado para Paginación ---
-    const [paginationModel, setPaginationModel] = useState({
-        page: 0,
-        pageSize: 25,
-    });
+    const navigate = useNavigate();
+    const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-    // --- 2.2: Lógica de Obtención y Transformación de Datos --- (MODIFICADO)
-    const { data, isLoading, isError, error } = useQuery({
-        queryKey: ['shipmentsList', paginationModel],
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.2: Lógica de Obtención de Datos
+    // --------------------------------------------------------------------------
+    
+    const {
+        data: apiResponse,
+        isLoading,
+        isError,
+        error
+    } = useQuery({
+        queryKey: ['shipments', paginationModel, debouncedSearchTerm],
         queryFn: () => getShipmentsAPI({ 
             page: paginationModel.page + 1, 
-            pageSize: paginationModel.pageSize 
+            pageSize: paginationModel.pageSize,
+            search: debouncedSearchTerm,
         }),
-        // La opción 'select' transforma los datos ANTES de que se almacenen en caché
-        // y se entreguen al componente. Aquí aplicamos nuestro mapper.
-        select: mapPaginatedShipmentsForUI, // <--- (AÑADIDO)
         placeholderData: (previousData) => previousData,
     });
-    
-    // [DEPURACIÓN] Este log ahora mostrará los datos ya transformados y listos para la tabla.
-    console.log('Datos MAPEADOS para la tabla:', data);
 
-    // --- 2.3: Manejadores de Eventos ---
-    const handleRowClick = (shipmentId) => {
-        // En un futuro, esto navegará a la página de detalles del despacho.
-        // navigate(`/ventas/despachos/${shipmentId}`);
-        console.log(`Navegación a los detalles del despacho: ${shipmentId}`);
-    };
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.3: Preparación y Aplanamiento de Datos para la UI
+    // --------------------------------------------------------------------------
 
-    // --- 2.4: Renderizado de la UI ---
-    const renderContent = () => {
-        if (isError) {
-            return <Alert severity="error" sx={{ my: 2 }}>{formatApiError(error)}</Alert>;
+    const flattenedShipments = useMemo(() => {
+        if (!apiResponse?.items) {
+            return [];
         }
+        return apiResponse.items.map(shipment => ({
+            ...shipment,
+            customer_name: shipment.customer?.business_name || 'N/A',
+            sales_order_number: shipment.sales_order?.order_number || 'N/A',
+        }));
+    }, [apiResponse]);
 
-        return (
-            <ShipmentDataGrid
-                // (MODIFICADO) 'shipments' ahora se llama 'rows' para mayor claridad y estándar
-                rows={data?.items || []} 
-                onRowClick={handleRowClick}
-                rowCount={data?.total_count || 0}
-                paginationModel={paginationModel}
-                onPaginationModelChange={setPaginationModel}
-                isLoading={isLoading}
-            />
-        );
-    };
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.4: Manejadores de Eventos
+    // --------------------------------------------------------------------------
+    
+    const handleViewDetails = useCallback((shipmentId) => {
+        // Esta navegación se habilitará cuando la página de detalles exista.
+        // navigate(`/ventas/despachos/${shipmentId}`);
+        console.log(`Navegar a los detalles del despacho: ${shipmentId}`);
+    }, []);
+
+    const handleSearchChange = useCallback((event) => {
+        setSearchTerm(event.target.value);
+    }, []);
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.5: Renderizado de la Interfaz de Usuario
+    // --------------------------------------------------------------------------
 
     return (
         <Container maxWidth="xl" sx={{ my: 4 }}>
@@ -89,8 +99,21 @@ const ShipmentListPage = () => {
                 showAddButton={false}
             />
             
-            <Paper sx={{ p: { xs: 2, md: 3 }, mt: 3, borderRadius: 2, boxShadow: 3 }}>
-                {renderContent()}
+            <Paper sx={{ height: 700, width: '100%', mt: 3, borderRadius: 2, boxShadow: 3 }}>
+                {isError && (
+                    <Alert severity="error" sx={{ m: 2 }}>{formatApiError(error)}</Alert>
+                )}
+
+                <ShipmentDataGrid
+                    shipments={flattenedShipments}
+                    rowCount={apiResponse?.total_count || 0}
+                    isLoading={isLoading}
+                    paginationModel={paginationModel}
+                    onPaginationModelChange={setPaginationModel}
+                    onViewDetails={handleViewDetails}
+                    searchTerm={searchTerm}
+                    onSearchChange={handleSearchChange}
+                />
             </Paper>
         </Container>
     );

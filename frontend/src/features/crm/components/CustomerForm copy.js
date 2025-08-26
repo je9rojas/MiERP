@@ -31,21 +31,29 @@ const customerValidationSchema = yup.object().shape({
         .trim()
         .max(200, 'La Razón Social no puede exceder los 200 caracteres.')
         .required('La Razón Social es obligatoria.'),
-    doc_type: yup.string()
-        .oneOf(['ruc', 'dni', 'ce', 'other'], 'Tipo de documento no válido.')
-        .required('El tipo de documento es obligatorio.'),
+    
     doc_number: yup.string()
         .trim()
         .max(20, 'El N° de Documento no puede exceder los 20 caracteres.')
         .required('El N° de Documento es obligatorio.'),
+    
+    // --- CORRECCIONES DE VALIDACIÓN ---
+    // Los siguientes campos son opcionales y solo se validan si tienen valor.
+    
+    doc_type: yup.string()
+        .oneOf(['ruc', 'dni', 'ce', 'other'], 'Tipo de documento no válido.'),
+
     address: yup.string()
         .trim()
         .max(255, 'La dirección no puede exceder los 255 caracteres.'),
+
     phone: yup.string()
         .trim()
         .max(20, 'El teléfono no puede exceder los 20 caracteres.'),
+    
     contact_person: yup.object().shape({
         name: yup.string().trim().max(100, 'El nombre del contacto no puede exceder los 100 caracteres.'),
+        // Yup no aplicará la validación .email() si el string está vacío, solucionando el error.
         email: yup.string().email('Formato de correo inválido.'),
         phone: yup.string().trim().max(20, 'El teléfono del contacto no puede exceder los 20 caracteres.'),
         position: yup.string().trim().max(100, 'El cargo del contacto no puede exceder los 100 caracteres.'),
@@ -83,7 +91,6 @@ const CustomerForm = ({
             onSubmit={onSubmit}
             enableReinitialize
         >
-            {/* Se extrae `isSubmitting` de Formik para reflejar su estado interno */}
             {({ isSubmitting: formikIsSubmitting }) => (
                 <Form noValidate>
                     <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
@@ -96,7 +103,7 @@ const CustomerForm = ({
                                 <Field component={TextField} name="phone" label="Teléfono Principal" fullWidth disabled={isSubmitting || formikIsSubmitting} />
                             </Grid>
                             <Grid item xs={12} md={4}>
-                                <Field component={TextField} type="text" name="doc_type" label="Tipo de Documento" select fullWidth required disabled={isSubmitting || formikIsSubmitting}>
+                                <Field component={TextField} type="text" name="doc_type" label="Tipo de Documento" select fullWidth disabled={isSubmitting || formikIsSubmitting}>
                                     <MenuItem value="ruc">RUC</MenuItem>
                                     <MenuItem value="dni">DNI</MenuItem>
                                     <MenuItem value="ce">Carnet de Extranjería</MenuItem>
@@ -115,7 +122,7 @@ const CustomerForm = ({
                     <Divider sx={{ my: 4 }} />
 
                     <Paper variant="outlined" sx={{ p: 3, mb: 3 }}>
-                        <Typography variant="h6" gutterBottom>Persona de Contacto</Typography>
+                        <Typography variant="h6" gutterBottom>Persona de Contacto (Opcional)</Typography>
                         <Grid container spacing={3}>
                             <Grid item xs={12} md={6}>
                                 <Field component={TextField} name="contact_person.name" label="Nombre del Contacto" fullWidth disabled={isSubmitting || formikIsSubmitting} />
@@ -157,8 +164,5 @@ CustomerForm.propTypes = {
     onSubmit: PropTypes.func.isRequired,
     isSubmitting: PropTypes.bool,
 };
-
-// El bloque `defaultProps` se elimina en favor de los parámetros por defecto
-// en la firma del componente, que es la práctica moderna recomendada por React.
 
 export default CustomerForm;

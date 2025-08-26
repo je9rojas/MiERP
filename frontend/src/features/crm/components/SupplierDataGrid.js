@@ -1,125 +1,93 @@
-// /frontend/src/features/crm/components/SupplierDataGrid.js
+// File: /frontend/src/features/crm/components/SupplierDataGrid.js
 
 /**
  * @file Componente de presentación para mostrar la lista de proveedores en una tabla.
  *
- * Utiliza Material-UI DataGrid y está configurado para:
- * - Usar un toolbar personalizado a través del sistema de `slots`.
- * - Identificar correctamente las filas utilizando el campo `_id` de MongoDB.
- * - Manejar de forma segura la visualización de datos complejos como el array de correos.
+ * @description Este componente reutilizable renderiza los datos de los proveedores
+ * utilizando MUI DataGrid. Es un componente controlado que recibe todas sus
+ * props desde un componente padre (ej. SupplierListPage).
  */
 
 // ==============================================================================
 // SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React from 'react';
-import { Box, Chip, Tooltip, IconButton } from '@mui/material';
+import React, { useMemo } from 'react';
+import PropTypes from 'prop-types';
 import { DataGrid } from '@mui/x-data-grid';
 import { esES } from '@mui/x-data-grid/locales';
-import EditIcon from '@mui/icons-material/Edit';
 
 import DataGridToolbar from '../../../components/common/DataGridToolbar';
+import { createSupplierColumns } from './supplierGridConfig'; // Se importa la configuración externa.
 
 // ==============================================================================
-// SECCIÓN 2: COMPONENTE PRINCIPAL
+// SECCIÓN 2: DEFINICIÓN DEL COMPONENTE PRINCIPAL
 // ==============================================================================
 
-const SupplierDataGrid = (props) => {
-    const {
-        suppliers,
-        rowCount,
-        isLoading,
-        paginationModel,
-        onPaginationModelChange,
-        onEditSupplier,
-        toolbarProps
-    } = props;
-
-    // --- 2.1: Definición de las Columnas de la Tabla ---
-    const columns = React.useMemo(() => [
-        {
-            field: 'tax_id',
-            headerName: 'ID Fiscal / RUC',
-            width: 150,
-        },
-        {
-            field: 'business_name',
-            headerName: 'Razón Social',
-            flex: 1,
-            minWidth: 250,
-        },
-        {
-            field: 'phone',
-            headerName: 'Teléfono',
-            width: 150,
-            sortable: false,
-            valueGetter: (value) => value || '—',
-        },
-        {
-            field: 'emails',
-            headerName: 'Correo Principal',
-            width: 220,
-            sortable: false,
-            valueGetter: (value) => (value && value.length > 0) ? value[0].address : '—',
-        },
-        {
-            field: 'is_active',
-            headerName: 'Estado',
-            width: 120,
-            renderCell: (params) => (
-                params.value
-                    ? <Chip label="Activo" color="success" size="small" variant="outlined" />
-                    : <Chip label="Inactivo" color="error" size="small" variant="outlined" />
-            ),
-        },
-        {
-            field: 'actions',
-            headerName: 'Acciones',
-            width: 100,
-            align: 'center',
-            headerAlign: 'center',
-            sortable: false,
-            disableColumnMenu: true,
-            renderCell: (params) => (
-                <Tooltip title="Editar Proveedor">
-                    <IconButton onClick={() => onEditSupplier(params.row._id)} size="small">
-                        <EditIcon />
-                    </IconButton>
-                </Tooltip>
-            ),
-        },
-    ], [onEditSupplier]);
-
-
-    // --- 2.2: Renderizado del Componente DataGrid ---
-    return (
-        <Box sx={{ height: 650, width: '100%' }}>
-            <DataGrid
-                // --- Configuración Esencial ---
-                rows={suppliers}
-                columns={columns}
-                getRowId={(row) => row._id}
-
-                // --- Estado y Paginación ---
-                loading={isLoading}
-                rowCount={rowCount}
-                paginationModel={paginationModel}
-                onPaginationModelChange={onPaginationModelChange}
-                paginationMode="server"
-                pageSizeOptions={[10, 25, 50]}
-                
-                // --- Toolbar Personalizado ---
-                slots={{ toolbar: DataGridToolbar }}
-                slotProps={{ toolbar: toolbarProps }}
-
-                // --- Propiedades Adicionales ---
-                disableRowSelectionOnClick
-                autoHeight
-                localeText={esES.components.MuiDataGrid.defaultProps.localeText}
-            />
-        </Box>
+const SupplierDataGrid = ({
+    suppliers,
+    rowCount,
+    isLoading,
+    paginationModel,
+    onPaginationModelChange,
+    onEditSupplier,
+    searchTerm,
+    onSearchChange,
+}) => {
+    const columns = useMemo(
+        () => createSupplierColumns({
+            onEditSupplier,
+        }),
+        [onEditSupplier]
     );
+
+    return (
+        <DataGrid
+            // --- Props de Datos y Estructura ---
+            rows={suppliers}
+            columns={columns}
+            getRowId={(row) => row.id} // Se utiliza `id` gracias a la capa anticorrupción.
+
+            // --- Props de Estado y Control ---
+            loading={isLoading}
+            rowCount={rowCount}
+            paginationModel={paginationModel}
+            onPaginationModelChange={onPaginationModelChange}
+            paginationMode="server"
+            pageSizeOptions={[10, 25, 50]}
+            disableRowSelectionOnClick
+            
+            // --- Props de Componentes y Estilo ---
+            slots={{ toolbar: DataGridToolbar }}
+            slotProps={{
+                toolbar: {
+                    searchTerm,
+                    onSearchChange,
+                    searchPlaceholder: "Buscar por Razón Social o RUC..."
+                }
+            }}
+            localeText={esES.components.MuiDataGrid.defaultProps.localeText}
+            sx={{ border: 'none' }}
+        />
+    );
+};
+
+// ==============================================================================
+// SECCIÓN 3: DEFINICIÓN DE PROPTYPES
+// ==============================================================================
+
+SupplierDataGrid.propTypes = {
+    suppliers: PropTypes.arrayOf(PropTypes.object).isRequired,
+    rowCount: PropTypes.number.isRequired,
+    isLoading: PropTypes.bool.isRequired,
+    paginationModel: PropTypes.shape({
+        page: PropTypes.number.isRequired,
+        pageSize: PropTypes.number.isRequired,
+    }).isRequired,
+    onPaginationModelChange: PropTypes.func.isRequired,
+    onEditSupplier: PropTypes.func.isRequired,
+    searchTerm: PropTypes.string.isRequired,
+    onSearchChange: PropTypes.func.isRequired,
 };
 
 export default SupplierDataGrid;
