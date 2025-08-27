@@ -1,4 +1,4 @@
-# backend/.env 
+# /backend/.env 
 # ==============================================================================
 # VARIABLES DE ENTORNO PARA DESARROLLO LOCAL DEL BACKEND
 #
@@ -25,19 +25,29 @@ DATABASE_URL="mongodb+srv://db_admin:dQ6n5znkCVO0ANm6@erp-cluster.fzyhb.mongodb.
 SECRET_KEY="1d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e"
 
 # Orígenes (URLs del frontend) que tienen permiso para acceder a esta API.
-# ALLOWED_ORIGINS= "["https://URL-DE-TU-FRONTEND.vercel.app"]"
 ALLOWED_ORIGINS='["http://localhost:3000", "http://127.0.0.1:3000"]'
 
-# Duración del token de acceso en minutos.
-ACCESS_TOKEN_EXPIRE_MINUTES=60
+# Duración del token de acceso en minutos. Por defecto: 11520 (8 días)
+ACCESS_TOKEN_EXPIRE_MINUTES=11520
 
 # Algoritmo de firma para los tokens JWT.
 ALGORITHM="HS256"
 
 
 # --- SECCIÓN 4: CREDENCIALES DEL SUPERADMINISTRADOR INICIAL (OBLIGATORIO) ---
-# Estas variables son requeridas por la aplicación para crear el primer usuario
-# con todos los permisos durante el arranque inicial.
+# Estas variables son requeridas para crear el primer usuario con todos los permisos.
 
 SUPERADMIN_EMAIL="super_admin@dirogsa.com"
 SUPERADMIN_PASSWORD="kR8#z!9p$L@w2vF&bQ"
+
+
+# --- SECCIÓN 5: INFORMACIÓN DE LA EMPRESA PARA DOCUMENTOS (NUEVO) ---
+# Estos valores se utilizarán en los encabezados y pies de página de los
+# documentos generados por el sistema, como Proformas y Órdenes de Venta.
+
+COMPANY_NAME="DIROGSA S.R.L."
+COMPANY_RUC="20606277432"
+COMPANY_ADDRESS="Jr. Jose Orengo 850, San Luis, Lima, Perú"
+#COMPANY_PHONE="(+51) 991 717 240"
+#COMPANY_EMAIL="ventas@dirogsa.com"
+# COMPANY_LOGO_PATH="/backend/static/logos/logo_empresa.png"

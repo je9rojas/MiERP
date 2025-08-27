@@ -19,13 +19,14 @@ Este archivo es el corazón de la API del backend. Sus responsabilidades clave s
 import logging
 from contextlib import asynccontextmanager
 
-# Se añade 'Request' para el tipado en el middleware de depuración.
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.config import settings
-from app.core.database import db, get_db
+# --- CORRECCIÓN ---
+# Se importa el gestor de la base de datos y la dependencia 'get_db' por separado.
+from app.core.database import db_manager, get_db
 from app.api import api_router
 from app.modules.auth import auth_service
 from app.modules.roles import role_service
@@ -42,16 +43,22 @@ async def lifespan(app: FastAPI):
     logger.info("--- Iniciando Proceso de Arranque de la Aplicación ---")
     try:
         logger.info("Paso 1/3: Conectando a la base de datos MongoDB...")
-        await db.connect()
-        db_connection = db.get_database()
+        # Se utiliza el método explícito del gestor de la conexión.
+        await db_manager.connect_to_database()
+        
+        # --- CORRECCIÓN ---
+        # Se obtiene explícitamente la base de datos de producción para las tareas
+        # de inicialización, asegurando que los roles y el superadmin se creen
+        # en el lugar correcto.
+        prod_db_connection = db_manager.get_prod_database()
         
         logger.info("Paso 2/3: Verificando la conexión con el servidor (ping)...")
-        await db_connection.command("ping")
+        await prod_db_connection.command("ping")
         logger.info("Paso 2/3: Conexión a la base de datos verificada exitosamente. ✅")
 
         logger.info("Paso 3/3: Inicializando datos base (Roles y Superadmin)...")
-        await role_service.initialize_roles(db_connection)
-        await auth_service.create_secure_superadmin(db_connection)
+        await role_service.initialize_roles(prod_db_connection)
+        await auth_service.create_secure_superadmin(prod_db_connection)
         logger.info("Paso 3/3: Datos base inicializados y/o verificados. ✅")
         
         logger.info("--- Proceso de Arranque Completado. La Aplicación está Lista. ---")
@@ -63,7 +70,7 @@ async def lifespan(app: FastAPI):
     yield
     
     logger.info("--- Iniciando Proceso de Apagado de la Aplicación ---")
-    await db.close()
+    await db_manager.close_database_connection()
     logger.info("--- Conexión a la base de datos cerrada exitosamente. ---")
 
 # ==============================================================================
@@ -101,17 +108,10 @@ if settings.ALLOWED_ORIGINS:
 # SECCIÓN 4.5: MIDDLEWARE DE DEPURACIÓN DE PETICIONES
 # ==============================================================================
 
-# Este middleware se añade con el propósito específico de depurar problemas de
-# conexión a bajo nivel. Se ejecutará para cada petición que llegue al servidor,
-# ANTES de que sea procesada por la lógica de las rutas de FastAPI.
 @app.middleware("http")
 async def log_requests_middleware(request: Request, call_next):
     """
     Middleware para registrar los detalles de cada petición HTTP entrante.
-
-    Su función es confirmar que las peticiones del frontend están llegando
-    correctamente al servidor ASGI, lo que ayuda a diagnosticar si el problema
-    es de red o de la lógica de la aplicación.
     """
     logging.info(f"--- Petición Entrante Detectada por Middleware ---")
     logging.info(f"  Host Origen: {request.client.host if request.client else 'N/A'}")
@@ -144,7 +144,7 @@ async def health_check(database: AsyncIOMotorDatabase = Depends(get_db)):
     """
     Endpoint de verificación de salud ('health check').
 
-    Verifica la conectividad con servicios esenciales, como la base de datos.
+    Verifica la conectividad con servicios esenciales, como la base de datos de producción.
     """
     try:
         await database.command("ping")

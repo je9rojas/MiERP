@@ -35,6 +35,13 @@ class Settings(BaseSettings):
 
     # --- Configuración de la Base de Datos (OBLIGATORIA) ---
     DATABASE_URL: str = Field(..., description="URI de conexión a MongoDB Atlas.")
+    # --- CORRECCIÓN ---
+    # Se añaden los nombres de las bases de datos como variables configurables.
+    # Esto permite que el mismo código se conecte a diferentes bases de datos
+    # (producción, archivo, testing) simplemente cambiando el entorno.
+    MONGO_PROD_DB_NAME: str = Field("mi_erp_prod", description="Nombre de la base de datos de producción.")
+    MONGO_ARCHIVE_DB_NAME: str = Field("mi_erp_archive", description="Nombre de la base de datos de archivo histórico.")
+
 
     # --- Configuración de Seguridad y CORS (OBLIGATORIA) ---
     SECRET_KEY: str = Field(..., description="Clave secreta para firmar tokens JWT.")
@@ -62,9 +69,7 @@ class Settings(BaseSettings):
     SUPERADMIN_EMAIL: str = Field(..., description="Email del superadmin inicial.")
     SUPERADMIN_PASSWORD: str = Field(..., description="Contraseña del superadmin inicial.")
 
-    # --- (NUEVO) Información de la Empresa para Documentos ---
-    # Estas variables se usarán en reportes, facturas, proformas, etc.
-    # Se recomienda definirlas en tu archivo .env
+    # --- Información de la Empresa para Documentos ---
     COMPANY_NAME: str = Field("Nombre de Mi Empresa S.A.C.", description="Razón social completa de la empresa.")
     COMPANY_RUC: str = Field("20123456789", description="Número de RUC de la empresa.")
     COMPANY_ADDRESS: Optional[str] = Field(None, description="Dirección fiscal de la empresa.")

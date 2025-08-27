@@ -5,22 +5,20 @@ Módulo de Gestión de la Base de Datos.
 
 Este archivo es el único responsable de manejar el ciclo de vida de la conexión
 a la base de datos MongoDB. Expone una instancia global 'db' para ser usada
-en el arranque de la aplicación y una dependencia 'get_db' para inyectar
-la sesión de la base de datos en las rutas de la API.
+en el arranque de la aplicación y dependencias para inyectar las diferentes
+conexiones de base de datos (producción, archivo) en las rutas de la API.
 """
 
 # ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
+import logging
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo.errors import ConnectionFailure
-import logging
 
-# Importa el objeto de configuración centralizado, que es la única fuente de verdad.
 from app.core.config import settings
 
-# Obtiene una instancia del logger configurado en main.py
 logger = logging.getLogger(__name__)
 
 # ==============================================================================
@@ -29,16 +27,18 @@ logger = logging.getLogger(__name__)
 
 class DatabaseManager:
     """
-    Gestiona el cliente y la conexión a la base de datos MongoDB.
+    Gestiona el cliente y las conexiones a las bases de datos MongoDB.
     Sigue el patrón Singleton al ser instanciada una sola vez globalmente.
     """
     _client: AsyncIOMotorClient = None
-    _database: AsyncIOMotorDatabase = None
+    _prod_db: AsyncIOMotorDatabase = None
+    _archive_db: AsyncIOMotorDatabase = None
 
     async def connect_to_database(self):
         """
-        Establece la conexión con MongoDB. Se llama una sola vez al iniciar la aplicación.
-        Utiliza la DATABASE_URL del objeto de configuración 'settings'.
+        Establece la conexión con el clúster de MongoDB y obtiene los punteros
+        a las bases de datos de producción y archivo.
+        Se llama una sola vez al iniciar la aplicación.
         """
         logger.info("Iniciando conexión con la base de datos MongoDB...")
         
@@ -49,27 +49,20 @@ class DatabaseManager:
         )
         
         try:
-            self._database = self._client.get_default_database()
+            # Obtiene los punteros a las bases de datos usando los nombres de la configuración.
+            # Esta es una operación ligera; no establece conexiones adicionales.
+            self._prod_db = self._client[settings.MONGO_PROD_DB_NAME]
+            self._archive_db = self._client[settings.MONGO_ARCHIVE_DB_NAME]
+
+            if self._prod_db is None or self._archive_db is None:
+                raise ValueError("No se pudieron obtener los punteros de las bases de datos.")
             
-            # --- INICIO DE LA CORRECCIÓN ---
-            # Comparamos explícitamente con 'is None' como pide PyMongo.
-            if self._database is None:
-            # --- FIN DE LA CORRECCIÓN ---
-                raise ValueError(
-                    "No se pudo determinar el nombre de la base de datos desde la URI. "
-                    "Asegúrate de que la DATABASE_URL incluye el nombre de la base de datos "
-                    "(ej: ...mongodb.net/mi_base_de_datos?...)."
-                )
-            
+            # Verifica la conexión real con el servidor.
             await self._client.admin.command('ping')
-            logger.info(f"Conexión exitosa a MongoDB. Base de datos en uso: '{self._database.name}'")
+            logger.info(f"Conexión exitosa a MongoDB. BD de producción: '{self._prod_db.name}', BD de archivo: '{self._archive_db.name}'")
         
-        except ConnectionFailure as e:
-            logger.critical(f"Error de conexión a MongoDB: {e}")
-            await self.close_database_connection()
-            raise
-        except ValueError as e:
-            logger.critical(f"Error de configuración de la base de datos: {e}")
+        except (ConnectionFailure, ValueError) as error:
+            logger.critical(f"Error crítico durante la conexión a la base de datos: {error}")
             await self.close_database_connection()
             raise
 
@@ -81,31 +74,39 @@ class DatabaseManager:
             self._client.close()
             logger.info("Conexión a la base de datos MongoDB cerrada.")
 
-    def get_database_session(self) -> AsyncIOMotorDatabase:
-        """
-        Retorna la instancia de la base de datos conectada.
-        """
-        if self._database is None:
-            raise RuntimeError(
-                "La base de datos no está conectada. "
-                "Asegúrate de que el evento de startup se ha completado."
-            )
-        return self._database
+    def get_prod_database(self) -> AsyncIOMotorDatabase:
+        """Retorna la instancia de la base de datos de PRODUCCIÓN conectada."""
+        if self._prod_db is None:
+            raise RuntimeError("La base de datos de producción no está conectada.")
+        return self._prod_db
+
+    def get_archive_database(self) -> AsyncIOMotorDatabase:
+        """Retorna la instancia de la base de datos de ARCHIVO conectada."""
+        if self._archive_db is None:
+            raise RuntimeError("La base de datos de archivo no está conectada.")
+        return self._archive_db
 
 # ==============================================================================
-# SECCIÓN 3: INSTANCIA GLOBAL Y DEPENDENCIA DE FASTAPI
+# SECCIÓN 3: INSTANCIA GLOBAL Y DEPENDENCIAS DE FASTAPI
 # ==============================================================================
 
+# Instancia global para ser usada en el ciclo de vida de la aplicación (startup/shutdown)
 db_manager = DatabaseManager()
 
-db_manager.connect = db_manager.connect_to_database
-db_manager.close = db_manager.close_database_connection
-db_manager.get_database = db_manager.get_database_session
-
-db = db_manager
+# --- Dependencias de FastAPI ---
 
 async def get_db() -> AsyncIOMotorDatabase:
     """
-    Dependencia de FastAPI para inyectar la sesión de la base de datos en las rutas.
+    Dependencia de FastAPI para inyectar la base de datos de PRODUCCIÓN.
+    
+    Este es el generador por defecto. No se necesita cambiar ningún endpoint existente.
     """
-    return db.get_database()
+    return db_manager.get_prod_database()
+
+async def get_archive_db() -> AsyncIOMotorDatabase:
+    """
+    Dependencia de FastAPI para inyectar la base de datos de ARCHIVO.
+
+    Úsese en endpoints que necesiten consultar datos históricos.
+    """
+    return db_manager.get_archive_database()

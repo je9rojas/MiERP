@@ -18,7 +18,9 @@ Este archivo es el corazón de la API del backend. Sus responsabilidades clave s
 
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, status
+
+# Se añade 'Request' para el tipado en el middleware de depuración.
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -75,7 +77,7 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.PROJECT_VERSION,
     description="API Backend para el sistema de gestión empresarial MiERP.",
-    lifespan=lifespan, # Se utiliza el nuevo gestor de ciclo de vida
+    lifespan=lifespan,
     docs_url="/api/docs" if settings.ENV == "development" else None,
     redoc_url="/api/redoc" if settings.ENV == "development" else None,
     openapi_url="/api/v1/openapi.json"
@@ -96,24 +98,34 @@ if settings.ALLOWED_ORIGINS:
     )
 
 # ==============================================================================
-# SECCIÓN 5: REGISTRO DE RUTAS DE LA API
+# SECCIÓN 4.5: MIDDLEWARE DE DEPURACIÓN DE PETICIONES
 # ==============================================================================
 
-# NOTA IMPORTANTE: Asegúrate de que en tu archivo `/backend/app/api.py`
-# hayas importado y registrado el nuevo `reports_router` junto a los demás.
-# Ejemplo de cómo debería verse `api.py`:
-#
-# from fastapi import APIRouter
-# from app.modules.auth.auth_routes import router as auth_router
-# from app.modules.inventory.product_routes import router as products_router
-# from app.modules.reports.reports_routes import router as reports_router # <-- AÑADIR
-# ...otros routers...
-#
-# api_router = APIRouter()
-# api_router.include_router(auth_router)
-# api_router.include_router(products_router)
-# api_router.include_router(reports_router) # <-- AÑADIR
-# ...etc...
+# Este middleware se añade con el propósito específico de depurar problemas de
+# conexión a bajo nivel. Se ejecutará para cada petición que llegue al servidor,
+# ANTES de que sea procesada por la lógica de las rutas de FastAPI.
+@app.middleware("http")
+async def log_requests_middleware(request: Request, call_next):
+    """
+    Middleware para registrar los detalles de cada petición HTTP entrante.
+
+    Su función es confirmar que las peticiones del frontend están llegando
+    correctamente al servidor ASGI, lo que ayuda a diagnosticar si el problema
+    es de red o de la lógica de la aplicación.
+    """
+    logging.info(f"--- Petición Entrante Detectada por Middleware ---")
+    logging.info(f"  Host Origen: {request.client.host if request.client else 'N/A'}")
+    logging.info(f"  Método HTTP: {request.method}")
+    logging.info(f"  URL Destino: {request.url}")
+    logging.info(f"-------------------------------------------------")
+    
+    response = await call_next(request)
+    
+    return response
+
+# ==============================================================================
+# SECCIÓN 5: REGISTRO DE RUTAS DE LA API
+# ==============================================================================
 
 app.include_router(api_router, prefix="/api/v1")
 logger.info(f"Routers de la API v1 registrados exitosamente bajo el prefijo '/api/v1'.")
@@ -131,6 +143,8 @@ async def read_root():
 async def health_check(database: AsyncIOMotorDatabase = Depends(get_db)):
     """
     Endpoint de verificación de salud ('health check').
+
+    Verifica la conectividad con servicios esenciales, como la base de datos.
     """
     try:
         await database.command("ping")
