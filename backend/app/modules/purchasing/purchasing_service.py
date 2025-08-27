@@ -105,7 +105,10 @@ async def create_purchase_order(database: AsyncIOMotorDatabase, order_data: Purc
     supplier_repo = SupplierRepository(database)
     product_repo = ProductRepository(database)
 
-    if not await supplier_repo.find_one_by_id(str(order_data.supplier_id)):
+    # --- INICIO DE LA CORRECCIÓN ---
+    # Se corrige el nombre del método para que coincida con el del repositorio.
+    if not await supplier_repo.find_by_id(str(order_data.supplier_id)):
+    # --- FIN DE LA CORRECCIÓN ---
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="El proveedor especificado no existe.")
 
     enriched_items, total_amount = [], 0.0
@@ -124,13 +127,20 @@ async def create_purchase_order(database: AsyncIOMotorDatabase, order_data: Purc
             sku=product_doc.get("sku", "N/A"),
             name=product_doc.get("name", "N/A")
         ))
+    
+    order_datetime = datetime.combine(order_data.order_date, time.min, tzinfo=timezone.utc)
+    delivery_datetime = None
+    if order_data.expected_delivery_date:
+        delivery_datetime = datetime.combine(order_data.expected_delivery_date, time.min, tzinfo=timezone.utc)
 
     order_to_db = PurchaseOrderInDB(
-        **order_data.model_dump(exclude={"items"}),
+        **order_data.model_dump(exclude={"items", "order_date", "expected_delivery_date"}),
         order_number=await _generate_sequential_number(purchase_order_repo, "OC"),
         created_by_id=current_user.id,
         items=enriched_items,
-        total_amount=round(total_amount, 2)
+        total_amount=round(total_amount, 2),
+        order_date=order_datetime,
+        expected_delivery_date=delivery_datetime
     )
     document_to_insert = order_to_db.model_dump(by_alias=True, exclude={'id'})
     
@@ -145,14 +155,11 @@ async def update_purchase_order(database: AsyncIOMotorDatabase, order_id: str, u
     if not order_doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La Orden de Compra no existe.")
     
-    # Se compara contra el valor del Enum para mayor seguridad
     if order_doc.get("status") != PurchaseOrderStatus.DRAFT.value:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Solo se pueden editar Órdenes de Compra en estado 'borrador'.")
 
-    # Usamos `model_dump` para obtener un diccionario limpio del payload de entrada
     update_payload = update_data.model_dump(exclude_unset=True)
 
-    # Conversión explícita de `date` a `datetime` para compatibilidad con BSON/MongoDB
     delivery_date = update_payload.get("expected_delivery_date")
     if delivery_date is not None:
         if isinstance(delivery_date, date) and not isinstance(delivery_date, datetime):
@@ -160,7 +167,6 @@ async def update_purchase_order(database: AsyncIOMotorDatabase, order_id: str, u
         elif isinstance(delivery_date, datetime) and delivery_date.tzinfo is None:
             update_payload["expected_delivery_date"] = delivery_date.replace(tzinfo=timezone.utc)
 
-    # Si los ítems se están actualizando, se enriquecen y se recalcula el total
     if "items" in update_payload:
         enriched_items, total_amount = [], 0.0
         product_ids = [str(item['product_id']) for item in update_payload.get("items", [])]
@@ -173,8 +179,6 @@ async def update_purchase_order(database: AsyncIOMotorDatabase, order_id: str, u
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Producto con ID '{item_data['product_id']}' no encontrado.")
             
             total_amount += item_data['quantity_ordered'] * item_data['unit_cost']
-            
-            # Se asegura de que los datos del producto (sku, name) estén presentes
             item_data['sku'] = product_doc.get("sku", "N/A")
             item_data['name'] = product_doc.get("name", "N/A")
             enriched_items.append(item_data)
@@ -182,15 +186,10 @@ async def update_purchase_order(database: AsyncIOMotorDatabase, order_id: str, u
         update_payload["items"] = enriched_items
         update_payload["total_amount"] = round(total_amount, 2)
 
-    # Se establece la fecha de actualización
     update_payload["updated_at"] = datetime.now(timezone.utc)
     
-    # --- INICIO DE LA CORRECCIÓN ---
-    # El nombre del método correcto en el repositorio es `execute_update_one_by_id`.
-    # Se corrige la llamada para que coincida con la definición del BaseRepository.
     update_operation = {"$set": update_payload}
     await purchase_order_repo.execute_update_one_by_id(order_id, update_operation)
-    # --- FIN DE LA CORRECCIÓN ---
 
     return await get_purchase_order_by_id(database, order_id)
 

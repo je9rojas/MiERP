@@ -1,4 +1,4 @@
-# /backend/app/modules/purchasing/purchasing_service.py
+# File: /backend/app/modules/purchasing/purchasing_service.py
 
 """
 Capa de Servicio para la lógica de negocio del módulo de Compras (Purchasing).
@@ -15,7 +15,7 @@ datos y las operaciones transaccionales, reside aquí.
 
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, time
 from typing import Any, Dict, List, Optional, Type
 
 from fastapi import HTTPException, status
@@ -80,10 +80,6 @@ async def _populate_documents_with_suppliers(
     supplier_repository = SupplierRepository(database)
     suppliers_list = await supplier_repository.find_by_ids(list(supplier_ids))
     
-    # --- CORRECCIÓN FINAL ---
-    # Al construir el mapa, se valida inmediatamente cada proveedor con su modelo
-    # 'SupplierOut'. Esto asegura que su '_id' (y cualquier otro tipo complejo)
-    # se convierta a un formato compatible con JSON (ej. string) antes de anidarlo.
     suppliers_map = {
         str(supplier['_id']): SupplierOut.model_validate(supplier)
         for supplier in suppliers_list
@@ -91,11 +87,9 @@ async def _populate_documents_with_suppliers(
 
     populated_items = []
     for doc in documents:
-        # Busca el objeto SupplierOut ya validado en el mapa.
         supplier_object = suppliers_map.get(str(doc.get("supplier_id")))
         
         populated_doc = doc.copy()
-        # Asigna el objeto Pydantic 'SupplierOut' (o None) al campo 'supplier'.
         populated_doc["supplier"] = supplier_object
         
         populated_items.append(PydanticOutModel.model_validate(populated_doc))
@@ -151,37 +145,53 @@ async def update_purchase_order(database: AsyncIOMotorDatabase, order_id: str, u
     if not order_doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="La Orden de Compra no existe.")
     
-    if order_doc.get("status") != PurchaseOrderStatus.DRAFT:
+    # Se compara contra el valor del Enum para mayor seguridad
+    if order_doc.get("status") != PurchaseOrderStatus.DRAFT.value:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Solo se pueden editar Órdenes de Compra en estado 'borrador'.")
 
-    enriched_items, total_amount = [], 0.0
-    product_ids = [str(item.product_id) for item in update_data.items]
-    products_from_db = await product_repo.find_by_ids(product_ids)
-    product_map = {str(p["_id"]): p for p in products_from_db}
+    # Usamos `model_dump` para obtener un diccionario limpio del payload de entrada
+    update_payload = update_data.model_dump(exclude_unset=True)
 
-    for item_data in update_data.items:
-        product_doc = product_map.get(str(item_data.product_id))
-        if not product_doc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Producto con ID '{item_data.product_id}' no encontrado.")
+    # Conversión explícita de `date` a `datetime` para compatibilidad con BSON/MongoDB
+    delivery_date = update_payload.get("expected_delivery_date")
+    if delivery_date is not None:
+        if isinstance(delivery_date, date) and not isinstance(delivery_date, datetime):
+            update_payload["expected_delivery_date"] = datetime.combine(delivery_date, time.min, tzinfo=timezone.utc)
+        elif isinstance(delivery_date, datetime) and delivery_date.tzinfo is None:
+            update_payload["expected_delivery_date"] = delivery_date.replace(tzinfo=timezone.utc)
+
+    # Si los ítems se están actualizando, se enriquecen y se recalcula el total
+    if "items" in update_payload:
+        enriched_items, total_amount = [], 0.0
+        product_ids = [str(item['product_id']) for item in update_payload.get("items", [])]
+        products_from_db = await product_repo.find_by_ids(product_ids)
+        product_map = {str(p["_id"]): p for p in products_from_db}
+
+        for item_data in update_payload.get("items", []):
+            product_doc = product_map.get(str(item_data['product_id']))
+            if not product_doc:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Producto con ID '{item_data['product_id']}' no encontrado.")
+            
+            total_amount += item_data['quantity_ordered'] * item_data['unit_cost']
+            
+            # Se asegura de que los datos del producto (sku, name) estén presentes
+            item_data['sku'] = product_doc.get("sku", "N/A")
+            item_data['name'] = product_doc.get("name", "N/A")
+            enriched_items.append(item_data)
         
-        total_amount += item_data.quantity_ordered * item_data.unit_cost
-        enriched_items.append(PurchaseOrderItem(
-            **item_data.model_dump(),
-            sku=product_doc.get("sku", "N/A"),
-            name=product_doc.get("name", "N/A")
-        ))
+        update_payload["items"] = enriched_items
+        update_payload["total_amount"] = round(total_amount, 2)
 
-    update_payload = {
-        "$set": {
-            "expected_delivery_date": update_data.expected_delivery_date,
-            "notes": update_data.notes,
-            "items": [item.model_dump() for item in enriched_items],
-            "total_amount": round(total_amount, 2),
-            "updated_at": datetime.now(timezone.utc)
-        }
-    }
+    # Se establece la fecha de actualización
+    update_payload["updated_at"] = datetime.now(timezone.utc)
     
-    await purchase_order_repo.execute_update_one_by_id(order_id, update_payload)
+    # --- INICIO DE LA CORRECCIÓN ---
+    # El nombre del método correcto en el repositorio es `execute_update_one_by_id`.
+    # Se corrige la llamada para que coincida con la definición del BaseRepository.
+    update_operation = {"$set": update_payload}
+    await purchase_order_repo.execute_update_one_by_id(order_id, update_operation)
+    # --- FIN DE LA CORRECCIÓN ---
+
     return await get_purchase_order_by_id(database, order_id)
 
 async def get_purchase_order_by_id(database: AsyncIOMotorDatabase, order_id: str) -> PurchaseOrderOut:
