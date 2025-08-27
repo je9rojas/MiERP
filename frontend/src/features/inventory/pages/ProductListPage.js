@@ -55,7 +55,7 @@ const ProductListPage = () => {
         queryKey: ['products', paginationModel, debouncedSearchTerm],
         queryFn: () => getProductsAPI({
             page: paginationModel.page + 1,
-            pageSize: paginationModel.pageSize, // Consistente con otros módulos
+            pageSize: paginationModel.pageSize,
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
@@ -82,7 +82,7 @@ const ProductListPage = () => {
     
     const handleConfirmDeactivation = useCallback(() => {
         if (deactivationState.product) {
-            deactivateProduct(deactivationState.product.id); // Se usa `id`
+            deactivateProduct(deactivationState.product.id);
             setDeactivationState({ open: false, product: null });
         }
     }, [deactivationState.product, deactivateProduct]);
@@ -110,12 +110,22 @@ const ProductListPage = () => {
                     addButtonText="Añadir Producto"
                     onAddClick={() => navigate('/inventario/productos/nuevo')}
                 />
-                <Paper sx={{ height: '75vh', width: '100%', mt: 3, borderRadius: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                    {error && <Alert severity="error" sx={{ m: 2 }}>{`Error al cargar productos: ${formatApiError(error)}`}</Alert>}
+                <Paper 
+                    sx={{ 
+                        height: '75vh', 
+                        width: '100%', 
+                        mt: 3, 
+                        borderRadius: 2, 
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}
+                >
+                    {error && <Alert severity="error" sx={{ m: 2, flexShrink: 0 }}>{`Error al cargar productos: ${formatApiError(error)}`}</Alert>}
                     <DataGrid
                         rows={data?.items || []}
                         columns={columns}
-                        getRowId={(row) => row.id} // Se usa `id`
+                        getRowId={(row) => row.id}
                         rowCount={data?.total_count || 0}
                         paginationModel={paginationModel}
                         onPaginationModelChange={setPaginationModel}
@@ -127,7 +137,7 @@ const ProductListPage = () => {
                         slots={{ toolbar: DataGridToolbar }}
                         slotProps={{
                             toolbar: {
-                                showAddButton: false, // El botón ya está en PageHeader
+                                showAddButton: false,
                                 searchTerm: searchTerm,
                                 onSearchChange: handleSearchChange,
                                 searchPlaceholder: "Buscar por SKU, Nombre o Marca...",
@@ -143,7 +153,7 @@ const ProductListPage = () => {
                 <InventoryLotsModal
                     open={lotsModalState.open}
                     onClose={() => setLotsModalState({ open: false, product: null })}
-                    productId={lotsModalState.product?.id} // Se usa `id`
+                    productId={lotsModalState.product?.id}
                     productName={lotsModalState.product?.name}
                 />
             )}

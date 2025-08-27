@@ -96,9 +96,19 @@ const GoodsReceiptListPage = () => {
                 showAddButton={false}
             />
             
-            <Paper sx={{ height: 700, width: '100%', mt: 3, borderRadius: 2, boxShadow: 3 }}>
+            <Paper 
+                sx={{ 
+                    height: 700, 
+                    width: '100%', 
+                    mt: 3, 
+                    borderRadius: 2, 
+                    boxShadow: 3,
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}
+            >
                 {isError && (
-                    <Alert severity="error" sx={{ m: 2 }}>
+                    <Alert severity="error" sx={{ m: 2, flexShrink: 0 }}>
                         {`Error al cargar las recepciones: ${formatApiError(error)}`}
                     </Alert>
                 )}

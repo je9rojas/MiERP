@@ -56,7 +56,7 @@ export const mapPurchaseOrderToFormValues = (orderData, allProducts) => {
 /**
  * Transforma los valores del formulario de creación de OC al payload de la API.
  */
-export const mapFormToCreatePurchaseOrderPayload = (formValues) => {
+export const mapFormValuesToCreatePayload = (formValues) => {
   return {
     supplier_id: formValues.supplier?.id || null,
     order_date: formatDateForAPI(formValues.order_date),
@@ -75,7 +75,7 @@ export const mapFormToCreatePurchaseOrderPayload = (formValues) => {
 /**
  * Transforma los valores del formulario de actualización de OC al payload de la API.
  */
-export const mapFormToUpdatePurchaseOrderPayload = (formValues) => {
+export const mapFormValuesToUpdatePayload = (formValues) => {
   return {
     expected_delivery_date: formatDateForAPI(formValues.expected_delivery_date),
     notes: formValues.notes || '',
@@ -92,7 +92,7 @@ export const mapFormToUpdatePurchaseOrderPayload = (formValues) => {
 /**
  * Transforma los valores del formulario de recepción al payload de la API.
  */
-export const mapFormToGoodsReceiptPayload = (formValues, orderId) => {
+export const mapFormValuesToGoodsReceiptPayload = (formValues, orderId) => {
   return {
     purchase_order_id: orderId,
     received_date: formatDateForAPI(formValues.received_date),
@@ -112,7 +112,7 @@ export const mapFormToGoodsReceiptPayload = (formValues, orderId) => {
 /**
  * Transforma los valores del formulario de factura al payload de la API.
  */
-export const mapFormToBillPayload = (formValues, orderId) => {
+export const mapFormValuesToBillPayload = (formValues, orderId) => {
   return {
     purchase_order_id: orderId,
     supplier_invoice_number: formValues.supplier_invoice_number,

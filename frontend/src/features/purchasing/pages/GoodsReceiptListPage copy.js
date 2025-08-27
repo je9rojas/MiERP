@@ -1,20 +1,21 @@
-// frontend/src/features/purchasing/pages/GoodsReceiptListPage.js
+// File: /frontend/src/features/purchasing/pages/GoodsReceiptListPage.js
 
 /**
  * @file Página contenedora para listar y gestionar las Recepciones de Mercancía.
  *
  * Este componente actúa como el "cerebro" de la página, orquestando la
- * obtención de datos desde la API y gestionando el estado de la interfaz de
- * usuario (paginación, búsqueda).
+ * obtención de datos desde la API, gestionando el estado de la interfaz de
+ * usuario, preparando los datos para la tabla y manejando la navegación.
  */
 
 // ==============================================================================
-// SECCIÓN 1: IMPORTACIONES DE MÓDULOS
+// SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import PropTypes from 'prop-types';
 import { Container, Paper, Alert } from '@mui/material';
 
 import { getGoodsReceiptsAPI } from '../api/purchasingAPI';
@@ -28,15 +29,21 @@ import { formatApiError } from '../../../utils/errorUtils';
 // ==============================================================================
 
 const GoodsReceiptListPage = () => {
-    // Sub-sección 2.1: Hooks y Estado
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.1: Hooks y Gestión de Estado
+    // --------------------------------------------------------------------------
+    
     const navigate = useNavigate();
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-    // Sub-sección 2.2: Lógica de Obtención de Datos con React Query
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.2: Lógica de Obtención de Datos
+    // --------------------------------------------------------------------------
+    
     const {
-        data,
+        data: apiResponse,
         isLoading,
         isError,
         error
@@ -48,34 +55,49 @@ const GoodsReceiptListPage = () => {
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
-        staleTime: 5000,
+        staleTime: 30000,
     });
 
-    // Sub-sección 2.3: Manejadores de Eventos (Callbacks)
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.3: Preparación y Aplanamiento de Datos para la UI
+    // --------------------------------------------------------------------------
+
+    const flattenedReceipts = useMemo(() => {
+        if (!apiResponse?.items) {
+            return [];
+        }
+        return apiResponse.items.map(receipt => ({
+            ...receipt,
+            supplier_name: receipt.supplier?.business_name || 'N/A',
+            purchase_order_number: receipt.purchase_order?.order_number || 'N/A',
+        }));
+    }, [apiResponse]);
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.4: Manejadores de Eventos
+    // --------------------------------------------------------------------------
+    
     const handleViewDetails = useCallback((receiptId) => {
         navigate(`/compras/recepciones/${receiptId}`);
     }, [navigate]);
 
-    const handleSearchChange = (event) => {
+    const handleSearchChange = useCallback((event) => {
         setSearchTerm(event.target.value);
-        setPaginationModel((prev) => ({ ...prev, page: 0 }));
-    };
+    }, []);
 
-    // Sub-sección 2.4: Renderizado de la Interfaz de Usuario
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.5: Renderizado de la Interfaz de Usuario
+    // --------------------------------------------------------------------------
+    
     return (
         <Container maxWidth="xl" sx={{ my: 4 }}>
             <PageHeader
                 title="Gestión de Recepciones de Mercancía"
                 subtitle="Consulte todas las entradas de mercancía física al inventario."
-                showAddButton={false} // Las recepciones se crean desde las Órdenes de Compra
+                showAddButton={false}
             />
             
-            <Paper sx={{
-                height: 700,
-                width: '100%',
-                borderRadius: 2,
-                boxShadow: 3,
-            }}>
+            <Paper sx={{ height: 700, width: '100%', mt: 3, borderRadius: 2, boxShadow: 3 }}>
                 {isError && (
                     <Alert severity="error" sx={{ m: 2 }}>
                         {`Error al cargar las recepciones: ${formatApiError(error)}`}
@@ -83,8 +105,8 @@ const GoodsReceiptListPage = () => {
                 )}
                 
                 <GoodsReceiptDataGrid
-                    receipts={data?.items || []}
-                    rowCount={data?.total_count || 0}
+                    receipts={flattenedReceipts}
+                    rowCount={apiResponse?.total_count || 0}
                     isLoading={isLoading}
                     paginationModel={paginationModel}
                     onPaginationModelChange={setPaginationModel}
@@ -96,5 +118,7 @@ const GoodsReceiptListPage = () => {
         </Container>
     );
 };
+
+GoodsReceiptListPage.propTypes = {}; // No props are passed down to this component directly
 
 export default GoodsReceiptListPage;

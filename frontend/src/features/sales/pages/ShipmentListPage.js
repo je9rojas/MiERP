@@ -18,6 +18,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Container, Paper, Alert } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import PropTypes from 'prop-types';
 
 import { getShipmentsAPI } from '../api/salesAPI';
 import useDebounce from '../../../hooks/useDebounce';
@@ -56,6 +57,7 @@ const ShipmentListPage = () => {
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
+        staleTime: 30000,
     });
 
     // --------------------------------------------------------------------------
@@ -99,9 +101,19 @@ const ShipmentListPage = () => {
                 showAddButton={false}
             />
             
-            <Paper sx={{ height: 700, width: '100%', mt: 3, borderRadius: 2, boxShadow: 3 }}>
+            <Paper 
+                sx={{ 
+                    height: 700, 
+                    width: '100%', 
+                    mt: 3, 
+                    borderRadius: 2, 
+                    boxShadow: 3,
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}
+            >
                 {isError && (
-                    <Alert severity="error" sx={{ m: 2 }}>{formatApiError(error)}</Alert>
+                    <Alert severity="error" sx={{ m: 2, flexShrink: 0 }}>{formatApiError(error)}</Alert>
                 )}
 
                 <ShipmentDataGrid
@@ -118,5 +130,7 @@ const ShipmentListPage = () => {
         </Container>
     );
 };
+
+ShipmentListPage.propTypes = {}; // No props are passed down to this component directly
 
 export default ShipmentListPage;

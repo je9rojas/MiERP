@@ -7,7 +7,7 @@
  * de datos, y delega la renderización del formulario a un componente modal de presentación.
  */
 
-// ==============================================================================
+// =omed=============================================================================
 // SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
@@ -15,17 +15,15 @@ import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     Box, Typography, Button, CircularProgress, Alert, Paper, Table,
-    TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip
+    TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip, Container
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import BlockIcon from '@mui/icons-material/Block';
 import { useSnackbar } from 'notistack';
 
-// Importaciones de los nuevos archivos de API
 import { getUsersAPI, createUserAPI, updateUserAPI, deactivateUserAPI } from '../../users/api/usersAPI';
 import { getRolesAPI } from '../../roles/api/rolesAPI';
-
 import UserFormModal from '../components/UserFormModal';
 import PageHeader from '../../../components/common/PageHeader';
 import { formatApiError } from '../../../utils/errorUtils';
@@ -51,13 +49,13 @@ const UserManagementPage = () => {
     const { data: usersData, isLoading: isLoadingUsers, isError: isErrorUsers, error: usersError } = useQuery({
         queryKey: ['users'],
         queryFn: () => getUsersAPI(),
-        select: (data) => data.items || [], // Asumimos que la API devuelve un objeto paginado
+        select: (data) => data.items || [],
     });
 
     const { data: roles = [], isLoading: isLoadingRoles } = useQuery({
         queryKey: ['roles'],
         queryFn: getRolesAPI,
-        staleTime: 300000, // Cache de 5 minutos para los roles
+        staleTime: 300000,
     });
 
     // --------------------------------------------------------------------------
@@ -67,14 +65,10 @@ const UserManagementPage = () => {
     const { mutate: performUserAction, isPending: isMutating } = useMutation({
         mutationFn: ({ action, userData, userId }) => {
             switch (action) {
-                case 'create':
-                    return createUserAPI(userData);
-                case 'update':
-                    return updateUserAPI(userId, userData);
-                case 'deactivate':
-                    return deactivateUserAPI(userId);
-                default:
-                    throw new Error('Acción de usuario no válida.');
+                case 'create': return createUserAPI(userData);
+                case 'update': return updateUserAPI(userId, userData);
+                case 'deactivate': return deactivateUserAPI(userId);
+                default: throw new Error('Acción de usuario no válida.');
             }
         },
         onSuccess: (_, variables) => {
@@ -146,7 +140,7 @@ const UserManagementPage = () => {
     }
 
     return (
-        <Box sx={{ p: 3 }}>
+        <Container maxWidth="lg" sx={{ my: 4 }}>
             <PageHeader
                 title="Gestión de Usuarios"
                 subtitle="Cree, edite y gestione los permisos de los usuarios del sistema."
@@ -198,7 +192,7 @@ const UserManagementPage = () => {
                     roles={roles}
                 />
             )}
-        </Box>
+        </Container>
     );
 };
 

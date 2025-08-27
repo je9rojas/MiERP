@@ -8,11 +8,10 @@
  * Su responsabilidad principal es orquestar la obtención de datos desde la API,
  * gestionar el estado local (paginación, búsqueda, diálogos), y transformar
  * los datos en un formato adecuado para los componentes de presentación.
- * Utiliza React Query para una gestión de datos asíncronos eficiente.
  */
 
 // ==============================================================================
-// SECCIÓN 1: IMPORTACIONES DE MÓDulos Y COMPONENTES
+// SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
 import React, { useState, useCallback, useMemo } from 'react';
@@ -32,7 +31,6 @@ import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
 // ==============================================================================
 
 const PurchaseOrderListPage = () => {
-
     // --------------------------------------------------------------------------
     // Sub-sección 2.1: Inicialización de Hooks y Estado Local
     // --------------------------------------------------------------------------
@@ -51,7 +49,7 @@ const PurchaseOrderListPage = () => {
     });
 
     // --------------------------------------------------------------------------
-    // Sub-sección 2.2: Lógica de Obtención de Datos (Data Fetching)
+    // Sub-sección 2.2: Lógica de Obtención de Datos
     // --------------------------------------------------------------------------
 
     const { data: apiResponse, isLoading, isError, error } = useQuery({
@@ -62,39 +60,26 @@ const PurchaseOrderListPage = () => {
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
-        staleTime: 30000, // Cache de 30 segundos
+        staleTime: 30000,
     });
 
     // --------------------------------------------------------------------------
     // Sub-sección 2.3: Transformación y Preparación de Datos
     // --------------------------------------------------------------------------
 
-    /**
-     * Prepara los datos para el DataGrid. Transforma la data anidada y los
-     * tipos de datos de la API (ej: strings de fecha) en una estructura plana
-     * y con los tipos correctos (ej: objetos Date) que el componente
-     * DataGrid puede consumir de forma nativa y eficiente.
-     * Se memoriza con `useMemo` para un rendimiento óptimo.
-     */
     const flattenedOrders = useMemo(() => {
         if (!apiResponse?.items) {
             return [];
         }
         return apiResponse.items.map(order => ({
             ...order,
-            // Aplanar datos anidados del proveedor
             supplier_name: order.supplier?.business_name || 'No Asignado',
-            // --- INICIO DE LA CORRECCIÓN ---
-            // Convertir la cadena de texto de la fecha en un objeto Date.
-            // Esto asegura que el DataGrid pueda ordenar y filtrar correctamente.
-            // Si la fecha es nula o inválida, se establece como null.
             order_date: order.order_date ? new Date(order.order_date) : null,
-            // --- FIN DE LA CORRECCIÓN ---
         }));
     }, [apiResponse]);
 
     // --------------------------------------------------------------------------
-    // Sub-sección 2.4: Lógica de Mutación de Datos (Data Mutation)
+    // Sub-sección 2.4: Lógica de Mutación de Datos
     // --------------------------------------------------------------------------
 
     const { mutate: updateOrderStatus, isPending: isUpdatingStatus } = useMutation({
@@ -113,7 +98,7 @@ const PurchaseOrderListPage = () => {
     });
 
     // --------------------------------------------------------------------------
-    // Sub-sección 2.5: Manejadores de Eventos y Navegación
+    // Sub-sección 2.5: Manejadores de Eventos
     // --------------------------------------------------------------------------
 
     const handleAddOrder = useCallback(() => {
@@ -121,7 +106,7 @@ const PurchaseOrderListPage = () => {
     }, [navigate]);
 
     const handleEditOrder = useCallback((orderId) => {
-        navigate(`/compras/ordenes/editar/${orderId}`);
+        navigate(`/compras/ordenes/${orderId}`);
     }, [navigate]);
 
     const handleRegisterReceipt = useCallback((orderId) => {
@@ -141,8 +126,12 @@ const PurchaseOrderListPage = () => {
         });
     }, [updateOrderStatus]);
 
+    const handleSearchChange = useCallback((event) => {
+        setSearchTerm(event.target.value);
+    }, []);
+
     // --------------------------------------------------------------------------
-    // Sub-sección 2.6: Renderizado de la Interfaz de Usuario (UI)
+    // Sub-sección 2.6: Renderizado de la Interfaz de Usuario
     // --------------------------------------------------------------------------
 
     return (
@@ -154,9 +143,19 @@ const PurchaseOrderListPage = () => {
                 onAddClick={handleAddOrder}
             />
 
-            <Paper sx={{ height: 700, width: '100%', borderRadius: 2, boxShadow: 3 }}>
+            <Paper 
+                sx={{ 
+                    height: 700, 
+                    width: '100%', 
+                    mt: 3, 
+                    borderRadius: 2, 
+                    boxShadow: 3,
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}
+            >
                 {isError && (
-                    <Alert severity="error" sx={{ m: 2 }}>
+                    <Alert severity="error" sx={{ m: 2, flexShrink: 0 }}>
                         {`Error al cargar las órdenes de compra: ${formatApiError(error)}`}
                     </Alert>
                 )}
@@ -172,7 +171,7 @@ const PurchaseOrderListPage = () => {
                     onRegisterReceipt={handleRegisterReceipt}
                     onRegisterBill={handleRegisterBill}
                     searchTerm={searchTerm}
-                    onSearchChange={(event) => setSearchTerm(event.target.value)}
+                    onSearchChange={handleSearchChange}
                 />
             </Paper>
 

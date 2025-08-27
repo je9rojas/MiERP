@@ -1,18 +1,18 @@
-// /frontend/src/features/sales/pages/SalesOrderListPage.js
+// File: /frontend/src/features/sales/pages/SalesOrderListPage.js
 
 /**
  * @file Página contenedora para listar, buscar y gestionar las Órdenes de Venta.
  *
  * Este componente actúa como el "cerebro" de la página, orquestando la
- * obtención de datos desde la API y gestionando el estado de la interfaz de
- * usuario. Utiliza React Query para una gestión de datos eficiente y declarativa.
+ * obtención de datos desde la API, gestionando el estado de la interfaz de
+ * usuario y preparando los datos para los componentes de presentación.
  */
 
 // ==============================================================================
 // SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Container, Paper, Alert } from '@mui/material';
@@ -20,7 +20,7 @@ import { Container, Paper, Alert } from '@mui/material';
 import { getSalesOrdersAPI } from '../api/salesAPI';
 import useDebounce from '../../../hooks/useDebounce';
 import SalesOrderDataGrid from '../components/SalesOrderDataGrid';
-import PageHeader from '../../../components/common/PageHeader'; // Se reemplaza DataGridToolbar por PageHeader
+import PageHeader from '../../../components/common/PageHeader';
 import { formatApiError } from '../../../utils/errorUtils';
 
 // ==============================================================================
@@ -28,51 +28,74 @@ import { formatApiError } from '../../../utils/errorUtils';
 // ==============================================================================
 
 const SalesOrderListPage = () => {
-    // --- 2.1: Hooks y Gestión de Estado ---
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.1: Hooks y Gestión de Estado
+    // --------------------------------------------------------------------------
+    
     const navigate = useNavigate();
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 25 });
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-    // --- 2.2: Lógica de Obtención de Datos con React Query ---
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.2: Lógica de Obtención de Datos
+    // --------------------------------------------------------------------------
+    
     const {
-        data,
+        data: apiResponse,
         isLoading,
         isError,
         error
     } = useQuery({
-        queryKey: ['salesOrdersList', paginationModel, debouncedSearchTerm],
+        queryKey: ['salesOrders', paginationModel, debouncedSearchTerm],
         queryFn: () => getSalesOrdersAPI({
             page: paginationModel.page + 1,
-            page_size: paginationModel.pageSize,
+            pageSize: paginationModel.pageSize,
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
-        staleTime: 5000,
+        staleTime: 30000,
     });
 
-    // --- 2.3: Manejadores de Eventos ---
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.3: Preparación y Aplanamiento de Datos para la UI
+    // --------------------------------------------------------------------------
+    
+    const flattenedOrders = useMemo(() => {
+        if (!apiResponse?.items) {
+            return [];
+        }
+        return apiResponse.items.map(order => ({
+            ...order,
+            customer_name: order.customer?.business_name || 'Cliente no encontrado',
+        }));
+    }, [apiResponse]);
+
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.4: Manejadores de Eventos
+    // --------------------------------------------------------------------------
+    
     const handleAddNewOrder = useCallback(() => {
         navigate('/ventas/ordenes/nueva');
     }, [navigate]);
 
     const handleViewOrderDetails = useCallback((orderId) => {
-        // CORRECCIÓN: Navega a la ruta de detalle/edición correcta que definimos.
         navigate(`/ventas/ordenes/${orderId}`);
     }, [navigate]);
     
     const handleCreateShipment = useCallback((orderId) => {
-        // Navega a la nueva página para crear un despacho a partir de esta orden.
         navigate(`/ventas/ordenes/${orderId}/despachar`);
     }, [navigate]);
 
-    const handleSearchChange = (event) => {
+    const handleSearchChange = useCallback((event) => {
         setSearchTerm(event.target.value);
-        // Resetea a la primera página con cada nueva búsqueda
-        setPaginationModel(prev => ({ ...prev, page: 0 }));
-    };
+    }, []);
 
-    // --- 2.4: Renderizado de la UI ---
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.5: Renderizado de la Interfaz de Usuario
+    // --------------------------------------------------------------------------
+    
     return (
         <Container maxWidth="xl" sx={{ my: 4 }}>
             <PageHeader
@@ -82,12 +105,7 @@ const SalesOrderListPage = () => {
                 onAddClick={handleAddNewOrder}
             />
             
-            <Paper sx={{
-                height: 700,
-                width: '100%',
-                borderRadius: 2,
-                boxShadow: 3,
-            }}>
+            <Paper sx={{ height: 700, width: '100%', mt: 3, borderRadius: 2, boxShadow: 3 }}>
                 {isError && (
                     <Alert severity="error" sx={{ m: 2 }}>
                         {`Error al cargar las órdenes de venta: ${formatApiError(error)}`}
@@ -95,18 +113,15 @@ const SalesOrderListPage = () => {
                 )}
                 
                 <SalesOrderDataGrid
-                    orders={data?.items || []}
-                    rowCount={data?.total_count || 0}
+                    orders={flattenedOrders}
+                    rowCount={apiResponse?.total_count || 0}
                     isLoading={isLoading}
                     paginationModel={paginationModel}
                     onPaginationModelChange={setPaginationModel}
                     onViewOrderDetails={handleViewOrderDetails}
-                    onCreateShipment={handleCreateShipment} // Se pasa la nueva función
-                    toolbarProps={{
-                        searchTerm: searchTerm,
-                        onSearchChange: handleSearchChange,
-                        searchPlaceholder: "Buscar por N° de Orden..."
-                    }}
+                    onCreateShipment={handleCreateShipment}
+                    searchTerm={searchTerm}
+                    onSearchChange={handleSearchChange}
                 />
             </Paper>
         </Container>

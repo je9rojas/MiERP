@@ -1,20 +1,21 @@
-// frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
+// File: /frontend/src/features/purchasing/pages/PurchaseOrderListPage.js
 
 /**
- * @file Página contenedora para listar y gestionar las Órdenes de Compra.
+ * @file purchasing/pages/PurchaseOrderListPage.js
+ * @description Página contenedora para listar y gestionar las Órdenes de Compra.
  *
- * Este componente actúa como el "cerebro" de la página, orquestando la
- * obtención de datos desde la API y gestionando el estado de la interfaz de
- * usuario. Utiliza React Query para una gestión de datos eficiente,
- * implementando paginación, búsqueda y mutaciones para actualizar el estado
- * de las órdenes.
+ * Este componente actúa como el "cerebro" (Container Component) de la página.
+ * Su responsabilidad principal es orquestar la obtención de datos desde la API,
+ * gestionar el estado local (paginación, búsqueda, diálogos), y transformar
+ * los datos en un formato adecuado para los componentes de presentación.
+ * Utiliza React Query para una gestión de datos asíncronos eficiente.
  */
 
 // ==============================================================================
-// SECCIÓN 1: IMPORTACIONES
+// SECCIÓN 1: IMPORTACIONES DE MÓDulos Y COMPONENTES
 // ==============================================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Container, Paper, Alert } from '@mui/material';
@@ -25,24 +26,35 @@ import PurchaseOrderDataGrid from '../components/PurchaseOrderDataGrid';
 import PageHeader from '../../../components/common/PageHeader';
 import { formatApiError } from '../../../utils/errorUtils';
 import ConfirmationDialog from '../../../components/common/ConfirmationDialog';
-// import { useSnackbar } from 'notistack'; // Descomentar para usar notificaciones avanzadas
 
 // ==============================================================================
 // SECCIÓN 2: COMPONENTE PRINCIPAL DE LA PÁGINA
 // ==============================================================================
 
 const PurchaseOrderListPage = () => {
-    // Sub-sección 2.1: Hooks y Estado
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.1: Inicialización de Hooks y Estado Local
+    // --------------------------------------------------------------------------
+
     const navigate = useNavigate();
     const queryClient = useQueryClient();
-    // const { enqueueSnackbar } = useSnackbar();
+
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
-    const [confirmationDialog, setConfirmationDialog] = useState({ isOpen: false, title: '', content: '', onConfirm: () => {} });
+    const [confirmationDialog, setConfirmationDialog] = useState({
+        isOpen: false,
+        title: '',
+        content: '',
+        onConfirm: () => {},
+    });
 
-    // Sub-sección 2.2: Lógica de Obtención de Datos con React Query
-    const { data, isLoading, isError, error } = useQuery({
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.2: Lógica de Obtención de Datos (Data Fetching)
+    // --------------------------------------------------------------------------
+
+    const { data: apiResponse, isLoading, isError, error } = useQuery({
         queryKey: ['purchaseOrders', paginationModel, debouncedSearchTerm],
         queryFn: () => getPurchaseOrdersAPI({
             page: paginationModel.page + 1,
@@ -50,20 +62,49 @@ const PurchaseOrderListPage = () => {
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
-        staleTime: 30000,
+        staleTime: 30000, // Cache de 30 segundos
     });
 
-    // Sub-sección 2.3: Lógica de Mutación de Datos (Actualización de Estado)
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.3: Transformación y Preparación de Datos
+    // --------------------------------------------------------------------------
+
+    /**
+     * Prepara los datos para el DataGrid. Transforma la data anidada y los
+     * tipos de datos de la API (ej: strings de fecha) en una estructura plana
+     * y con los tipos correctos (ej: objetos Date) que el componente
+     * DataGrid puede consumir de forma nativa y eficiente.
+     * Se memoriza con `useMemo` para un rendimiento óptimo.
+     */
+    const flattenedOrders = useMemo(() => {
+        if (!apiResponse?.items) {
+            return [];
+        }
+        return apiResponse.items.map(order => ({
+            ...order,
+            // Aplanar datos anidados del proveedor
+            supplier_name: order.supplier?.business_name || 'No Asignado',
+            // --- INICIO DE LA CORRECCIÓN ---
+            // Convertir la cadena de texto de la fecha en un objeto Date.
+            // Esto asegura que el DataGrid pueda ordenar y filtrar correctamente.
+            // Si la fecha es nula o inválida, se establece como null.
+            order_date: order.order_date ? new Date(order.order_date) : null,
+            // --- FIN DE LA CORRECCIÓN ---
+        }));
+    }, [apiResponse]);
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.4: Lógica de Mutación de Datos (Data Mutation)
+    // --------------------------------------------------------------------------
+
     const { mutate: updateOrderStatus, isPending: isUpdatingStatus } = useMutation({
         mutationFn: ({ orderId, newStatus }) => updatePurchaseOrderStatusAPI(orderId, newStatus),
         onSuccess: (updatedOrder) => {
-            // enqueueSnackbar(`Orden de Compra #${updatedOrder.order_number} confirmada.`, { variant: 'success' });
             alert(`Orden de Compra #${updatedOrder.order_number} confirmada exitosamente.`);
             queryClient.invalidateQueries({ queryKey: ['purchaseOrders'] });
         },
         onError: (mutationError) => {
             const errorMessage = formatApiError(mutationError);
-            // enqueueSnackbar(`Error al confirmar la orden: ${errorMessage}`, { variant: 'error' });
             alert(`Error al confirmar la orden: ${errorMessage}`);
         },
         onSettled: () => {
@@ -71,7 +112,10 @@ const PurchaseOrderListPage = () => {
         }
     });
 
-    // Sub-sección 2.4: Manejadores de Eventos (Callbacks)
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.5: Manejadores de Eventos y Navegación
+    // --------------------------------------------------------------------------
+
     const handleAddOrder = useCallback(() => {
         navigate('/compras/ordenes/nueva');
     }, [navigate]);
@@ -83,9 +127,7 @@ const PurchaseOrderListPage = () => {
     const handleRegisterReceipt = useCallback((orderId) => {
         navigate(`/compras/ordenes/${orderId}/recepciones/nueva`);
     }, [navigate]);
-    
-    // --- NUEVO MANEJADOR ---
-    // Navega a la página de creación de facturas, pasando el ID de la orden de compra.
+
     const handleRegisterBill = useCallback((orderId) => {
         navigate(`/compras/ordenes/${orderId}/facturar`);
     }, [navigate]);
@@ -95,11 +137,14 @@ const PurchaseOrderListPage = () => {
             isOpen: true,
             title: 'Confirmar Orden de Compra',
             content: `¿Está seguro de que desea confirmar la Orden de Compra #${order.order_number}? Esta acción no se puede deshacer.`,
-            onConfirm: () => updateOrderStatus({ orderId: order.id, newStatus: 'confirmed' })
+            onConfirm: () => updateOrderStatus({ orderId: order.id, newStatus: 'confirmed' }),
         });
     }, [updateOrderStatus]);
 
-    // Sub-sección 2.5: Renderizado de la Interfaz de Usuario
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.6: Renderizado de la Interfaz de Usuario (UI)
+    // --------------------------------------------------------------------------
+
     return (
         <Container maxWidth="xl" sx={{ my: 4 }}>
             <PageHeader
@@ -108,24 +153,24 @@ const PurchaseOrderListPage = () => {
                 addButtonText="Nueva Orden de Compra"
                 onAddClick={handleAddOrder}
             />
-            
+
             <Paper sx={{ height: 700, width: '100%', borderRadius: 2, boxShadow: 3 }}>
                 {isError && (
                     <Alert severity="error" sx={{ m: 2 }}>
                         {`Error al cargar las órdenes de compra: ${formatApiError(error)}`}
                     </Alert>
                 )}
-                
+
                 <PurchaseOrderDataGrid
-                    orders={data?.items || []}
-                    rowCount={data?.total_count || 0}
+                    orders={flattenedOrders}
+                    rowCount={apiResponse?.total_count || 0}
                     isLoading={isLoading || isUpdatingStatus}
                     paginationModel={paginationModel}
                     onPaginationModelChange={setPaginationModel}
                     onEditOrder={handleEditOrder}
                     onConfirmOrder={handleConfirmOrder}
                     onRegisterReceipt={handleRegisterReceipt}
-                    onRegisterBill={handleRegisterBill} // <- Se pasa la nueva prop
+                    onRegisterBill={handleRegisterBill}
                     searchTerm={searchTerm}
                     onSearchChange={(event) => setSearchTerm(event.target.value)}
                 />

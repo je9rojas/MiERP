@@ -1,20 +1,21 @@
-// frontend/src/features/purchasing/pages/PurchaseBillListPage.js
+// File: /frontend/src/features/purchasing/pages/PurchaseBillListPage.js
 
 /**
  * @file Página contenedora para listar y gestionar las Facturas de Compra.
  *
  * Este componente actúa como el "cerebro" de la página, orquestando la
- * obtención de datos desde la API y gestionando el estado de la interfaz de
- * usuario. Utiliza React Query para una gestión de datos eficiente y declarativa.
+ * obtención de datos desde la API, gestionando el estado de la interfaz de
+ * usuario y preparando los datos para los componentes de presentación.
  */
 
 // ==============================================================================
-// SECCIÓN 1: IMPORTACIONES DE MÓDULOS
+// SECCIÓN 1: IMPORTACIONES
 // ==============================================================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import PropTypes from 'prop-types';
 import { Container, Paper, Alert } from '@mui/material';
 
 import { getPurchaseBillsAPI } from '../api/purchasingAPI';
@@ -28,15 +29,21 @@ import { formatApiError } from '../../../utils/errorUtils';
 // ==============================================================================
 
 const PurchaseBillListPage = () => {
-    // Sub-sección 2.1: Hooks y Estado
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.1: Hooks y Gestión de Estado
+    // --------------------------------------------------------------------------
+    
     const navigate = useNavigate();
     const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 10 });
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-    // Sub-sección 2.2: Lógica de Obtención de Datos con React Query
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.2: Lógica de Obtención de Datos
+    // --------------------------------------------------------------------------
+    
     const {
-        data,
+        data: apiResponse,
         isLoading,
         isError,
         error
@@ -48,30 +55,49 @@ const PurchaseBillListPage = () => {
             search: debouncedSearchTerm,
         }),
         placeholderData: (previousData) => previousData,
-        staleTime: 5000,
+        staleTime: 30000,
     });
 
-    // Sub-sección 2.3: Manejadores de Eventos (Callbacks)
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.3: Preparación y Aplanamiento de Datos para la UI
+    // --------------------------------------------------------------------------
+
+    const flattenedBills = useMemo(() => {
+        if (!apiResponse?.items) {
+            return [];
+        }
+        return apiResponse.items.map(bill => ({
+            ...bill,
+            supplier_name: bill.supplier?.business_name || 'N/A',
+            purchase_order_number: bill.purchase_order?.order_number || 'N/A',
+        }));
+    }, [apiResponse]);
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.4: Manejadores de Eventos
+    // --------------------------------------------------------------------------
+    
     const handleViewDetails = useCallback((billId) => {
-        // CORRECCIÓN: Se activa la navegación a la página de detalles de la factura.
         navigate(`/compras/facturas/${billId}`);
     }, [navigate]);
 
-    // Sub-sección 2.4: Renderizado de la Interfaz de Usuario
+    const handleSearchChange = useCallback((event) => {
+        setSearchTerm(event.target.value);
+    }, []);
+
+    // --------------------------------------------------------------------------
+    // Sub-sección 2.5: Renderizado de la Interfaz de Usuario
+    // --------------------------------------------------------------------------
+    
     return (
         <Container maxWidth="xl" sx={{ my: 4 }}>
             <PageHeader
                 title="Gestión de Facturas de Compra"
-                subtitle="Consulte todas las facturas y recepciones de mercancía registradas en el sistema."
+                subtitle="Consulte todas las facturas de proveedor registradas en el sistema."
                 showAddButton={false}
             />
             
-            <Paper sx={{
-                height: 700,
-                width: '100%',
-                borderRadius: 2,
-                boxShadow: 3,
-            }}>
+            <Paper sx={{ height: 700, width: '100%', mt: 3, borderRadius: 2, boxShadow: 3 }}>
                 {isError && (
                     <Alert severity="error" sx={{ m: 2 }}>
                         {`Error al cargar las facturas de compra: ${formatApiError(error)}`}
@@ -79,18 +105,20 @@ const PurchaseBillListPage = () => {
                 )}
                 
                 <PurchaseBillDataGrid
-                    bills={data?.items || []}
-                    rowCount={data?.total_count || 0}
+                    bills={flattenedBills}
+                    rowCount={apiResponse?.total_count || 0}
                     isLoading={isLoading}
                     paginationModel={paginationModel}
                     onPaginationModelChange={setPaginationModel}
                     onViewDetails={handleViewDetails}
                     searchTerm={searchTerm}
-                    onSearchChange={(event) => setSearchTerm(event.target.value)}
+                    onSearchChange={handleSearchChange}
                 />
             </Paper>
         </Container>
     );
 };
+
+PurchaseBillListPage.propTypes = {}; // No props are passed down to this component directly
 
 export default PurchaseBillListPage;

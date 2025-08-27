@@ -32,7 +32,8 @@ const SalesOrderDataGrid = ({
     onPaginationModelChange,
     onViewOrderDetails,
     onCreateShipment,
-    toolbarProps,
+    searchTerm,
+    onSearchChange,
 }) => {
     const columns = useMemo(
         () => createSalesOrderColumns({
@@ -60,7 +61,14 @@ const SalesOrderDataGrid = ({
             
             // --- Props de Componentes y Estilo ---
             slots={{ toolbar: DataGridToolbar }}
-            slotProps={{ toolbar: toolbarProps }}
+            slotProps={{
+                toolbar: {
+                    showAddButton: false, // El botón está en el PageHeader
+                    searchTerm,
+                    onSearchChange,
+                    searchPlaceholder: "Buscar por N° de Orden..."
+                }
+            }}
             localeText={esES.components.MuiDataGrid.defaultProps.localeText}
             sx={{ border: 'none' }}
         />
@@ -82,7 +90,12 @@ SalesOrderDataGrid.propTypes = {
     onPaginationModelChange: PropTypes.func.isRequired,
     onViewOrderDetails: PropTypes.func.isRequired,
     onCreateShipment: PropTypes.func.isRequired,
-    toolbarProps: PropTypes.object.isRequired,
+    // --- INICIO DE LA CORRECCIÓN ---
+    // Se actualizan los propTypes para que coincidan con las props que realmente se usan.
+    searchTerm: PropTypes.string.isRequired,
+    onSearchChange: PropTypes.func.isRequired,
+    // `toolbarProps` se elimina porque ya no se utiliza.
+    // --- FIN DE LA CORRECCIÓN ---
 };
 
 export default SalesOrderDataGrid;

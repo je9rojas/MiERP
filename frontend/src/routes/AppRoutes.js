@@ -38,10 +38,10 @@ const DashboardPage = lazy(() => import('../features/dashboard/pages/DashboardPa
 // CRM
 const SupplierListPage = lazy(() => import('../features/crm/pages/SupplierListPage'));
 const NewSupplierPage = lazy(() => import('../features/crm/pages/NewSupplierPage'));
-const EditSupplierPage = lazy(() => import('../features/crm/pages/EditSupplierPage')); // Asumiendo que existirá
+// const EditSupplierPage = lazy(() => import('../features/crm/pages/EditSupplierPage')); // Descomentar cuando el archivo exista
 const CustomerListPage = lazy(() => import('../features/crm/pages/CustomerListPage'));
 const NewCustomerPage = lazy(() => import('../features/crm/pages/NewCustomerPage'));
-const EditCustomerPage = lazy(() => import('../features/crm/pages/EditCustomerPage')); // Asumiendo que existirá
+// const EditCustomerPage = lazy(() => import('../features/crm/pages/EditCustomerPage')); // Descomentar cuando el archivo exista
 // Sales
 const SalesOrderListPage = lazy(() => import('../features/sales/pages/SalesOrderListPage'));
 const NewSalesOrderPage = lazy(() => import('../features/sales/pages/NewSalesOrderPage'));
@@ -115,10 +115,10 @@ const AppRoutes = () => {
             <Route path="crm">
               <Route path="proveedores" element={<SupplierListPage />} />
               <Route path="proveedores/nuevo" element={<NewSupplierPage />} />
-              <Route path="proveedores/:supplierId" element={<EditSupplierPage />} />
+              {/* <Route path="proveedores/:supplierId" element={<EditSupplierPage />} /> */} {/* Descomentar cuando el componente exista */}
               <Route path="clientes" element={<CustomerListPage />} />
               <Route path="clientes/nuevo" element={<NewCustomerPage />} />
-              <Route path="clientes/:customerId" element={<EditCustomerPage />} />
+              {/* <Route path="clientes/:customerId" element={<EditCustomerPage />} /> */} {/* Descomentar cuando el componente exista */}
             </Route>
             
             {/* Módulo de Ventas */}

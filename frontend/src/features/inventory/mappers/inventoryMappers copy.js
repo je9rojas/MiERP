@@ -2,7 +2,9 @@
 
 /**
  * @file Módulo de Mapeo para la entidad Producto.
- * @description Centraliza la lógica de transformación de datos.
+ * @description Centraliza la lógica de transformación de datos entre el formulario
+ * del producto (vista) y los DTOs esperados por la API del backend (controlador),
+ * así como la preparación de datos de la API para ser consumidos por el formulario.
  */
 
 // ==============================================================================
@@ -46,14 +48,23 @@ const mapApplicationsToAPI = (formApplications) => {
 // SECCIÓN 2: MAPERS PÚBLICOS EXPORTADOS
 // ==============================================================================
 
+/**
+ * Mapea los datos de un producto (recibidos de la API) a la estructura que
+ * el formulario de Formik espera para sus 'initialValues'.
+ * @param {object} product - El objeto del producto tal como llega de la capa de API.
+ * @returns {object} Un objeto formateado y listo para ser usado por Formik.
+ */
 export const mapProductToFormValues = (product) => {
     if (!product) return null;
+
     const formatValue = (value) => (value === null || value === undefined ? '' : String(value));
+    
     const applications = (product.applications || []).map(app => ({
         ...app,
         year_from: formatValue(app.years?.length ? Math.min(...app.years) : ''),
         year_to: formatValue(app.years?.length ? Math.max(...app.years) : ''),
     }));
+
     return {
         sku: product.sku || '',
         name: product.name || '',
@@ -75,10 +86,12 @@ export const mapProductToFormValues = (product) => {
     };
 };
 
-// --- INICIO DE LA CORRECCIÓN ---
-// Se restauran los nombres originales para que coincidan con lo que las páginas esperan.
-export const mapFormToCreateAPI = (formValues) => {
-// --- FIN DE LA CORRECCIÓN ---
+/**
+ * Mapea los datos del formulario al DTO `ProductCreate` esperado por la API (POST).
+ * @param {object} formValues Los valores crudos del formulario de Formik.
+ * @returns {object} El payload listo para la API de creación.
+ */
+export const mapFormToCreatePayload = (formValues) => {
     return {
         sku: formValues.sku,
         name: formValues.name,
@@ -100,12 +113,17 @@ export const mapFormToCreateAPI = (formValues) => {
     };
 };
 
-// --- INICIO DE LA CORRECCIÓN ---
-export const mapFormToUpdateAPI = (formValues) => {
-// --- FIN DE LA CORRECCIÓN ---
-    const payload = mapFormToCreateAPI(formValues);
+/**
+ * Mapea los datos del formulario al DTO `ProductUpdate` esperado por la API (PATCH).
+ * @param {object} formValues Los valores crudos del formulario de Formik.
+ * @returns {object} El payload listo para la API de actualización.
+ */
+export const mapFormToUpdatePayload = (formValues) => {
+    const payload = mapFormToCreatePayload(formValues);
+
     delete payload.sku;
     delete payload.initial_quantity;
     delete payload.initial_cost;
+    
     return payload;
 };

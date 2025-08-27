@@ -6,7 +6,6 @@
  * Este componente actúa como el "cerebro" de la página, orquestando la
  * obtención de datos desde la API, gestionando el estado de la interfaz de
  * usuario y preparando los datos para los componentes de presentación.
- * Utiliza React Query para una gestión de datos eficiente y declarativa.
  */
 
 // ==============================================================================
@@ -106,9 +105,21 @@ const SalesOrderListPage = () => {
                 onAddClick={handleAddNewOrder}
             />
             
-            <Paper sx={{ height: 700, width: '100%', mt: 3, borderRadius: 2, boxShadow: 3 }}>
+            {/* --- INICIO DE LA CORRECCIÓN DE LAYOUT --- */}
+            <Paper 
+                sx={{ 
+                    height: 700, 
+                    width: '100%', 
+                    mt: 3, 
+                    borderRadius: 2, 
+                    boxShadow: 3,
+                    display: 'flex',
+                    flexDirection: 'column'
+                }}
+            >
+            {/* --- FIN DE LA CORRECCIÓN DE LAYOUT --- */}
                 {isError && (
-                    <Alert severity="error" sx={{ m: 2 }}>
+                    <Alert severity="error" sx={{ m: 2, flexShrink: 0 }}>
                         {`Error al cargar las órdenes de venta: ${formatApiError(error)}`}
                     </Alert>
                 )}
@@ -121,9 +132,8 @@ const SalesOrderListPage = () => {
                     onPaginationModelChange={setPaginationModel}
                     onViewOrderDetails={handleViewOrderDetails}
                     onCreateShipment={handleCreateShipment}
-                    // `toolbarProps` se elimina y se pasan las props directamente
-                    // al `slotProps` dentro del `DataGrid` si este las necesitara.
-                    // En nuestro caso, el `PageHeader` ya gestiona el botón de añadir.
+                    searchTerm={searchTerm}
+                    onSearchChange={handleSearchChange}
                 />
             </Paper>
         </Container>
