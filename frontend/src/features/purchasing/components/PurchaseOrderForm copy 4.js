@@ -41,6 +41,10 @@ const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions,
                     getOptionLabel={(option) => option?.business_name ? `${option.business_name} (RUC: ${option.tax_id})` : ""}
                     onChange={(_, newValue) => setFieldValue('supplier', newValue)}
                     readOnly={isReadOnly}
+                    // --- CORRECCIÓN ---
+                    // Se añade 'isOptionEqualToValue' para enseñarle al componente cómo
+                    // comparar el objeto 'value' con los objetos en 'options'.
+                    // Esto soluciona el error donde el valor no se muestra al editar.
                     isOptionEqualToValue={(option, value) => option.id === value.id}
                     renderInput={(params) => (
                         <MuiTextField
@@ -66,7 +70,7 @@ const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions,
                 <DatePicker label="Fecha de Emisión" value={values.order_date} readOnly={isReadOnly} onChange={(date) => setFieldValue('order_date', date)} slotProps={{ textField: { fullWidth: true, required: true } }} />
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
-                <DatePicker label="Entrega Esperada" value={values.expected_delivery_date} readOnly={isReadOnly} onChange={(date) => setFieldValue('expected_delivery_date', date)} slotProps={{ textField: { fullWidth: true } }} />
+                <DatePicker label="Entrega Esperada" value={values.expected_delivery_date} readReadOnly={isReadOnly} onChange={(date) => setFieldValue('expected_delivery_date', date)} slotProps={{ textField: { fullWidth: true } }} />
             </Grid>
         </Grid>
     </Paper>
@@ -88,9 +92,14 @@ const OrderItemsArray = ({ values, setFieldValue, productsOptions, isReadOnly })
                                         getOptionLabel={(option) => option?.sku ? `[${option.sku}] ${option.name}` : ""}
                                         onChange={(_, newValue) => {
                                             setFieldValue(`items.${index}.product`, newValue);
+                                            // Se asegura que al cambiar el producto, el costo se actualice.
+                                            // El costo de venta (`price`) se usa como costo promedio inicial.
                                             setFieldValue(`items.${index}.unit_cost`, newValue?.price || 0);
                                         }}
                                         readOnly={isReadOnly}
+                                        // --- MEJORA ---
+                                        // Se aplica la misma lógica de comparación que para el proveedor,
+                                        // previniendo el mismo error en los ítems.
                                         isOptionEqualToValue={(option, value) => option.id === value.id}
                                         renderInput={(params) => <MuiTextField {...params} name={`items.${index}.product`} label="Producto" required />}
                                     />
@@ -135,28 +144,18 @@ const PurchaseOrderForm = ({ initialData = null, onSubmit, isSubmitting, supplie
             return defaults;
         }
         
-        // --- CORRECCIÓN DEFINITIVA ---
-        // Se mapean los datos de la API a la estructura que el estado del formulario espera.
-        // La API devuelve los detalles del producto al mismo nivel que 'product_id',
-        // pero el Autocomplete necesita un objeto anidado en una propiedad 'product'.
-        const mappedItems = initialData.items.map(apiItem => ({
-            quantity_ordered: apiItem.quantity_ordered,
-            unit_cost: apiItem.unit_cost,
-            // Creamos el objeto 'product' anidado que el Autocomplete necesita.
-            product: {
-                id: apiItem.product_id, // Aseguramos que el id esté presente
-                sku: apiItem.sku,
-                name: apiItem.name
-                // Se pueden añadir más propiedades del producto aquí si son necesarias
-            }
-        }));
-
+        // El `initialData` del backend ya viene con los objetos completos,
+        // por lo que no se necesitan búsquedas `.find()` aquí, lo cual es ideal.
         return {
             ...defaults,
             ...initialData,
             order_date: parseDate(initialData.order_date) || new Date(),
             expected_delivery_date: parseDate(initialData.expected_delivery_date),
-            items: mappedItems, // Usamos los ítems mapeados
+            // Aseguramos que los `items` tengan un objeto `product` para evitar errores.
+            items: initialData.items.map(item => ({
+                ...item,
+                product: item.product || null
+            }))
         };
     }, [initialData, isEditMode]);
 

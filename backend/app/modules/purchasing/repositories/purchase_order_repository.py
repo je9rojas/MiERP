@@ -9,17 +9,22 @@ No requiere métodos adicionales, ya que las operaciones de consulta estándar
 son suficientes para las necesidades del servicio de compras.
 """
 
-# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+# ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
-# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+# ==============================================================================
+
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.repositories.base_repository import BaseRepository
-from app.modules.purchasing.purchasing_models import PurchaseOrderInDB
+# --- CORRECCIÓN ---
+# Se actualiza la importación del modelo para que apunte al nuevo archivo
+# 'purchase_order_models.py', alineando la capa de repositorio con la
+# nueva arquitectura de modelos cohesivos.
+from app.modules.purchasing.purchase_order_models import PurchaseOrderInDB
 
-# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+# ==============================================================================
 # SECCIÓN 2: DEFINICIÓN DE LA CLASE DEL REPOSITORIO
-# -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+# ==============================================================================
 
 class PurchaseOrderRepository(BaseRepository[PurchaseOrderInDB]):
     """

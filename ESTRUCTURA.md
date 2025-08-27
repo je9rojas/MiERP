@@ -8,34 +8,36 @@
 # ---------------------- 
 
 
-/backend/.venv/...                                        # Entorno virtual
+/backend/.venv/...                                        
 /backend/.env.example
-/backend/pyproject.toml                                   # Configuración de herramientas
-/backend/requirements.txt                                 # Dependencias de producción/dev
+/backend/pyproject.toml                                   
+/backend/requirements.txt                                 
 
 # --- Archivos Estáticos ---
-/backend/static/product_images/...                        # Imágenes de productos específicos
-/backend/static/logos/...                                 (+) # Logos (PNG, SVG) para reportes y otros usos del backend
+/backend/static/product_images/...                        
+/backend/static/logos/...                                 
 
 # --- Aplicación Principal ---
 /backend/app/__init__.py
-/backend/app/api.py                                       # Enrutador principal que agrupa todos los routers de los módulos
-/backend/app/main.py                                      # EntryPoint principal de la aplicación FastAPI
+/backend/app/api.py                                       
+/backend/app/main.py                                      
 
 # --- Núcleo (Core) de la Aplicación ---
 /backend/app/core/__init__.py
-/backend/app/core/config.py                               # Carga y validación de variables de entorno
-/backend/app/core/database.py                             # Lógica de conexión a la base de datos (MongoDB)
-/backend/app/core/security.py                             # Funciones de seguridad: JWT, hashing de contraseñas, etc.
+/backend/app/core/config.py                               
+/backend/app/core/database.py                             
+/backend/app/core/security.py    
+/backend/app/core/services/document_numbering_service.py                         
 
 # --- Dependencias Reutilizables ---
 /backend/app/dependencies/__init__.py
-/backend/app/dependencies/roles.py                        # Middleware/Dependencia para la verificación de roles
+/backend/app/dependencies/roles.py                        
 /backend/app/repositories/base_repository.py
 
 # --- Modelos Compartidos ---
 /backend/app/models/__init__.py
-/backend/app/models/shared.py                             # Clases base reutilizables (ej: PyObjectId)
+/backend/app/models/shared.py     
+
 
 # --- Módulos de Negocio ---
 /backend/app/modules/__init__.py
@@ -46,6 +48,12 @@
 /backend/app/modules/auth/auth_service.py
 /backend/app/modules/auth/auth_models.py
 /backend/app/modules/auth/dependencies.py
+
+# --- MODULES SHARED----
+
+/backend/app/modules/shared/utils/population_utils.py
+
+
 
 # ---------------------- CRM: Clientes y Proveedores ----------------------
 /backend/app/modules/crm/__init__.py
@@ -64,27 +72,39 @@
 
 # ---------------------- INVENTARIO ----------------------
 /backend/app/modules/inventory/__init__.py
-# --- Entidad: Producto (Catálogo) ---
+
 /backend/app/modules/inventory/product_routes.py
 /backend/app/modules/inventory/product_service.py
 /backend/app/modules/inventory/product_models.py
 /backend/app/modules/inventory/repositories/product_repository.py
+
+
+/backend/app/modules/inventory/inventory_lot_models.py
+
+
 # --- Entidad: Lotes de Inventario (Stock) ---
 /backend/app/modules/inventory/inventory_routes.py
 /backend/app/modules/inventory/inventory_service.py
 /backend/app/modules/inventory/inventory_models.py
 /backend/app/modules/inventory/repositories/inventory_lot_repository.py
 # --- Entidad: Ajustes de Inventario ---
-/backend/app/modules/inventory/adjustments_routes.py        (+) # Rutas para la nueva funcionalidad de ajustes
-/backend/app/modules/inventory/adjustments_service.py       (+) # Lógica de negocio para mermas, pérdidas, etc.
-/backend/app/modules/inventory/adjustments_models.py        (+) # Modelos Pydantic para los ajustes
+/backend/app/modules/inventory/adjustments_routes.py        
+/backend/app/modules/inventory/adjustments_service.py       
+/backend/app/modules/inventory/adjustments_models.py        
 
 # ---------------------- COMPRAS (Purchasing) ----------------------
 /backend/app/modules/purchasing/__init__.py
 /backend/app/modules/purchasing/purchasing_routes.py
-/backend/app/modules/purchasing/purchasing_service.py
-/backend/app/modules/purchasing/purchasing_models.py
-backend/app/modules/purchasing/purchasing_service.py
+
+
+/backend/app/modules/purchasing/purchase_order_models.py
+/backend/app/modules/purchasing/goods_receipt_models.py
+/backend/app/modules/purchasing/purchase_bill_models.py
+
+/backend/app/modules/purchasing/purchase_order_service.py
+/backend/app/modules/purchasing/goods_receipt_service.py
+/backend/app/modules/purchasing/purchase_bill_service.py
+
 
 backend/app/modules/purchasing/repositories/purchase_bill_repository.py
 /backend/app/modules/purchasing/repositories/purchase_order_repository.py
@@ -95,7 +115,7 @@ backend/app/modules/purchasing/repositories/goods_receipt_repository.py
 /backend/app/modules/reports/reports_routes.py
 /backend/app/modules/reports/reports_service.py
 /backend/app/modules/reports/reports_models.py
-/backend/app/modules/reports/services/catalog_service.py    # Generador específico del catálogo PDF
+/backend/app/modules/reports/services/catalog_service.py    
 
 # ---------------------- VENTAS (Sales) ----------------------
 /backend/app/modules/sales/__init__.py
@@ -128,8 +148,8 @@ backend/app/modules/sales/repositories/sales_invoice_repository.py
 # --- Carpeta Pública ---
 /frontend/public/index.html
 /frontend/public/favicon.ico
-/frontend/public/images/logo-full.png                     (*) # Todos los assets estáticos en carpetas dedicadas
-/frontend/public/images/logo-icon.png                     (*)
+/frontend/public/images/logo-full.png                     
+/frontend/public/images/logo-icon.png                     
 
 # --- Entrypoint y Configuración de la App ---
 /frontend/src/App.js

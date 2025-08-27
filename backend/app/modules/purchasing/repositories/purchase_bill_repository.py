@@ -1,64 +1,64 @@
-# backend/app/modules/purchasing/repositories/purchase_bill_repository.py
+# /backend/app/modules/purchasing/repositories/purchase_bill_repository.py
 
 """
 Capa de Repositorio para la entidad 'Factura de Compra' (Purchase Bill).
 
 Este módulo proporciona una interfaz de bajo nivel para interactuar directamente con la
-colección de facturas de compra ('purchase_invoices') en la base de datos MongoDB.
-Abstrae las operaciones CRUD y está diseñado para soportar opcionalmente sesiones
-transaccionales de MongoDB.
+colección de facturas de compra ('purchase_bills') en la base de datos MongoDB.
 """
 
 # ==============================================================================
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
-from motor.motor_asyncio import AsyncIOMotorDatabase, AsyncIOMotorClientSession
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
+
 from bson import ObjectId
 from bson.errors import InvalidId
+from motor.motor_asyncio import AsyncIOMotorClientSession, AsyncIOMotorDatabase
+
+from app.repositories.base_repository import BaseRepository
+from app.modules.purchasing.purchase_bill_models import PurchaseBillInDB
 
 # ==============================================================================
-# SECCIÓN 2: CLASE DEL REPOSITORIO
+# SECCIÓN 2: DEFINICIÓN DE LA CLASE DEL REPOSITORIO
 # ==============================================================================
 
-class PurchaseBillRepository:
+class PurchaseBillRepository(BaseRepository[PurchaseBillInDB]):
     """
-    Gestiona todas las operaciones de base de datos para la colección de facturas de compra.
+    Gestiona las operaciones de base de datos para la colección 'purchase_bills'.
+
+    Hereda la funcionalidad CRUD de BaseRepository y puede ser extendida con
+    métodos de consulta específicos para las facturas de compra si es necesario.
     """
 
-    def __init__(self, db: AsyncIOMotorDatabase):
+    def __init__(self, database: AsyncIOMotorDatabase):
         """
-        Inicializa el repositorio con una instancia de la base de datos.
-        """
-        # CORRECCIÓN SEMÁNTICA: Se renombra la colección para reflejar su rol financiero.
-        self.collection = db.purchase_invoices
+        Inicializa el repositorio de facturas de compra.
 
-    async def insert_one(self, bill_doc: Dict[str, Any], session: Optional[AsyncIOMotorClientSession] = None) -> ObjectId:
+        Args:
+            database: Una instancia de AsyncIOMotorDatabase para la conexión.
         """
-        Inserta un nuevo documento de factura de compra en la colección.
-        """
-        result = await self.collection.insert_one(bill_doc, session=session)
-        return result.inserted_id
+        super().__init__(
+            database,
+            collection_name="purchase_bills",
+            model=PurchaseBillInDB
+        )
 
-    async def find_by_id(self, bill_id: str, session: Optional[AsyncIOMotorClientSession] = None) -> Optional[Dict[str, Any]]:
+    async def find_all_by_purchase_order_id(
+        self,
+        purchase_order_id: str,
+        session: Optional[AsyncIOMotorClientSession] = None
+    ) -> List[Dict[str, Any]]:
         """
-        Busca una única factura de compra por su ObjectId de MongoDB.
-        """
-        try:
-            return await self.collection.find_one({"_id": ObjectId(bill_id)}, session=session)
-        except InvalidId:
-            return None
+        Encuentra todas las facturas de compra asociadas a una orden de compra.
 
-    async def find_one_sorted(self, sort_options: List, session: Optional[AsyncIOMotorClientSession] = None) -> Optional[Dict[str, Any]]:
-        """
-        Encuentra el primer documento de la colección según un criterio de ordenamiento.
-        """
-        return await self.collection.find_one(sort=sort_options, session=session)
+        Args:
+            purchase_order_id: El ID (en formato string) de la orden de compra.
+            session: Una sesión de cliente de Motor opcional.
 
-    async def find_all_by_purchase_order_id(self, purchase_order_id: str, session: Optional[AsyncIOMotorClientSession] = None) -> List[Dict[str, Any]]:
-        """
-        Encuentra todas las facturas de compra asociadas a una orden de compra específica.
+        Returns:
+            Una lista de diccionarios, cada uno representando una factura.
         """
         try:
             object_id = ObjectId(purchase_order_id)
@@ -66,27 +66,3 @@ class PurchaseBillRepository:
             return await cursor.to_list(length=None)
         except InvalidId:
             return []
-
-    async def count_documents(self, query: Dict[str, Any], session: Optional[AsyncIOMotorClientSession] = None) -> int:
-        """
-        Cuenta el número total de documentos que coinciden con una consulta.
-        """
-        return await self.collection.count_documents(query, session=session)
-
-    async def find_all_paginated(
-        self,
-        query: Dict[str, Any],
-        skip: int,
-        limit: int,
-        sort_options: Optional[List] = None,
-        session: Optional[AsyncIOMotorClientSession] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Encuentra múltiples documentos con paginación y ordenamiento.
-        """
-        cursor = self.collection.find(query, session=session)
-        if sort_options:
-            cursor = cursor.sort(sort_options)
-        
-        cursor = cursor.skip(skip).limit(limit)
-        return await cursor.to_list(length=limit)

@@ -24,16 +24,15 @@ from motor.motor_asyncio import AsyncIOMotorClientSession, AsyncIOMotorDatabase
 from pymongo import ASCENDING
 
 # --- Importaciones de la Aplicación ---
-# --- CORRECCIÓN ---
-# Se actualizan las importaciones para que apunten a los nuevos archivos de modelos
-# de alta cohesión: uno para lotes y otro para productos.
-from .inventory_lot_models import (
+# Modelos
+# --- CORRECCIÓN ARQUITECTÓNICA ---
+# Se elimina la dependencia directa del módulo de compras.
+# Ahora se define un modelo de entrada genérico para desacoplar los servicios.
+from .inventory_models import (
     InventoryLotInDB,
     InventoryLotOut,
     StockEntryItem
 )
-# (product_models no es necesario directamente en este servicio, pero sí en los repositorios)
-
 # Repositorios
 from .repositories.inventory_lot_repository import InventoryLotRepository
 from .repositories.product_repository import ProductRepository

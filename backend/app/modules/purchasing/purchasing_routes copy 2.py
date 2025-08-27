@@ -27,6 +27,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.dependencies.roles import role_checker
+from app.models.shared import PyObjectId
 from app.modules.auth.dependencies import get_current_active_user
 from app.modules.purchasing import (
     goods_receipt_service,
@@ -34,22 +35,15 @@ from app.modules.purchasing import (
     purchase_order_service
 )
 from app.modules.users.user_models import UserOut, UserRole
-# --- CORRECCIÓN ---
-# Se actualizan las importaciones para obtener cada modelo desde su archivo
-# específico, completando la refactorización para una máxima cohesión.
-from .purchase_order_models import (
+from .purchasing_models import (
+    GoodsReceiptCreate,
+    GoodsReceiptOut,
+    PurchaseBillCreate,
+    PurchaseBillOut,
     PurchaseOrderCreate,
     PurchaseOrderOut,
     PurchaseOrderStatus,
     PurchaseOrderUpdate
-)
-from .goods_receipt_models import (
-    GoodsReceiptCreate,
-    GoodsReceiptOut
-)
-from .purchase_bill_models import (
-    PurchaseBillCreate,
-    PurchaseBillOut
 )
 
 # ==============================================================================

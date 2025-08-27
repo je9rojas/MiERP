@@ -1,4 +1,4 @@
-// /frontend/src/features/purchasing/components/PurchaseOrderForm.js
+// File: /frontend/src/features/purchasing/components/PurchaseOrderForm.js
 
 /**
  * @file Componente reutilizable y profesional para el formulario de Órdenes de Compra.
@@ -41,7 +41,6 @@ const OrderHeader = ({ values, errors, touched, setFieldValue, suppliersOptions,
                     getOptionLabel={(option) => option?.business_name ? `${option.business_name} (RUC: ${option.tax_id})` : ""}
                     onChange={(_, newValue) => setFieldValue('supplier', newValue)}
                     readOnly={isReadOnly}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
                     renderInput={(params) => (
                         <MuiTextField
                             {...params}
@@ -88,10 +87,9 @@ const OrderItemsArray = ({ values, setFieldValue, productsOptions, isReadOnly })
                                         getOptionLabel={(option) => option?.sku ? `[${option.sku}] ${option.name}` : ""}
                                         onChange={(_, newValue) => {
                                             setFieldValue(`items.${index}.product`, newValue);
-                                            setFieldValue(`items.${index}.unit_cost`, newValue?.price || 0);
+                                            setFieldValue(`items.${index}.unit_cost`, newValue?.average_cost || 0);
                                         }}
                                         readOnly={isReadOnly}
-                                        isOptionEqualToValue={(option, value) => option.id === value.id}
                                         renderInput={(params) => <MuiTextField {...params} name={`items.${index}.product`} label="Producto" required />}
                                     />
                                 </Grid>
@@ -134,29 +132,15 @@ const PurchaseOrderForm = ({ initialData = null, onSubmit, isSubmitting, supplie
         if (!isEditMode) {
             return defaults;
         }
-        
-        // --- CORRECCIÓN DEFINITIVA ---
-        // Se mapean los datos de la API a la estructura que el estado del formulario espera.
-        // La API devuelve los detalles del producto al mismo nivel que 'product_id',
-        // pero el Autocomplete necesita un objeto anidado en una propiedad 'product'.
-        const mappedItems = initialData.items.map(apiItem => ({
-            quantity_ordered: apiItem.quantity_ordered,
-            unit_cost: apiItem.unit_cost,
-            // Creamos el objeto 'product' anidado que el Autocomplete necesita.
-            product: {
-                id: apiItem.product_id, // Aseguramos que el id esté presente
-                sku: apiItem.sku,
-                name: apiItem.name
-                // Se pueden añadir más propiedades del producto aquí si son necesarias
-            }
-        }));
 
         return {
             ...defaults,
             ...initialData,
             order_date: parseDate(initialData.order_date) || new Date(),
             expected_delivery_date: parseDate(initialData.expected_delivery_date),
-            items: mappedItems, // Usamos los ítems mapeados
+            // El `initialData` ahora se asume que llega con el objeto `supplier` completo
+            // y con los `items` ya conteniendo los objetos `product` completos.
+            // Esto elimina la necesidad de búsquedas `.find()` en el frontend.
         };
     }, [initialData, isEditMode]);
 

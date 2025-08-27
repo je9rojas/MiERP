@@ -11,19 +11,15 @@ transferencias, ajustes y otras operaciones que afectan directamente al stock.
 # SECCIÓN 1: IMPORTACIONES
 # ==============================================================================
 
-from typing import List
-
 from fastapi import APIRouter, Depends, Query
+from typing import List
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.core.database import get_db
 from app.dependencies.roles import role_checker
-from app.modules.users.user_models import UserOut, UserRole
+from app.modules.users.user_models import UserRole, UserOut
 from . import inventory_service
-# --- CORRECCIÓN ---
-# Se actualiza la importación para apuntar al nuevo módulo 'inventory_lot_models',
-# que ahora contiene los modelos de datos transaccionales del inventario.
-from .inventory_lot_models import InventoryLotOut
+from .inventory_models import InventoryLotOut
 
 # ==============================================================================
 # SECCIÓN 2: CONFIGURACIÓN DEL ROUTER
@@ -47,7 +43,7 @@ router = APIRouter(
 async def get_inventory_lots_for_product(
     product_id: str = Query(..., description="El ID del producto para el cual obtener los lotes."),
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _user: UserOut = Depends(role_checker([UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE]))
+    _user: UserOut = Depends(role_checker([UserRole.SUPERADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.WAREHOUSE]))
 ):
     """
     Endpoint para obtener la lista de lotes de un producto.
